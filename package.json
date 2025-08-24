@@ -33,7 +33,10 @@
     "react-native-screens": "^4.15.2",
     "react-native-url-polyfill": "^2.0.0",
     "tailwindcss": "^3.4.17",
-    "zustand": "^5.0.8"
+    "zustand": "^5.0.8",
+    "react-native-web": "~0.19.6",
+    "react-dom": "18.2.0",
+    "@expo/metro-runtime": "~5.0.4"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
