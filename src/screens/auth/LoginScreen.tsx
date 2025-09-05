@@ -7,7 +7,8 @@ import {
   Platform,
   ScrollView,
   TouchableOpacity,
-  Alert
+  Alert,
+  StyleSheet
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Logo } from '../../components/Logo';
@@ -30,12 +31,43 @@ export const LoginScreen = () => {
     setLoading(true);
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
+        // Primero intentamos el signup
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            data: {
+              full_name: email === 'lmg880@gmail.com' ? 'Luis Miguel González López' : email.split('@')[0]
+            },
+            emailRedirectTo: 'healing-forest://auth'
+          }
         });
-        if (error) throw error;
-        Alert.alert('Éxito', 'Revisa tu email para confirmar tu cuenta');
+        
+        if (error) {
+          // Si el usuario ya existe, cambiamos a login
+          if (error.message.includes('already registered')) {
+            setIsSignUp(false);
+            Alert.alert('Info', 'El usuario ya existe. Intenta iniciar sesión.');
+            setLoading(false);
+            return;
+          }
+          throw error;
+        }
+        
+        // Si todo salió bien, intentamos hacer login automático
+        if (data.user && !data.session) {
+          const { error: loginError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          
+          if (!loginError) {
+            // Login exitoso, no mostramos alerta
+            return;
+          }
+        }
+        
+        Alert.alert('Éxito', 'Cuenta creada exitosamente');
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,
@@ -51,32 +83,32 @@ export const LoginScreen = () => {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.ui.background }}>
+    <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
+        style={styles.keyboardView}
       >
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
+          contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          <View className="flex-1 px-6 justify-center">
-            <View className="mb-10">
+          <View style={styles.content}>
+            <View style={styles.logoContainer}>
               <Logo size="large" />
             </View>
 
-            <View className="mb-8">
-              <Text className="text-3xl font-bold text-center" style={{ color: Colors.primary.dark }}>
+            <View style={styles.headerContainer}>
+              <Text style={styles.title}>
                 {isSignUp ? 'Crear Cuenta' : 'Bienvenido'}
               </Text>
-              <Text className="text-base text-center mt-2" style={{ color: Colors.text.secondary }}>
+              <Text style={styles.subtitle}>
                 {isSignUp ? 'Únete a Healing Forest' : 'Inicia sesión para continuar'}
               </Text>
             </View>
 
-            <View className="space-y-4">
+            <View style={styles.formContainer}>
               <View>
-                <Text className="text-sm font-medium mb-2" style={{ color: Colors.text.primary }}>
+                <Text style={styles.label}>
                   Email
                 </Text>
                 <TextInput
@@ -86,17 +118,12 @@ export const LoginScreen = () => {
                   placeholderTextColor={Colors.text.light}
                   keyboardType="email-address"
                   autoCapitalize="none"
-                  className="px-4 py-3 rounded-xl"
-                  style={{
-                    backgroundColor: Colors.ui.surface,
-                    color: Colors.text.primary,
-                    fontSize: 16
-                  }}
+                  style={styles.input}
                 />
               </View>
 
               <View>
-                <Text className="text-sm font-medium mb-2" style={{ color: Colors.text.primary }}>
+                <Text style={styles.label}>
                   Contraseña
                 </Text>
                 <TextInput
@@ -105,17 +132,12 @@ export const LoginScreen = () => {
                   placeholder="••••••••"
                   placeholderTextColor={Colors.text.light}
                   secureTextEntry
-                  className="px-4 py-3 rounded-xl"
-                  style={{
-                    backgroundColor: Colors.ui.surface,
-                    color: Colors.text.primary,
-                    fontSize: 16
-                  }}
+                  style={styles.input}
                 />
               </View>
             </View>
 
-            <View className="mt-8">
+            <View style={styles.buttonContainer}>
               <Button
                 title={isSignUp ? 'Crear Cuenta' : 'Iniciar Sesión'}
                 onPress={handleAuth}
@@ -125,14 +147,28 @@ export const LoginScreen = () => {
             </View>
 
             <TouchableOpacity
-              className="mt-6"
+              style={styles.toggleContainer}
               onPress={() => setIsSignUp(!isSignUp)}
             >
-              <Text className="text-center" style={{ color: Colors.text.secondary }}>
+              <Text style={styles.toggleText}>
                 {isSignUp ? '¿Ya tienes cuenta? ' : '¿No tienes cuenta? '}
-                <Text style={{ color: Colors.primary.green, fontWeight: '600' }}>
+                <Text style={styles.toggleLink}>
                   {isSignUp ? 'Inicia Sesión' : 'Regístrate'}
                 </Text>
+              </Text>
+            </TouchableOpacity>
+
+            {/* Botón temporal para usuario de prueba */}
+            <TouchableOpacity
+              style={[styles.toggleContainer, { marginTop: 12 }]}
+              onPress={() => {
+                setEmail('lmg880@gmail.com');
+                setPassword('Florida20');
+                setIsSignUp(false);
+              }}
+            >
+              <Text style={[styles.toggleText, { fontSize: 12 }]}>
+                Usar cuenta de prueba
               </Text>
             </TouchableOpacity>
           </View>
@@ -141,3 +177,70 @@ export const LoginScreen = () => {
     </SafeAreaView>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.ui.background,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
+    justifyContent: 'center',
+  },
+  logoContainer: {
+    marginBottom: 40,
+  },
+  headerContainer: {
+    marginBottom: 32,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    color: Colors.primary.dark,
+  },
+  subtitle: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 8,
+    color: Colors.text.secondary,
+  },
+  formContainer: {
+    gap: 16,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 8,
+    color: Colors.text.primary,
+  },
+  input: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: Colors.ui.surface,
+    color: Colors.text.primary,
+    fontSize: 16,
+  },
+  buttonContainer: {
+    marginTop: 32,
+  },
+  toggleContainer: {
+    marginTop: 24,
+  },
+  toggleText: {
+    textAlign: 'center',
+    color: Colors.text.secondary,
+  },
+  toggleLink: {
+    color: Colors.primary.green,
+    fontWeight: '600',
+  },
+});

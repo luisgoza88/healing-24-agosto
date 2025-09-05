@@ -25,18 +25,6 @@ export const Button: React.FC<ButtonProps> = ({
   textStyle,
   color
 }) => {
-  const sizes = {
-    small: 'px-4 py-2',
-    medium: 'px-6 py-3',
-    large: 'px-8 py-4'
-  };
-
-  const textSizes = {
-    small: 'text-sm',
-    medium: 'text-base',
-    large: 'text-lg'
-  };
-
   const getVariantStyles = () => {
     const baseColor = color || Colors.primary.green;
     
@@ -63,17 +51,42 @@ export const Button: React.FC<ButtonProps> = ({
     }
   };
 
+  const sizeStyles = {
+    small: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      fontSize: 14,
+    },
+    medium: {
+      paddingHorizontal: 24,
+      paddingVertical: 12,
+      fontSize: 16,
+    },
+    large: {
+      paddingHorizontal: 32,
+      paddingVertical: 16,
+      fontSize: 18,
+    }
+  };
+
   const variantStyles = getVariantStyles();
+  const currentSize = sizeStyles[size];
 
   return (
     <TouchableOpacity
       onPress={onPress}
       disabled={disabled || loading}
       style={[
+        {
+          borderRadius: 50,
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingHorizontal: currentSize.paddingHorizontal,
+          paddingVertical: currentSize.paddingVertical,
+        },
         variantStyles.button,
         style
       ]}
-      className={`rounded-full items-center justify-center ${sizes[size]}`}
       activeOpacity={0.7}
     >
       {loading ? (
@@ -84,10 +97,13 @@ export const Button: React.FC<ButtonProps> = ({
       ) : (
         <Text 
           style={[
+            {
+              fontSize: currentSize.fontSize,
+              fontWeight: '600',
+            },
             variantStyles.text,
             textStyle
           ]}
-          className={`font-semibold ${textSizes[size]}`}
         >
           {title}
         </Text>

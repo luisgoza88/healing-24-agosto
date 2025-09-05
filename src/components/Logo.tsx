@@ -22,7 +22,7 @@ export const Logo: React.FC<LogoProps> = ({
   const currentSize = sizes[size];
 
   return (
-    <View className="items-center">
+    <View style={{ alignItems: 'center' }}>
       <View 
         style={{
           width: currentSize.circle,
@@ -45,7 +45,7 @@ export const Logo: React.FC<LogoProps> = ({
         </Text>
       </View>
       {showText && (
-        <View className="flex-row mt-2">
+        <View style={{ flexDirection: 'row', marginTop: 8 }}>
           <Text 
             style={{ 
               fontSize: currentSize.text * 0.8, 
