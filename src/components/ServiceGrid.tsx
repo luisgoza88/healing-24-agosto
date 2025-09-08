@@ -1,5 +1,7 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, Dimensions } from 'react-native';
+import { ServiceIcon } from './ServiceIcon';
+import { Colors } from '../constants/colors';
 
 const { width } = Dimensions.get('window');
 const CARD_MARGIN = 8;
@@ -20,16 +22,6 @@ interface ServiceGridProps {
 }
 
 export const ServiceGrid: React.FC<ServiceGridProps> = ({ services, onServicePress }) => {
-  const getServiceIcon = (serviceId: string) => {
-    const icons: { [key: string]: string } = {
-      'medicina-funcional': '🩺',
-      'medicina-estetica': '✨',
-      'medicina-regenerativa': '🧬',
-      'faciales': '🧖‍♀️',
-      'masajes': '💆‍♀️',
-    };
-    return icons[serviceId] || '🌿';
-  };
 
   const renderServiceCard = (service: Service, index: number) => {
     const isLeftCard = index % 2 === 0;
@@ -48,7 +40,14 @@ export const ServiceGrid: React.FC<ServiceGridProps> = ({ services, onServicePre
         activeOpacity={0.8}
         onPress={() => onServicePress?.(service)}
       >
-        <Text style={styles.serviceIcon}>{getServiceIcon(service.id)}</Text>
+        <View style={styles.iconContainer}>
+          <ServiceIcon 
+            serviceId={service.id} 
+            size={28} 
+            color="#FFFFFF"
+            backgroundColor="rgba(255,255,255,0.2)"
+          />
+        </View>
         <View style={styles.textContainer}>
           <Text style={styles.serviceName}>{service.name}</Text>
           <Text style={styles.serviceDescription} numberOfLines={2}>
@@ -78,14 +77,18 @@ const styles = StyleSheet.create({
   },
   serviceCard: {
     width: CARD_WIDTH,
-    padding: 14,
-    borderRadius: 12,
+    padding: 16,
+    borderRadius: 20,
     marginBottom: 16,
-    minHeight: 115,
+    minHeight: 125,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  serviceIcon: {
-    fontSize: 28,
-    marginBottom: 6,
+  iconContainer: {
+    marginBottom: 12,
   },
   textContainer: {
     flex: 1,

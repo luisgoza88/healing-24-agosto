@@ -9,6 +9,8 @@ import {
   Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors } from '../../constants/colors';
 import { SERVICES, HOT_STUDIO_CLASSES } from '../../constants/services';
 import { supabase } from '../../lib/supabase';
@@ -69,6 +71,15 @@ export const HomeScreen = ({ navigation }: any) => {
         Alert.alert('Error', 'Debes iniciar sesión para continuar');
         return;
       }
+
+      // Debug: verificar los datos antes de insertar
+      console.log('Datos a insertar:', {
+        service: currentService,
+        professional: bookingData.professional,
+        subService: selectedSubService,
+        date: bookingData.date,
+        time: bookingData.time
+      });
 
       // Crear la cita en Supabase
       // Combinar fecha y hora en un solo timestamp
@@ -216,26 +227,68 @@ export const HomeScreen = ({ navigation }: any) => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.topHeader}>
+        <View style={styles.logo}>
+          <Text style={styles.logoText}>HF</Text>
+        </View>
+        <Text style={styles.brandName}>Healing{'\n'}Forest</Text>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.langButton}>
+            <Text style={styles.langText}>ES</Text>
+            <Ionicons name="globe-outline" size={20} color={Colors.primary.dark} />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.notificationButton}
+            onPress={() => navigation.navigate('Notifications')}
+          >
+            <Ionicons name="notifications-outline" size={24} color={Colors.primary.dark} />
+            {unreadCount > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>{unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <View style={styles.headerLeft}>
-              <Text style={styles.greeting}>Hola, Luis Miguel 👋</Text>
-              <Text style={styles.subtitle}>¿Qué servicio te gustaría agendar hoy?</Text>
-            </View>
+        <View style={styles.welcomeSection}>
+          <Text style={styles.greeting}>¡Hola Luis!</Text>
+          <Text style={styles.subtitle}>Tu bienestar es nuestra prioridad</Text>
+          <View style={styles.quickActions}>
             <TouchableOpacity 
-              style={styles.notificationButton}
-              onPress={() => navigation.navigate('Notifications')}
+              style={styles.quickActionButton}
+              onPress={() => navigation.navigate('Appointments')}
             >
-              <Text style={styles.notificationIcon}>🔔</Text>
-              {unreadCount > 0 && (
-                <View style={styles.notificationBadge}>
-                  <Text style={styles.notificationBadgeText}>{unreadCount}</Text>
-                </View>
-              )}
+              <Ionicons name="calendar" size={24} color={Colors.secondary.green} />
+              <Text style={styles.quickActionText}>Citas</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.quickActionButton}
+              onPress={() => navigation.navigate('Messages')}
+            >
+              <Ionicons name="chatbubble" size={24} color={Colors.secondary.green} />
+              <Text style={styles.quickActionText}>Mensajes</Text>
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Breathe & Move Section */}
+        <TouchableOpacity 
+          style={styles.breatheAndMoveSection}
+          onPress={() => navigation.navigate('BreatheAndMove')}
+          activeOpacity={0.9}
+        >
+          <View style={styles.breatheAndMoveContent}>
+            <Text style={styles.breatheAndMoveBrand}>Breathe & Move</Text>
+            <TouchableOpacity 
+              style={styles.breatheAndMoveButton}
+              onPress={() => navigation.navigate('BreatheAndMove')}
+            >
+              <Text style={styles.breatheAndMoveButtonText}>Ver Clases</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Nuestros Servicios</Text>
@@ -245,41 +298,6 @@ export const HomeScreen = ({ navigation }: any) => {
           />
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Hot Studio</Text>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16 }}
-          >
-            {HOT_STUDIO_CLASSES.map((clase) => (
-              <TouchableOpacity
-                key={clase.id}
-                style={[styles.classCard, { backgroundColor: clase.color }]}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.classIcon}>
-                  {clase.id === 'yoga' ? '🧘‍♀️' : 
-                   clase.id === 'pilates' ? '🤸‍♀️' : 
-                   clase.id === 'breathwork' ? '🌬️' : '🎵'}
-                </Text>
-                <Text style={styles.className}>{clase.name}</Text>
-                <Text style={styles.classDescription} numberOfLines={2}>
-                  {clase.description}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        <View style={styles.logoutContainer}>
-          <Button
-            title="Cerrar Sesión"
-            onPress={handleLogout}
-            variant="outline"
-            color={Colors.ui.error}
-          />
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -290,36 +308,109 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.ui.background,
   },
-  header: {
-    padding: 24,
-  },
-  headerTop: {
+  topHeader: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    backgroundColor: Colors.ui.background,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.ui.border,
   },
-  headerLeft: {
+  logo: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: Colors.secondary.green,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  logoText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.primary.dark,
+  },
+  brandName: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: Colors.text.primary,
+    lineHeight: 24,
     flex: 1,
+    marginLeft: 12,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  langButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.ui.surface,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 4,
+  },
+  langText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.primary.dark,
+  },
+  welcomeSection: {
+    backgroundColor: Colors.primary.dark,
+    paddingTop: 24,
+    paddingHorizontal: 24,
+    paddingBottom: 32,
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
   },
   greeting: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: Colors.primary.dark,
+    fontWeight: '600',
+    color: Colors.text.inverse,
     marginBottom: 8,
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 16,
-    color: Colors.text.secondary,
+    color: Colors.text.inverse,
+    opacity: 0.8,
+    marginBottom: 24,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  quickActionButton: {
+    flex: 1,
+    backgroundColor: Colors.ui.background,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  quickActionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.text.primary,
   },
   section: {
     marginBottom: 32,
+    marginTop: 24,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '600',
-    color: Colors.primary.dark,
+    color: Colors.text.primary,
     marginBottom: 16,
     paddingHorizontal: 24,
+    letterSpacing: -0.3,
   },
   classCard: {
     width: 180,
@@ -329,8 +420,7 @@ const styles = StyleSheet.create({
     minHeight: 140,
     justifyContent: 'space-between',
   },
-  classIcon: {
-    fontSize: 32,
+  classIconContainer: {
     marginBottom: 8,
   },
   className: {
@@ -344,14 +434,10 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     opacity: 0.9,
   },
-  logoutContainer: {
-    padding: 24,
-    marginTop: 16,
-  },
   notificationButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: Colors.ui.surface,
     justifyContent: 'center',
     alignItems: 'center',
@@ -375,5 +461,46 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: 'bold',
+  },
+  breatheAndMoveSection: {
+    marginHorizontal: 24,
+    marginTop: 20,
+    marginBottom: 16,
+    backgroundColor: Colors.primary.dark,
+    borderRadius: 16,
+    height: 140,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  breatheAndMoveContent: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    justifyContent: 'space-between',
+  },
+  breatheAndMoveBrand: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  breatheAndMoveButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    alignSelf: 'flex-start',
+  },
+  breatheAndMoveButtonText: {
+    color: Colors.primary.dark,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

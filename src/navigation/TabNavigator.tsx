@@ -1,6 +1,7 @@
 import React from 'react';
-import { Text } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors } from '../constants/colors';
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
@@ -17,10 +18,11 @@ export const TabNavigator = () => {
         tabBarInactiveTintColor: Colors.text.light,
         tabBarStyle: {
           backgroundColor: Colors.ui.surface,
-          borderTopColor: Colors.ui.divider,
+          borderTopWidth: 0,
+          elevation: 0,
           paddingBottom: 5,
           paddingTop: 5,
-          height: 60,
+          height: 85,
         },
         headerShown: false,
       }}
@@ -29,9 +31,9 @@ export const TabNavigator = () => {
         name="Home"
         component={HomeScreen}
         options={{
-          tabBarLabel: 'Inicio',
-          tabBarIcon: ({ color, size }) => (
-            <Text style={{ fontSize: size, color }}>🏠</Text>
+          tabBarLabel: 'Home',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -39,9 +41,9 @@ export const TabNavigator = () => {
         name="Appointments"
         component={AppointmentsScreen}
         options={{
-          tabBarLabel: 'Citas',
-          tabBarIcon: ({ color, size }) => (
-            <Text style={{ fontSize: size, color }}>📅</Text>
+          tabBarLabel: 'Appointments',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -49,9 +51,9 @@ export const TabNavigator = () => {
         name="HotStudio"
         component={HotStudioScreen}
         options={{
-          tabBarLabel: 'Hot Studio',
-          tabBarIcon: ({ color, size }) => (
-            <Text style={{ fontSize: size, color }}>🧘‍♀️</Text>
+          tabBarLabel: 'Services',
+          tabBarIcon: ({ color, focused }) => (
+            <MaterialCommunityIcons name={focused ? 'spa' : 'spa-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -59,9 +61,9 @@ export const TabNavigator = () => {
         name="Profile"
         component={ProfileScreen}
         options={{
-          tabBarLabel: 'Perfil',
-          tabBarIcon: ({ color, size }) => (
-            <Text style={{ fontSize: size, color }}>👤</Text>
+          tabBarLabel: 'Profile',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'person' : 'person-outline'} size={24} color={color} />
           ),
         }}
       />

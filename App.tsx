@@ -22,6 +22,10 @@ import { MembershipPaymentScreen } from './src/screens/hotstudio/MembershipPayme
 import { MyMembershipScreen } from './src/screens/hotstudio/MyMembershipScreen';
 import { NotificationsScreen } from './src/screens/notifications/NotificationsScreen';
 import { TestNotificationsScreen } from './src/screens/test/TestNotificationsScreen';
+import { BreatheAndMoveScreen } from './src/screens/breatheandmove/BreatheAndMoveScreen';
+import { ClassScheduleScreen } from './src/screens/breatheandmove/ClassScheduleScreen';
+import { PackagesScreen } from './src/screens/breatheandmove/PackagesScreen';
+import { ScheduleScreen } from './src/screens/breatheandmove/ScheduleScreen';
 
 const Stack = createStackNavigator();
 
@@ -41,6 +45,10 @@ const MainNavigator = () => {
       <Stack.Screen name="MyMembership" component={MyMembershipScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="TestNotifications" component={TestNotificationsScreen} />
+      <Stack.Screen name="BreatheAndMove" component={BreatheAndMoveScreen} />
+      <Stack.Screen name="ClassSchedule" component={ClassScheduleScreen} />
+      <Stack.Screen name="Packages" component={PackagesScreen} />
+      <Stack.Screen name="Schedule" component={ScheduleScreen} />
     </Stack.Navigator>
   );
 };

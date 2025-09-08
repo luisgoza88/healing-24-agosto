@@ -1,7 +1,7 @@
 export const SERVICES = [
   {
     id: 'medicina-funcional',
-    name: 'Medicina Funcional',
+    name: 'Medicina Funcional 1',
     color: '#3E5444',
     icon: 'medical-bag',
     description: 'Consultas especializadas y péptidos',

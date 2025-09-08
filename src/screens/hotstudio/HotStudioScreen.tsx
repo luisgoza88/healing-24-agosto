@@ -10,6 +10,8 @@ import {
   RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
 import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
@@ -248,22 +250,62 @@ export const HotStudioScreen = ({ navigation }: any) => {
     return days;
   };
 
+  const getClassStyle = (className: string) => {
+    const classStyles: { [key: string]: { color: string, icon: string, iconComponent: any } } = {
+      'Yoga': { 
+        color: Colors.secondary.green, 
+        icon: 'yoga',
+        iconComponent: MaterialCommunityIcons
+      },
+      'Pilates': { 
+        color: Colors.secondary.grey, 
+        icon: 'human',
+        iconComponent: MaterialCommunityIcons
+      },
+      'Breathwork': { 
+        color: Colors.secondary.terracotta, 
+        icon: 'meditation',
+        iconComponent: MaterialCommunityIcons
+      },
+      'Sound Healing': { 
+        color: Colors.secondary.brown, 
+        icon: 'music-note',
+        iconComponent: MaterialCommunityIcons
+      },
+      'Breath & Sound': { 
+        color: Colors.secondary.brown, 
+        icon: 'music-note',
+        iconComponent: MaterialCommunityIcons
+      }
+    };
+    
+    return classStyles[className] || { 
+      color: Colors.primary.lightGray, 
+      icon: 'leaf',
+      iconComponent: MaterialCommunityIcons
+    };
+  };
+
   const renderClassCard = (classItem: Class) => {
     const isEnrolled = enrolledClasses.includes(classItem.id);
     const isFull = classItem.current_capacity >= classItem.max_capacity;
+    const classStyle = getClassStyle(classItem.class_type?.name || '');
+    const IconComponent = classStyle.iconComponent;
 
     return (
       <TouchableOpacity
         key={classItem.id}
         style={[
           styles.classCard,
-          { backgroundColor: classItem.class_type?.color || Colors.primary.green }
+          { backgroundColor: classStyle.color }
         ]}
         onPress={() => handleClassPress(classItem)}
         activeOpacity={0.8}
       >
         <View style={styles.classHeader}>
-          <Text style={styles.classIcon}>{classItem.class_type?.icon}</Text>
+          <View style={styles.classIconContainer}>
+            <IconComponent name={classStyle.icon} size={28} color="#FFFFFF" />
+          </View>
           <View style={styles.classInfo}>
             <Text style={styles.className}>{classItem.class_type?.name}</Text>
             <Text style={styles.classTime}>
@@ -272,6 +314,7 @@ export const HotStudioScreen = ({ navigation }: any) => {
           </View>
           {isEnrolled && (
             <View style={styles.enrolledBadge}>
+              <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
               <Text style={styles.enrolledText}>Inscrito</Text>
             </View>
           )}
@@ -356,7 +399,7 @@ export const HotStudioScreen = ({ navigation }: any) => {
         <View style={styles.content}>
           {classes.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>📅</Text>
+              <Ionicons name="calendar-outline" size={64} color={Colors.text.light} />
               <Text style={styles.emptyTitle}>
                 No hay clases programadas
               </Text>
@@ -367,7 +410,7 @@ export const HotStudioScreen = ({ navigation }: any) => {
             </View>
           ) : selectedDayClasses.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>🧘‍♀️</Text>
+              <MaterialCommunityIcons name="yoga" size={64} color={Colors.text.light} />
               <Text style={styles.emptyTitle}>
                 No hay clases programadas para este día
               </Text>

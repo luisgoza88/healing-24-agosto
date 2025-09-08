@@ -9,6 +9,9 @@ import {
   Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
 import { format } from 'date-fns';
@@ -170,7 +173,7 @@ export const ClassDetailScreen = ({ route, navigation }: any) => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backIcon}>‹</Text>
+          <Ionicons name="chevron-back" size={28} color={Colors.ui.success} />
           <Text style={styles.backText}>Atrás</Text>
         </TouchableOpacity>
       </View>
@@ -182,11 +185,21 @@ export const ClassDetailScreen = ({ route, navigation }: any) => {
             { backgroundColor: classDetail.class_type?.color || Colors.primary.green }
           ]}
         >
-          <Text style={styles.classIcon}>{classDetail.class_type?.icon}</Text>
+          <View style={styles.classIconContainer}>
+            {classDetail.class_type?.name === 'Yoga' && 
+              <MaterialCommunityIcons name="yoga" size={64} color="#FFFFFF" />}
+            {classDetail.class_type?.name === 'Pilates' && 
+              <MaterialCommunityIcons name="human" size={64} color="#FFFFFF" />}
+            {classDetail.class_type?.name === 'Breathwork' && 
+              <MaterialCommunityIcons name="meditation" size={64} color="#FFFFFF" />}
+            {classDetail.class_type?.name === 'Breath & Sound' && 
+              <MaterialCommunityIcons name="music-note" size={64} color="#FFFFFF" />}
+          </View>
           <Text style={styles.className}>{classDetail.class_type?.name}</Text>
           {enrollment && (
             <View style={styles.enrollmentBadge}>
-              <Text style={styles.enrollmentText}>✓ Inscrito</Text>
+              <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+              <Text style={styles.enrollmentText}>Inscrito</Text>
             </View>
           )}
         </View>
@@ -195,7 +208,7 @@ export const ClassDetailScreen = ({ route, navigation }: any) => {
           {/* Información de fecha y hora */}
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
-              <Text style={styles.infoIcon}>📅</Text>
+              <Ionicons name="calendar-outline" size={24} color={Colors.secondary.grey} />
               <View style={styles.infoContent}>
                 <Text style={styles.infoLabel}>Fecha</Text>
                 <Text style={styles.infoValue}>
@@ -206,7 +219,7 @@ export const ClassDetailScreen = ({ route, navigation }: any) => {
             </View>
             <View style={styles.infoDivider} />
             <View style={styles.infoRow}>
-              <Text style={styles.infoIcon}>⏰</Text>
+              <Ionicons name="time-outline" size={24} color={Colors.secondary.grey} />
               <View style={styles.infoContent}>
                 <Text style={styles.infoLabel}>Horario</Text>
                 <Text style={styles.infoValue}>
@@ -260,19 +273,19 @@ export const ClassDetailScreen = ({ route, navigation }: any) => {
           <View style={styles.whatToBringCard}>
             <Text style={styles.sectionTitle}>Qué traer</Text>
             <View style={styles.itemRow}>
-              <Text style={styles.itemIcon}>🧘‍♀️</Text>
+              <MaterialCommunityIcons name="yoga" size={20} color={Colors.secondary.grey} />
               <Text style={styles.itemText}>Mat de yoga</Text>
             </View>
             <View style={styles.itemRow}>
-              <Text style={styles.itemIcon}>💧</Text>
+              <MaterialCommunityIcons name="water-bottle" size={20} color={Colors.secondary.grey} />
               <Text style={styles.itemText}>Botella de agua</Text>
             </View>
             <View style={styles.itemRow}>
-              <Text style={styles.itemIcon}>🧖‍♀️</Text>
+              <MaterialCommunityIcons name="hand-wash-outline" size={20} color={Colors.secondary.grey} />
               <Text style={styles.itemText}>Toalla pequeña</Text>
             </View>
             <View style={styles.itemRow}>
-              <Text style={styles.itemIcon}>👕</Text>
+              <Ionicons name="shirt-outline" size={20} color={Colors.secondary.grey} />
               <Text style={styles.itemText}>Ropa cómoda</Text>
             </View>
           </View>
@@ -284,8 +297,9 @@ export const ClassDetailScreen = ({ route, navigation }: any) => {
                 style={styles.calendarButton}
                 onPress={addToCalendar}
               >
+                <Ionicons name="calendar-outline" size={20} color="#FFFFFF" />
                 <Text style={styles.calendarButtonText}>
-                  📅 Agregar al calendario
+                  Agregar al calendario
                 </Text>
               </TouchableOpacity>
 
@@ -331,22 +345,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  backIcon: {
-    fontSize: 28,
-    color: Colors.primary.green,
-    marginRight: 4,
-  },
   backText: {
     fontSize: 16,
-    color: Colors.primary.green,
+    color: Colors.ui.success,
     fontWeight: '500',
+    marginLeft: 4,
   },
   classHeader: {
     padding: 32,
     alignItems: 'center',
   },
-  classIcon: {
-    fontSize: 64,
+  classIconContainer: {
     marginBottom: 16,
   },
   className: {
@@ -361,6 +370,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   enrollmentText: {
     color: '#FFFFFF',
@@ -372,18 +384,19 @@ const styles = StyleSheet.create({
   },
   infoCard: {
     backgroundColor: Colors.ui.surface,
-    borderRadius: 12,
+    borderRadius: 20,
     padding: 20,
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  infoIcon: {
-    fontSize: 24,
-    marginRight: 16,
-    width: 32,
+    gap: 16,
   },
   infoContent: {
     flex: 1,
@@ -412,9 +425,14 @@ const styles = StyleSheet.create({
   },
   instructorCard: {
     backgroundColor: Colors.ui.surface,
-    borderRadius: 12,
+    borderRadius: 20,
     padding: 20,
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
   instructorInfo: {
     flexDirection: 'row',
@@ -450,9 +468,14 @@ const styles = StyleSheet.create({
   },
   participantsCard: {
     backgroundColor: Colors.ui.surface,
-    borderRadius: 12,
+    borderRadius: 20,
     padding: 20,
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
   participantsText: {
     fontSize: 16,
