@@ -196,6 +196,15 @@ export const BreatheAndMoveScreen = ({ navigation }: any) => {
               <Text style={styles.actionButtonText}>Ver paquetes</Text>
             </TouchableOpacity>
           </View>
+          
+          <TouchableOpacity 
+            style={styles.myPackagesButton}
+            onPress={() => navigation.navigate('MyPackages')}
+          >
+            <MaterialCommunityIcons name="package-variant" size={20} color={Colors.primary.dark} />
+            <Text style={styles.myPackagesText}>Mis paquetes</Text>
+            <Ionicons name="chevron-forward" size={20} color={Colors.primary.dark} />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.classesContainer}>
@@ -329,5 +338,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 8,
+  },
+  myPackagesButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: Colors.ui.border,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  myPackagesText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '500',
+    color: Colors.primary.dark,
+    marginLeft: 12,
   },
 });

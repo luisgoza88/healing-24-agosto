@@ -29,6 +29,8 @@ import { ScheduleScreen } from './src/screens/breatheandmove/ScheduleScreen';
 import { ClassEnrollmentScreen as BreatheAndMoveClassEnrollmentScreen } from './src/screens/breatheandmove/ClassEnrollmentScreen';
 import { BreatheAndMoveClassDetailScreen } from './src/screens/breatheandmove/ClassDetailScreen';
 import { ClassPaymentScreen } from './src/screens/breatheandmove/ClassPaymentScreen';
+import { PackagePaymentScreen } from './src/screens/breatheandmove/PackagePaymentScreen';
+import { MyPackagesScreen } from './src/screens/breatheandmove/MyPackagesScreen';
 
 const Stack = createStackNavigator();
 
@@ -55,6 +57,8 @@ const MainNavigator = () => {
       <Stack.Screen name="BreatheAndMoveClassEnrollment" component={BreatheAndMoveClassEnrollmentScreen} />
       <Stack.Screen name="BreatheAndMoveClassDetail" component={BreatheAndMoveClassDetailScreen} />
       <Stack.Screen name="ClassPayment" component={ClassPaymentScreen} />
+      <Stack.Screen name="PackagePayment" component={PackagePaymentScreen} />
+      <Stack.Screen name="MyPackages" component={MyPackagesScreen} />
     </Stack.Navigator>
   );
 };

@@ -25,7 +25,6 @@ export const PackagesScreen = ({ navigation }: any) => {
 
   const handlePackageSelect = (packageId: string) => {
     setSelectedPackage(packageId);
-    // Aquí navegarías a la pantalla de pago
     navigation.navigate('PackagePayment', { packageId });
   };
 

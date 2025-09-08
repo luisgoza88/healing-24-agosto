@@ -161,6 +161,11 @@ export const ClassEnrollmentScreen = ({ navigation, route }: any) => {
       if (enrollError) {
         if (enrollError.code === '23505') {
           Alert.alert('Aviso', 'Ya estás inscrito en esta clase');
+        } else if (enrollError.message?.includes('Solo puedes inscribirte a una clase por día')) {
+          Alert.alert(
+            'Límite de clases', 
+            'Solo puedes inscribirte a una clase por día. Ya tienes una clase reservada para este día.'
+          );
         } else {
           throw enrollError;
         }
