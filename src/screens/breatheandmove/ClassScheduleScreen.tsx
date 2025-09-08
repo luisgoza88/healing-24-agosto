@@ -46,53 +46,84 @@ export const ClassScheduleScreen = ({ navigation, route }: any) => {
     try {
       setLoading(true);
       
-      // Obtener las clases del horario local para este tipo de clase
-      const classesForType = getClassesByType(className);
+      // Primero intentamos cargar desde Supabase
+      const startDate = format(weekStart, 'yyyy-MM-dd');
+      const endDate = format(addDays(weekStart, 6), 'yyyy-MM-dd');
       
-      // Crear clases para la semana actual basándose en el horario
-      const weekClasses: Class[] = [];
-      
-      for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-        const currentDate = addDays(weekStart, dayOffset);
-        const dayOfWeek = getDay(currentDate);
+      const { data: supabaseClasses, error } = await supabase
+        .from('breathe_move_classes')
+        .select('*')
+        .eq('class_name', className)
+        .gte('class_date', startDate)
+        .lte('class_date', endDate)
+        .order('class_date', { ascending: true })
+        .order('start_time', { ascending: true });
+
+      if (!error && supabaseClasses && supabaseClasses.length > 0) {
+        // Si hay clases en Supabase, las usamos
+        setClasses(supabaseClasses);
         
-        // Filtrar las clases que corresponden a este día
-        const dayClasses = classesForType.filter(c => c.dayOfWeek === dayOfWeek);
-        
-        // Crear objetos de clase para cada horario
-        dayClasses.forEach(scheduleClass => {
-          // Calcular la hora de fin (50 minutos después)
-          const [hours, minutes] = scheduleClass.time.split(':').map(Number);
-          const endHours = minutes + 50 >= 60 ? hours + 1 : hours;
-          const endMinutes = (minutes + 50) % 60;
-          const endTime = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
+        // Cargar inscripciones del usuario
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: enrollments } = await supabase
+            .from('breathe_move_enrollments')
+            .select('class_id')
+            .eq('user_id', user.id)
+            .eq('status', 'confirmed');
           
-          weekClasses.push({
-            id: `${scheduleClass.id}-${format(currentDate, 'yyyy-MM-dd')}`,
-            className: scheduleClass.className,
-            instructor: scheduleClass.instructor,
-            time: scheduleClass.time,
-            class_date: format(currentDate, 'yyyy-MM-dd'),
-            start_time: scheduleClass.time,
-            end_time: endTime,
-            max_capacity: 12,
-            current_capacity: Math.floor(Math.random() * 8), // Simulación temporal
-            status: 'scheduled'
+          if (enrollments) {
+            setEnrolledClasses(enrollments.map(e => e.class_id));
+          }
+        }
+      } else {
+        // Si no hay clases en Supabase, creamos las clases localmente
+        const classesForType = getClassesByType(className);
+        const weekClasses: Class[] = [];
+        
+        for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+          const currentDate = addDays(weekStart, dayOffset);
+          const dayOfWeek = getDay(currentDate);
+          
+          // Filtrar las clases que corresponden a este día
+          const dayClasses = classesForType.filter(c => c.dayOfWeek === dayOfWeek);
+          
+          // Crear objetos de clase para cada horario
+          dayClasses.forEach(scheduleClass => {
+            // Calcular la hora de fin (50 minutos después)
+            const [hours, minutes] = scheduleClass.time.split(':').map(Number);
+            const endHours = minutes + 50 >= 60 ? hours + 1 : hours;
+            const endMinutes = (minutes + 50) % 60;
+            const endTime = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
+            
+            // Generar un ID único basado en los datos de la clase
+            const tempId = `temp_${className}_${format(currentDate, 'yyyy-MM-dd')}_${scheduleClass.time}`.replace(/[\s:]/g, '_');
+            
+            weekClasses.push({
+              id: tempId,
+              className: scheduleClass.className,
+              instructor: scheduleClass.instructor,
+              time: scheduleClass.time,
+              class_date: format(currentDate, 'yyyy-MM-dd'),
+              start_time: scheduleClass.time,
+              end_time: endTime,
+              max_capacity: 12,
+              current_capacity: Math.floor(Math.random() * 8),
+              status: 'scheduled'
+            });
           });
+        }
+        
+        // Ordenar por fecha y hora
+        weekClasses.sort((a, b) => {
+          const dateCompare = a.class_date.localeCompare(b.class_date);
+          if (dateCompare !== 0) return dateCompare;
+          return a.start_time.localeCompare(b.start_time);
         });
+        
+        setClasses(weekClasses);
+        setEnrolledClasses([]);
       }
-      
-      // Ordenar por fecha y hora
-      weekClasses.sort((a, b) => {
-        const dateCompare = a.class_date.localeCompare(b.class_date);
-        if (dateCompare !== 0) return dateCompare;
-        return a.start_time.localeCompare(b.start_time);
-      });
-      
-      setClasses(weekClasses);
-      
-      // Simular inscripciones del usuario
-      setEnrolledClasses([]);
       
     } catch (error) {
       console.error('Error loading classes:', error);
@@ -119,9 +150,9 @@ export const ClassScheduleScreen = ({ navigation, route }: any) => {
 
   const handleClassPress = (classItem: Class) => {
     if (enrolledClasses.includes(classItem.id)) {
-      navigation.navigate('ClassDetail', { classId: classItem.id });
+      navigation.navigate('BreatheAndMoveClassDetail', { classId: classItem.id });
     } else {
-      navigation.navigate('ClassEnrollment', { classId: classItem.id });
+      navigation.navigate('BreatheAndMoveClassEnrollment', { classId: classItem.id });
     }
   };
 
