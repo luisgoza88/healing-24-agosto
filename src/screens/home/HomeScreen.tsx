@@ -22,6 +22,7 @@ import { BookingCalendarScreen } from '../booking/BookingCalendarScreen';
 import { SelectProfessionalScreen } from '../booking/SelectProfessionalScreen';
 import { BookingConfirmationScreen } from '../booking/BookingConfirmationScreen';
 import { PaymentMethodScreen } from '../payment/PaymentMethodScreen';
+import { getRealServiceId } from '../../utils/serviceMapping';
 
 const { width } = Dimensions.get('window');
 
@@ -49,16 +50,16 @@ export const HomeScreen = ({ navigation }: any) => {
   const handleSubServicePress = (service: any, subService: any) => {
     setCurrentService(service);
     setSelectedSubService(subService);
-    setCurrentStep('calendar');
-  };
-
-  const handleDateTimeSelected = (date: string, time: string) => {
-    setBookingData({ ...bookingData, date, time });
     setCurrentStep('professional');
   };
 
   const handleProfessionalSelected = (professional: any) => {
     setBookingData({ ...bookingData, professional });
+    setCurrentStep('calendar');
+  };
+
+  const handleDateTimeSelected = (date: string, time: string) => {
+    setBookingData({ ...bookingData, date, time });
     setCurrentStep('confirmation');
   };
 
@@ -85,11 +86,14 @@ export const HomeScreen = ({ navigation }: any) => {
       // Combinar fecha y hora en un solo timestamp
       const appointmentDateTime = new Date(`${bookingData.date}T${bookingData.time}:00`);
       
+      // Obtener el ID real del servicio desde Supabase
+      const realServiceId = getRealServiceId(currentService.id);
+      
       const { data: appointment, error } = await supabase
         .from('appointments')
         .insert({
           user_id: user.id,
-          service_id: currentService.id,
+          service_id: realServiceId,
           professional_id: bookingData.professional.id,
           appointment_date: bookingData.date,
           appointment_time: bookingData.time + ':00',
@@ -126,15 +130,15 @@ export const HomeScreen = ({ navigation }: any) => {
 
   const handleBack = () => {
     switch (currentStep) {
-      case 'calendar':
+      case 'professional':
         setSelectedSubService(null);
         setCurrentStep('services');
         break;
-      case 'professional':
-        setCurrentStep('calendar');
+      case 'calendar':
+        setCurrentStep('professional');
         break;
       case 'confirmation':
-        setCurrentStep('professional');
+        setCurrentStep('calendar');
         break;
       case 'payment':
         setCurrentStep('confirmation');
@@ -164,26 +168,25 @@ export const HomeScreen = ({ navigation }: any) => {
   };
 
   // Renderizar según el paso actual del flujo de reserva
-  if (currentStep === 'calendar' && selectedSubService && currentService) {
-    return (
-      <BookingCalendarScreen
-        service={currentService}
-        subService={selectedSubService}
-        onBack={handleBack}
-        onNext={handleDateTimeSelected}
-      />
-    );
-  }
-
   if (currentStep === 'professional' && selectedSubService && currentService) {
     return (
       <SelectProfessionalScreen
         service={currentService}
         subService={selectedSubService}
-        date={bookingData.date}
-        time={bookingData.time}
         onBack={handleBack}
         onNext={handleProfessionalSelected}
+      />
+    );
+  }
+
+  if (currentStep === 'calendar' && selectedSubService && currentService && bookingData.professional) {
+    return (
+      <BookingCalendarScreen
+        service={currentService}
+        subService={selectedSubService}
+        professional={bookingData.professional}
+        onBack={handleBack}
+        onNext={handleDateTimeSelected}
       />
     );
   }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,13 +6,15 @@ import {
   TouchableOpacity,
   StyleSheet,
   Pressable,
-  Alert
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { Colors } from '../../constants/colors';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { supabase } from '../../lib/supabase';
 
 // Configurar español para el calendario
 LocaleConfig.locales['es'] = {
@@ -35,6 +37,7 @@ LocaleConfig.defaultLocale = 'es';
 interface BookingCalendarScreenProps {
   service: any;
   subService: any;
+  professional: any;
   onBack: () => void;
   onNext: (date: string, time: string) => void;
 }
@@ -42,11 +45,14 @@ interface BookingCalendarScreenProps {
 export const BookingCalendarScreen: React.FC<BookingCalendarScreenProps> = ({
   service,
   subService,
+  professional,
   onBack,
   onNext
 }) => {
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
+  const [busySlots, setBusySlots] = useState<Array<{start_time: string, end_time: string}>>([]);
+  const [loading, setLoading] = useState(false);
   
   // Obtener fecha actual para establecer el mínimo
   const today = new Date();
@@ -61,18 +67,16 @@ export const BookingCalendarScreen: React.FC<BookingCalendarScreenProps> = ({
   const generateTimeSlots = () => {
     const slots = [];
     const startHour = 9; // 9 AM
-    const endHour = 19; // 7 PM
+    const endHour = 19.25; // 7:15 PM
     const duration = subService.duration; // en minutos
     
-    // Calcular el último horario posible para que termine antes de las 7 PM
-    const lastPossibleStart = endHour - (duration / 60);
-    
-    for (let hour = startHour; hour <= lastPossibleStart; hour += 0.5) {
+    // Generar slots cada 30 minutos
+    for (let hour = startHour; hour < endHour; hour += 0.5) {
       const h = Math.floor(hour);
       const m = (hour % 1) * 60;
       const timeString = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
       
-      // Verificar que la cita termine antes de las 7 PM
+      // Verificar que la cita termine antes o a las 7 PM
       const endTime = hour + (duration / 60);
       if (endTime <= endHour) {
         slots.push(timeString);
@@ -84,9 +88,56 @@ export const BookingCalendarScreen: React.FC<BookingCalendarScreenProps> = ({
 
   const timeSlots = generateTimeSlots();
 
+  // Cargar horarios ocupados cuando se selecciona una fecha
+  useEffect(() => {
+    if (selectedDate && professional?.id) {
+      loadBusySlots();
+    }
+  }, [selectedDate, professional?.id]);
+
+  const loadBusySlots = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .rpc('get_professional_busy_slots', {
+          p_professional_id: professional.id,
+          p_date: selectedDate
+        });
+
+      if (error) {
+        console.error('Error loading busy slots:', error);
+        return;
+      }
+
+      setBusySlots(data || []);
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Verificar si un horario está ocupado
+  const isTimeSlotBusy = (time: string) => {
+    const [hours, minutes] = time.split(':').map(Number);
+    const slotStart = hours * 60 + minutes;
+    const slotEnd = slotStart + subService.duration;
+
+    return busySlots.some(busy => {
+      const [busyStartHours, busyStartMinutes] = busy.start_time.split(':').map(Number);
+      const [busyEndHours, busyEndMinutes] = busy.end_time.split(':').map(Number);
+      const busyStart = busyStartHours * 60 + busyStartMinutes;
+      const busyEnd = busyEndHours * 60 + busyEndMinutes;
+
+      // Verificar si hay solapamiento
+      return (slotStart < busyEnd && slotEnd > busyStart);
+    });
+  };
+
   const handleDateSelect = (date: any) => {
     setSelectedDate(date.dateString);
     setSelectedTime(''); // Reset time when date changes
+    setBusySlots([]); // Reset busy slots
   };
 
   const handleTimeSelect = (time: string) => {
@@ -111,20 +162,6 @@ export const BookingCalendarScreen: React.FC<BookingCalendarScreenProps> = ({
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.serviceInfo}>
-          <Text style={styles.serviceName}>{subService.name}</Text>
-          <View style={styles.serviceDetails}>
-            <View style={styles.detailItem}>
-              <MaterialCommunityIcons name="clock-outline" size={16} color={Colors.text.secondary} />
-              <Text style={styles.detailText}>{subService.duration} minutos</Text>
-            </View>
-            <View style={styles.detailItem}>
-              <MaterialCommunityIcons name="cash" size={16} color={Colors.text.secondary} />
-              <Text style={styles.detailText}>${subService.price.toLocaleString('es-CO')}</Text>
-            </View>
-          </View>
-        </View>
-
         <View style={styles.calendarSection}>
           <Text style={styles.sectionTitle}>Selecciona una fecha</Text>
           <Calendar
@@ -167,35 +204,38 @@ export const BookingCalendarScreen: React.FC<BookingCalendarScreenProps> = ({
         {selectedDate && (
           <View style={styles.timeSection}>
             <Text style={styles.sectionTitle}>Selecciona una hora</Text>
-            <Text style={styles.dateSelected}>
-              {new Date(selectedDate + 'T12:00:00').toLocaleDateString('es-CO', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-              })}
-            </Text>
-            <View style={styles.timeGrid}>
-              {timeSlots.map((time) => (
-                <TouchableOpacity
-                  key={time}
-                  style={[
-                    styles.timeSlot,
-                    selectedTime === time && styles.timeSlotSelected
-                  ]}
-                  onPress={() => handleTimeSelect(time)}
-                >
-                  <Text
-                    style={[
-                      styles.timeText,
-                      selectedTime === time && styles.timeTextSelected
-                    ]}
-                  >
-                    {time}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            {loading ? (
+              <ActivityIndicator size="large" color={Colors.primary.dark} style={styles.loader} />
+            ) : (
+              <View style={styles.timeGrid}>
+                {timeSlots.map((time) => {
+                  const isBusy = isTimeSlotBusy(time);
+                  return (
+                    <View key={time} style={styles.timeSlotWrapper}>
+                      <TouchableOpacity
+                        style={[
+                          styles.timeSlot,
+                          selectedTime === time && styles.timeSlotSelected,
+                          isBusy && styles.timeSlotBusy
+                        ]}
+                        onPress={() => !isBusy && handleTimeSelect(time)}
+                        disabled={isBusy}
+                      >
+                        <Text
+                          style={[
+                            styles.timeText,
+                            selectedTime === time && styles.timeTextSelected,
+                            isBusy && styles.timeTextBusy
+                          ]}
+                        >
+                          {time}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
           </View>
         )}
 
@@ -249,29 +289,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginLeft: 8,
   },
-  serviceInfo: {
-    paddingHorizontal: 24,
-    paddingBottom: 20,
-  },
-  serviceName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: Colors.primary.dark,
-    marginBottom: 8,
-  },
-  serviceDetails: {
-    flexDirection: 'row',
-    gap: 20,
-  },
-  detailItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  detailText: {
-    fontSize: 16,
-    color: Colors.text.secondary,
-  },
   calendarSection: {
     paddingHorizontal: 16,
     paddingBottom: 20,
@@ -287,24 +304,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 20,
   },
-  dateSelected: {
-    fontSize: 16,
-    color: Colors.text.secondary,
-    marginBottom: 16,
-    textTransform: 'capitalize',
-  },
   timeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+  },
+  timeSlotWrapper: {
+    width: '25%',
+    paddingHorizontal: 6,
+    marginBottom: 12,
   },
   timeSlot: {
     paddingVertical: 12,
-    paddingHorizontal: 20,
     borderRadius: 8,
     backgroundColor: Colors.ui.surface,
     borderWidth: 1,
     borderColor: Colors.ui.surface,
+    alignItems: 'center',
   },
   timeSlotSelected: {
     backgroundColor: Colors.primary.dark,
@@ -317,6 +332,18 @@ const styles = StyleSheet.create({
   timeTextSelected: {
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+  timeSlotBusy: {
+    backgroundColor: Colors.ui.border,
+    borderColor: Colors.ui.border,
+    opacity: 0.7,
+  },
+  timeTextBusy: {
+    color: Colors.text.light,
+    opacity: 0.8,
+  },
+  loader: {
+    marginVertical: 20,
   },
   confirmSection: {
     paddingHorizontal: 24,

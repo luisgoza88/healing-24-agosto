@@ -25,8 +25,6 @@ interface Professional {
 interface SelectProfessionalScreenProps {
   service: any;
   subService: any;
-  date: string;
-  time: string;
   onBack: () => void;
   onNext: (professional: Professional) => void;
 }
@@ -34,8 +32,6 @@ interface SelectProfessionalScreenProps {
 export const SelectProfessionalScreen: React.FC<SelectProfessionalScreenProps> = ({
   service,
   subService,
-  date,
-  time,
   onBack,
   onNext
 }) => {
@@ -49,22 +45,39 @@ export const SelectProfessionalScreen: React.FC<SelectProfessionalScreenProps> =
 
   const loadProfessionals = async () => {
     try {
-      // Por ahora usamos datos de ejemplo
-      // TODO: Cargar desde Supabase según el tipo de servicio
-      const mockProfessionals: Professional[] = [
-        {
-          id: '1',
-          name: 'Dra. Estefanía González',
+      setLoading(true);
+      
+      // Cargar profesionales desde Supabase
+      const { data: professionalsData, error } = await supabase
+        .from('professionals')
+        .select('*')
+        .eq('active', true)
+        .order('full_name');
+
+      if (error) {
+        console.error('Error loading professionals:', error);
+        // Si hay error, usar datos de respaldo
+        const fallbackProfessional: Professional = {
+          id: '41c11692-012f-4e78-9276-abf80b20e0b9', // UUID real de la BD
+          name: 'Estefanía González',
           specialties: ['Medicina Funcional', 'Medicina Integrativa', 'Medicina Estética'],
           bio: 'Especialista en medicina funcional e integrativa con enfoque holístico',
           avatar: 'doctor'
-        }
-      ];
-
-      // Por ahora mostrar la única profesional disponible para todos los servicios
-      const filtered = mockProfessionals;
-
-      setProfessionals(filtered);
+        };
+        setProfessionals([fallbackProfessional]);
+      } else {
+        // Mapear los datos de Supabase al formato esperado
+        const mappedProfessionals = professionalsData?.map(prof => ({
+          id: prof.id,
+          name: prof.full_name,
+          specialties: prof.specialties || [],
+          bio: prof.bio || 'Profesional certificado',
+          avatar: prof.avatar_url || 'doctor'
+        })) || [];
+        
+        setProfessionals(mappedProfessionals);
+      }
+      
       setLoading(false);
     } catch (error) {
       console.error('Error loading professionals:', error);
@@ -98,16 +111,6 @@ export const SelectProfessionalScreen: React.FC<SelectProfessionalScreenProps> =
             Elige quién te atenderá para {subService.name}
           </Text>
 
-          <View style={styles.appointmentInfo}>
-            <View style={styles.infoItem}>
-              <MaterialCommunityIcons name="calendar" size={16} color={Colors.text.secondary} />
-              <Text style={styles.infoText}>{date}</Text>
-            </View>
-            <View style={styles.infoItem}>
-              <MaterialCommunityIcons name="clock-outline" size={16} color={Colors.text.secondary} />
-              <Text style={styles.infoText}>{time}</Text>
-            </View>
-          </View>
 
           <View style={styles.professionalsContainer}>
             {professionals.map((professional) => (
@@ -192,20 +195,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.text.secondary,
     marginBottom: 20,
-  },
-  appointmentInfo: {
-    flexDirection: 'row',
-    gap: 20,
-    marginBottom: 24,
-  },
-  infoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  infoText: {
-    fontSize: 16,
-    color: Colors.text.secondary,
   },
   professionalsContainer: {
     marginBottom: 24,

@@ -14,6 +14,9 @@ import { seedTestAppointments, clearUserAppointments } from '../../utils/seedTes
 import { supabase } from '../../lib/supabase';
 import { createTestBreatheMovePackage } from '../../utils/testPayment';
 import { checkBreatheMoveCitas } from '../../utils/checkBreatheMoveCitas';
+import { testSupabasePermissions, formatTestResults } from '../../utils/testSupabasePermissions';
+import { seedBreatheMoveClasses } from '../../utils/seedBreatheMoveClasses';
+import { forceSeedClasses } from '../../utils/forceSeedClasses';
 
 export const DevToolsScreen = ({ navigation }: any) => {
   const [loading, setLoading] = useState(false);
@@ -570,6 +573,52 @@ ${membershipsError ? `\n❌ Memberships Error: ${membershipsError.message}` : ''
     }
   };
 
+  const testRLSPermissions = async () => {
+    try {
+      setLoading(true);
+      
+      console.log('=== RUNNING COMPREHENSIVE RLS PERMISSIONS TEST ===');
+      
+      const results = await testSupabasePermissions();
+      
+      if (results.error) {
+        Alert.alert('Error', results.error);
+        return;
+      }
+      
+      const formattedResults = formatTestResults(results);
+      console.log(formattedResults);
+      
+      // Create a shorter summary for the alert
+      const alertSummary = results.results.map((r: any) => 
+        `${r.success ? '✅' : '❌'} ${r.table} - ${r.operation}`
+      ).join('\n');
+      
+      Alert.alert(
+        `Permission Test Results (${results.summary.passed}/${results.summary.total} passed)`,
+        alertSummary + '\n\nCheck console for detailed results.',
+        [
+          {
+            text: 'Ver Detalles',
+            onPress: () => {
+              Alert.alert(
+                'Detailed Results',
+                formattedResults.substring(0, 500) + '...\n\n(Full results in console)'
+              );
+            }
+          },
+          { text: 'OK' }
+        ]
+      );
+      
+    } catch (error) {
+      console.error('Permission test error:', error);
+      Alert.alert('Error', 'Failed to run permission tests');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const testCreateAppointment = async () => {
     try {
       setLoading(true);
@@ -713,6 +762,48 @@ ${membershipsError ? `\n❌ Memberships Error: ${membershipsError.message}` : ''
     }
   };
 
+  const seedBreatheMoveClassesHandler = async () => {
+    Alert.alert(
+      'Cargar Clases de Breathe & Move',
+      '¿Deseas cargar las clases de Breathe & Move para los próximos 7 días en la base de datos?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Cargar',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              const result = await seedBreatheMoveClasses();
+              
+              if (result.success) {
+                Alert.alert(
+                  'Éxito',
+                  result.message,
+                  [
+                    {
+                      text: 'OK',
+                      onPress: () => {
+                        // Refrescar la pantalla o navegar
+                        console.log('Classes seeded successfully');
+                      }
+                    }
+                  ]
+                );
+              } else {
+                Alert.alert('Error', result.message);
+              }
+            } catch (error) {
+              Alert.alert('Error', 'No se pudieron cargar las clases');
+              console.error('Seed error:', error);
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -769,6 +860,54 @@ ${membershipsError ? `\n❌ Memberships Error: ${membershipsError.message}` : ''
           
           <TouchableOpacity
             style={[styles.button, styles.primaryButton]}
+            onPress={seedBreatheMoveClassesHandler}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>🏃 Cargar clases de Breathe & Move</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: '#F59E0B' }]}
+            onPress={async () => {
+              try {
+                setLoading(true);
+                const result = await forceSeedClasses();
+                Alert.alert('Éxito', 'Clases regeneradas correctamente');
+              } catch (error) {
+                Alert.alert('Error', 'No se pudieron regenerar las clases');
+              } finally {
+                setLoading(false);
+              }
+            }}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>🔄 Forzar regeneración de clases</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: '#7C3AED' }]}
+            onPress={() => {
+              Alert.alert(
+                'Fix RLS para Breathe & Move',
+                'Ejecuta este SQL en Supabase:\n\n' +
+                '-- Allow authenticated users to insert\n' +
+                'DROP POLICY IF EXISTS "Authenticated users can insert classes" ON breathe_move_classes;\n' +
+                'CREATE POLICY "Authenticated users can insert classes" ON breathe_move_classes FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);\n\n' +
+                '-- Allow authenticated users to delete\n' +
+                'CREATE POLICY "Authenticated users can delete classes" ON breathe_move_classes FOR DELETE USING (auth.uid() IS NOT NULL);',
+                [
+                  { text: 'Copiar SQL', onPress: () => console.log('SQL copiado') },
+                  { text: 'OK' }
+                ]
+              );
+            }}
+            disabled={loading}
+          >
+            <Text style={[styles.buttonText, { color: '#FFFFFF' }]}>🔐 Ver SQL para Fix RLS B&M</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.button, styles.primaryButton]}
             onPress={handleRunMigration}
             disabled={loading}
           >
@@ -805,6 +944,14 @@ ${membershipsError ? `\n❌ Memberships Error: ${membershipsError.message}` : ''
             disabled={loading}
           >
             <Text style={styles.buttonText}>🧪 Probar crear una cita</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: '#DC2626' }]}
+            onPress={testRLSPermissions}
+            disabled={loading}
+          >
+            <Text style={[styles.buttonText, { color: '#FFFFFF' }]}>🔐 Test RLS Permissions (DELETE/UPDATE)</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

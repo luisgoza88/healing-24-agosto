@@ -16,6 +16,7 @@ import { paymentService, PaymentData } from '../../services/paymentService';
 import { supabase } from '../../lib/supabase';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { processMockPayment } from '../../utils/mockPayment';
 
 interface PaymentMethodScreenProps {
   service: any;
@@ -39,10 +40,10 @@ interface PaymentMethod {
 const PAYMENT_METHODS: PaymentMethod[] = [
   {
     id: 'test_payment',
-    name: 'Pago de Prueba',
-    icon: 'flask',
-    iconFamily: 'MaterialCommunityIcons',
-    description: 'Simula el pago para pruebas (temporal)'
+    name: '🧪 Pago de Prueba',
+    icon: 'flask-outline',
+    iconFamily: 'Ionicons',
+    description: 'Simula un pago exitoso (solo para desarrollo)'
   },
   {
     id: 'nequi',
@@ -105,6 +106,22 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
       // Obtener datos del usuario
       const { data: { user } } = await supabase.auth.getUser();
       
+      if (!user) {
+        Alert.alert('Error', 'Debes iniciar sesión para continuar');
+        setProcessing(false);
+        return;
+      }
+
+      // Verificar que el appointmentId sea válido
+      if (!appointmentId || appointmentId === '1' || appointmentId.length < 10) {
+        console.error('Invalid appointmentId:', appointmentId);
+        Alert.alert('Error', 'ID de cita inválido. Por favor intenta nuevamente.');
+        setProcessing(false);
+        return;
+      }
+
+      console.log('Processing payment for appointment:', appointmentId);
+
       const paymentData: PaymentData = {
         appointmentId,
         amount: subService.price,
@@ -114,12 +131,20 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
         userPhone: user?.phone
       };
 
-      // Si es pago de prueba, procesamiento instantáneo
+      // Si es pago de prueba, usar el sistema mock
       if (selectedMethod === 'test_payment') {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        const mockResult = await processMockPayment(subService.price, selectedMethod);
+        
+        if (!mockResult.success) {
+          throw new Error(mockResult.error || 'Error en el pago de prueba');
+        }
+        
+        // Guardar el ID de transacción mock
+        paymentData.transactionId = mockResult.transactionId;
       } else {
-        // Simular procesamiento de pago real
+        // Para otros métodos, simular por ahora
         await new Promise(resolve => setTimeout(resolve, 2000));
+        paymentData.transactionId = `SIM_${Date.now()}`;
       }
 
       // Actualizar el estado de la cita
@@ -134,16 +159,21 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
         })
         .eq('id', appointmentId);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Error updating appointment:', updateError);
+        throw updateError;
+      }
 
       // Registrar el pago
       const { error: paymentError } = await supabase
         .from('payments')
         .insert({
-          user_id: user?.id,
+          user_id: user.id,
+          appointment_id: appointmentId,
           amount: subService.price,
           payment_method: selectedMethod,
-          status: selectedMethod === 'test_payment' ? 'test_completed' : 'completed',
+          status: 'completed',
+          transaction_id: paymentData.transactionId,
           description: `${service.name} - ${subService.name} - ${format(parseISO(date), 'd MMMM yyyy', { locale: es })}`,
           metadata: {
             type: 'appointment',

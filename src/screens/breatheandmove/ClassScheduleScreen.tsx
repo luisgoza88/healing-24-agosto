@@ -61,53 +61,11 @@ export const ClassScheduleScreen = ({ navigation, route }: any) => {
         .order('class_date', { ascending: true })
         .order('start_time', { ascending: true });
 
-      if (!error && supabaseClasses && supabaseClasses.length > 0) {
-        // Si hay clases en Supabase, las usamos
-        setClasses(supabaseClasses);
+      if (error) {
+        console.error('Error loading classes:', error);
+        setClasses([]);
       } else {
-        // Si no hay clases en Supabase, generar desde el horario
-        const classesForType = getClassesByType(className);
-        const weekClasses: Class[] = [];
-        
-        for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-          const currentDate = addDays(weekStart, dayOffset);
-          const dayOfWeek = getDay(currentDate);
-          const adjustedDayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek; // Ajustar domingo
-          
-          // Filtrar las clases que corresponden a este día
-          const dayClasses = classesForType.filter(c => c.dayOfWeek === adjustedDayOfWeek);
-          
-          // Crear objetos de clase para cada horario
-          dayClasses.forEach(scheduleClass => {
-            // Calcular la hora de fin (50 minutos después)
-            const [hours, minutes] = scheduleClass.time.split(':').map(Number);
-            const endHours = minutes + 50 >= 60 ? hours + 1 : hours;
-            const endMinutes = (minutes + 50) % 60;
-            const endTime = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
-            
-            weekClasses.push({
-              id: `${format(currentDate, 'yyyy-MM-dd')}_${scheduleClass.id}`,
-              className: scheduleClass.className,
-              instructor: scheduleClass.instructor,
-              time: scheduleClass.time,
-              class_date: format(currentDate, 'yyyy-MM-dd'),
-              start_time: scheduleClass.time,
-              end_time: endTime,
-              max_capacity: 12,
-              current_capacity: Math.floor(Math.random() * 8),
-              status: 'scheduled'
-            });
-          });
-        }
-        
-        // Ordenar por fecha y hora
-        weekClasses.sort((a, b) => {
-          const dateCompare = a.class_date.localeCompare(b.class_date);
-          if (dateCompare !== 0) return dateCompare;
-          return a.start_time.localeCompare(b.start_time);
-        });
-        
-        setClasses(weekClasses);
+        setClasses(supabaseClasses || []);
       }
       
       // Cargar inscripciones del usuario
@@ -169,11 +127,6 @@ export const ClassScheduleScreen = ({ navigation, route }: any) => {
           </Text>
           {dayClasses.length > 0 && (
             <View style={[styles.dayIndicator, isSelected && styles.dayIndicatorSelected]} />
-          )}
-          {isTodayDate && (
-            <Text style={[styles.todayLabel, isSelected && styles.todayLabelSelected]}>
-              HOY
-            </Text>
           )}
         </TouchableOpacity>
       );

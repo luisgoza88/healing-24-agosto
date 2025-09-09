@@ -30,6 +30,8 @@ export const ServiceIcon: React.FC<ServiceIconProps> = ({
         return <MaterialCommunityIcons name="face-woman-outline" size={size} color={color} />;
       case 'masajes':
         return <MaterialCommunityIcons name="spa-outline" size={size} color={color} />;
+      case 'wellness-integral':
+        return <MaterialCommunityIcons name="heart-pulse" size={size} color={color} />;
       case 'sueroterapia':
         return <MaterialCommunityIcons name="iv-bag" size={size} color={color} />;
       case 'bano-helado':
@@ -41,16 +43,9 @@ export const ServiceIcon: React.FC<ServiceIconProps> = ({
     }
   };
 
-  return (
-    <View style={[styles.container, { 
-      width: size * 2, 
-      height: size * 2, 
-      backgroundColor,
-      borderRadius: size * 0.5
-    }]}>
-      {getIcon()}
-    </View>
-  );
+  // Si el componente padre ya proporciona el contenedor (como en AppointmentsScreen),
+  // solo devolver el icono sin contenedor adicional
+  return getIcon();
 };
 
 const styles = StyleSheet.create({

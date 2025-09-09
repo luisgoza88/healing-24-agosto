@@ -16,6 +16,7 @@ import { supabase } from '../../lib/supabase';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { formatPrice } from '../../constants/breatheMovePricing';
+import { processMockPayment } from '../../utils/mockPayment';
 
 interface PaymentMethod {
   id: string;
@@ -27,8 +28,8 @@ interface PaymentMethod {
 const PAYMENT_METHODS: PaymentMethod[] = [
   {
     id: 'test_payment',
-    name: 'Pago de Prueba',
-    icon: 'flask-empty',
+    name: '🧪 Pago de Prueba',
+    icon: 'flask-outline',
     description: 'Simula el pago para pruebas (temporal)'
   },
   {
@@ -92,7 +93,23 @@ export const ClassPaymentScreen = ({ navigation, route }: any) => {
       }
 
       // Simular procesamiento de pago
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      let transactionId: string | undefined;
+      if (selectedMethod === 'test_payment') {
+        const mockResult = await processMockPayment(
+          getPrice(),
+          selectedMethod
+        );
+        
+        if (!mockResult.success) {
+          throw new Error(mockResult.error || 'Error en el pago de prueba');
+        }
+        
+        transactionId = mockResult.transactionId;
+      } else {
+        // Para otros métodos, simular por ahora
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        transactionId = `SIM_${Date.now()}`;
+      }
 
       // Si es una clase temporal, crear primero la clase en Supabase
       let finalClassId = classDetails.id;

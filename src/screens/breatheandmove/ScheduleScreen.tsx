@@ -17,6 +17,7 @@ import { supabase } from '../../lib/supabase';
 import { format, addDays, startOfWeek, getDay, isToday } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { SEPTEMBER_2025_SCHEDULE } from '../../constants/breatheMoveSchedule';
+import { seedBreatheMoveClasses } from '../../utils/seedBreatheMoveClasses';
 
 const { width } = Dimensions.get('window');
 
@@ -70,16 +71,19 @@ export const ScheduleScreen = ({ navigation }: any) => {
   const next7Days = Array.from({ length: 7 }, (_, i) => addDays(today, i));
 
   useEffect(() => {
-    loadNext7DaysClasses();
+    loadClasses();
   }, []);
 
   const loadClasses = async () => {
     try {
       setLoading(true);
+      console.log('=== LOADING BREATHE & MOVE CLASSES ===');
       
-      // Primero intentar cargar clases de la semana actual desde Supabase
-      const startDate = weekStart;
-      const endDate = addDays(weekStart, 6);
+      // Solo cargar clases desde Supabase
+      const startDate = today;
+      const endDate = addDays(today, 6);
+      
+      console.log('Date range:', format(startDate, 'yyyy-MM-dd'), 'to', format(endDate, 'yyyy-MM-dd'));
       
       const { data, error } = await supabase
         .from('breathe_move_classes')
@@ -89,47 +93,34 @@ export const ScheduleScreen = ({ navigation }: any) => {
         .order('class_date', { ascending: true })
         .order('start_time', { ascending: true });
 
-      if (!error && data && data.length > 0) {
-        // Si hay clases en Supabase, las usamos
-        setClasses(data);
+      console.log('Classes loaded:', data?.length || 0);
+      console.log('Query error:', error);
+
+      if (error) {
+        console.error('Error loading classes from Supabase:', error);
+        setClasses([]);
+      } else if (!data || data.length === 0) {
+        console.log('No classes found, attempting to seed...');
+        // Si no hay clases, intentar seedear
+        const seedResult = await seedBreatheMoveClasses();
+        console.log('Seed result:', seedResult);
+        
+        // Intentar cargar de nuevo
+        const { data: newData } = await supabase
+          .from('breathe_move_classes')
+          .select('*')
+          .gte('class_date', format(startDate, 'yyyy-MM-dd'))
+          .lte('class_date', format(endDate, 'yyyy-MM-dd'))
+          .order('class_date', { ascending: true })
+          .order('start_time', { ascending: true });
+          
+        setClasses(newData || []);
       } else {
-        // Si no hay clases en Supabase, generar desde el horario
-        const generatedClasses: BreatheMoveClass[] = [];
-        
-        for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-          const currentDate = addDays(startDate, dayOffset);
-          const dayOfWeek = getDay(currentDate);
-          const adjustedDayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek; // Ajustar domingo
-          
-          // Obtener clases del horario para este día
-          const dayClasses = SEPTEMBER_2025_SCHEDULE.filter(c => c.dayOfWeek === adjustedDayOfWeek);
-          
-          dayClasses.forEach(scheduleClass => {
-            // Calcular hora de fin (50 minutos después)
-            const [hours, minutes] = scheduleClass.time.split(':').map(Number);
-            const endHours = minutes + 50 >= 60 ? hours + 1 : hours;
-            const endMinutes = (minutes + 50) % 60;
-            const endTime = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
-            
-            generatedClasses.push({
-              id: `${format(currentDate, 'yyyy-MM-dd')}_${scheduleClass.id}`,
-              class_name: scheduleClass.className,
-              instructor: scheduleClass.instructor,
-              class_date: format(currentDate, 'yyyy-MM-dd'),
-              start_time: scheduleClass.time,
-              end_time: endTime,
-              max_capacity: 12,
-              current_capacity: Math.floor(Math.random() * 8),
-              status: 'scheduled',
-              intensity: scheduleClass.intensity
-            });
-          });
-        }
-        
-        setClasses(generatedClasses);
+        setClasses(data);
       }
     } catch (error) {
       console.error('Error loading classes:', error);
+      setClasses([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -138,7 +129,7 @@ export const ScheduleScreen = ({ navigation }: any) => {
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadNext7DaysClasses().finally(() => setRefreshing(false));
+    loadClasses().finally(() => setRefreshing(false));
   };
 
   const getClassesForDay = (dayIndex: number) => {
@@ -325,14 +316,6 @@ export const ScheduleScreen = ({ navigation }: any) => {
                     styles.dayIndicator,
                     isSelected && styles.dayIndicatorActive
                   ]} />
-                )}
-                {isTodayDate && (
-                  <Text style={[
-                    styles.todayLabel,
-                    isSelected && styles.todayLabelActive
-                  ]}>
-                    HOY
-                  </Text>
                 )}
               </TouchableOpacity>
             );

@@ -31,6 +31,7 @@ import { BreatheAndMoveClassDetailScreen } from './src/screens/breatheandmove/Cl
 import { ClassPaymentScreen } from './src/screens/breatheandmove/ClassPaymentScreen';
 import { PackagePaymentScreen } from './src/screens/breatheandmove/PackagePaymentScreen';
 import { MyPackagesScreen } from './src/screens/breatheandmove/MyPackagesScreen';
+import { initializeBreatheMoveClasses } from './src/utils/initializeBreatheMoveClasses';
 
 const Stack = createStackNavigator();
 
@@ -68,10 +69,20 @@ export default function App() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
+      
+      // Initialize Breathe & Move classes when user is logged in
+      if (session) {
+        initializeBreatheMoveClasses().catch(console.error);
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      
+      // Initialize classes when user logs in
+      if (session && _event === 'SIGNED_IN') {
+        initializeBreatheMoveClasses().catch(console.error);
+      }
     });
 
     return () => subscription.unsubscribe();

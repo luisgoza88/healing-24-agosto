@@ -1,7 +1,7 @@
 export const SERVICES = [
   {
     id: 'medicina-funcional',
-    name: 'Medicina Funcional 1',
+    name: 'Medicina Funcional',
     color: '#3E5444',
     icon: 'medical-bag',
     description: 'Consultas especializadas y péptidos',
@@ -66,6 +66,14 @@ export const SERVICES = [
       { name: 'Drenaje linfático', duration: 75, price: 190000 },
       { name: 'Relajante', duration: 75, price: 200000 },
     ]
+  },
+  {
+    id: 'wellness-integral',
+    name: 'Wellness Integral',
+    color: '#879794',
+    icon: 'heart-pulse',
+    description: 'Servicios de bienestar integral',
+    subServices: []
   },
 ]
 
