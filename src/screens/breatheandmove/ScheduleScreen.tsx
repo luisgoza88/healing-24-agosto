@@ -14,7 +14,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
-import { format, addDays, startOfWeek, getDay } from 'date-fns';
+import { format, addDays, startOfWeek, getDay, isToday } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { SEPTEMBER_2025_SCHEDULE } from '../../constants/breatheMoveSchedule';
 
@@ -33,14 +33,15 @@ interface BreatheMoveClass {
   intensity: string;
 }
 
-const DAYS = [
-  { id: 1, name: 'Lunes', short: 'LUN' },
-  { id: 2, name: 'Martes', short: 'MAR' },
-  { id: 3, name: 'Miércoles', short: 'MIÉ' },
-  { id: 4, name: 'Jueves', short: 'JUE' },
-  { id: 5, name: 'Viernes', short: 'VIE' },
-  { id: 6, name: 'Sábado', short: 'SÁB' }
-];
+const getDayName = (dayOfWeek: number) => {
+  const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+  return days[dayOfWeek];
+};
+
+const getDayShort = (dayOfWeek: number) => {
+  const days = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'];
+  return days[dayOfWeek];
+};
 
 const getClassColor = (className: string) => {
   const colors: { [key: string]: string } = {
@@ -61,14 +62,15 @@ const getClassColor = (className: string) => {
 };
 
 export const ScheduleScreen = ({ navigation }: any) => {
-  const [selectedDay, setSelectedDay] = useState(1);
+  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [classes, setClasses] = useState<BreatheMoveClass[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [weekStart, setWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 })); // Semana actual
+  const today = new Date();
+  const next7Days = Array.from({ length: 7 }, (_, i) => addDays(today, i));
 
   useEffect(() => {
-    loadClassesForWeek(weekStart);
+    loadNext7DaysClasses();
   }, []);
 
   const loadClasses = async () => {
@@ -136,12 +138,11 @@ export const ScheduleScreen = ({ navigation }: any) => {
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadClassesForWeek(weekStart).finally(() => setRefreshing(false));
+    loadNext7DaysClasses().finally(() => setRefreshing(false));
   };
 
-  const getClassesForDay = (dayNumber: number) => {
-    // Calcular la fecha para el día seleccionado
-    const targetDate = addDays(weekStart, dayNumber - 1);
+  const getClassesForDay = (dayIndex: number) => {
+    const targetDate = next7Days[dayIndex];
     const dateString = format(targetDate, 'yyyy-MM-dd');
     
     return classes.filter(c => c.class_date === dateString);
@@ -187,24 +188,13 @@ export const ScheduleScreen = ({ navigation }: any) => {
     );
   };
 
-  const handlePreviousWeek = () => {
-    const newWeekStart = addDays(weekStart, -7);
-    setWeekStart(newWeekStart);
-    loadClassesForWeek(newWeekStart);
-  };
 
-  const handleNextWeek = () => {
-    const newWeekStart = addDays(weekStart, 7);
-    setWeekStart(newWeekStart);
-    loadClassesForWeek(newWeekStart);
-  };
-
-  const loadClassesForWeek = async (weekStartDate: Date) => {
+  const loadNext7DaysClasses = async () => {
     try {
       setLoading(true);
       
-      const startDate = weekStartDate;
-      const endDate = addDays(weekStartDate, 6);
+      const startDate = today;
+      const endDate = addDays(today, 6);
       
       const { data, error } = await supabase
         .from('breathe_move_classes')
@@ -257,7 +247,7 @@ export const ScheduleScreen = ({ navigation }: any) => {
     }
   };
 
-  const dayClasses = getClassesForDay(selectedDay);
+  const dayClasses = getClassesForDay(selectedDayIndex);
 
   if (loading) {
     return (
@@ -287,27 +277,14 @@ export const ScheduleScreen = ({ navigation }: any) => {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.weekNavigation}>
-        <TouchableOpacity 
-          onPress={handlePreviousWeek}
-          style={styles.weekArrow}
-        >
-          <Ionicons name="chevron-back" size={24} color={Colors.primary.dark} />
-        </TouchableOpacity>
-        
-        <View style={styles.monthHeader}>
-          <MaterialCommunityIcons name="calendar-month" size={20} color={Colors.primary.dark} />
-          <Text style={styles.monthText}>
-            {format(weekStart, 'MMMM yyyy', { locale: es }).toUpperCase()}
-          </Text>
-        </View>
-        
-        <TouchableOpacity 
-          onPress={handleNextWeek}
-          style={styles.weekArrow}
-        >
-          <Ionicons name="chevron-forward" size={24} color={Colors.primary.dark} />
-        </TouchableOpacity>
+      <View style={styles.dateRangeHeader}>
+        <MaterialCommunityIcons name="calendar-range" size={20} color={Colors.primary.dark} />
+        <Text style={styles.dateRangeText}>
+          Próximos 7 días
+        </Text>
+        <Text style={styles.dateRangeSubtext}>
+          {format(today, 'd MMM', { locale: es })} - {format(addDays(today, 6), 'd MMM', { locale: es })}
+        </Text>
       </View>
 
       <View style={styles.daySelector}>
@@ -316,36 +293,46 @@ export const ScheduleScreen = ({ navigation }: any) => {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.daySelectorContent}
         >
-          {DAYS.map((day, index) => {
-            const dayDate = addDays(weekStart, index);
-            const hasClasses = classes.some(c => c.class_date === format(dayDate, 'yyyy-MM-dd'));
+          {next7Days.map((date, index) => {
+            const hasClasses = classes.some(c => c.class_date === format(date, 'yyyy-MM-dd'));
+            const isSelected = selectedDayIndex === index;
+            const isTodayDate = isToday(date);
             
             return (
               <TouchableOpacity
-                key={day.id}
+                key={index}
                 style={[
                   styles.dayButton,
-                  selectedDay === day.id && styles.dayButtonActive
+                  isSelected && styles.dayButtonActive,
+                  isTodayDate && styles.dayButtonToday
                 ]}
-                onPress={() => setSelectedDay(day.id)}
+                onPress={() => setSelectedDayIndex(index)}
               >
                 <Text style={[
                   styles.dayButtonText,
-                  selectedDay === day.id && styles.dayButtonTextActive
+                  isSelected && styles.dayButtonTextActive
                 ]}>
-                  {day.short}
+                  {getDayShort(getDay(date))}
                 </Text>
                 <Text style={[
                   styles.dayDate,
-                  selectedDay === day.id && styles.dayDateActive
+                  isSelected && styles.dayDateActive
                 ]}>
-                  {format(dayDate, 'd')}
+                  {format(date, 'd')}
                 </Text>
                 {hasClasses && (
                   <View style={[
                     styles.dayIndicator,
-                    selectedDay === day.id && styles.dayIndicatorActive
+                    isSelected && styles.dayIndicatorActive
                   ]} />
+                )}
+                {isTodayDate && (
+                  <Text style={[
+                    styles.todayLabel,
+                    isSelected && styles.todayLabelActive
+                  ]}>
+                    HOY
+                  </Text>
                 )}
               </TouchableOpacity>
             );
@@ -367,10 +354,10 @@ export const ScheduleScreen = ({ navigation }: any) => {
         <View style={styles.dayHeader}>
           <View>
             <Text style={styles.dayTitle}>
-              {DAYS.find(d => d.id === selectedDay)?.name}
+              {getDayName(getDay(next7Days[selectedDayIndex]))}
             </Text>
             <Text style={styles.daySubtitle}>
-              {format(addDays(weekStart, selectedDay - 1), "d 'de' MMMM", { locale: es })}
+              {format(next7Days[selectedDayIndex], "d 'de' MMMM", { locale: es })}
             </Text>
           </View>
           <Text style={styles.classCount}>
@@ -443,32 +430,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  weekNavigation: {
-    flexDirection: 'row',
+  dateRangeHeader: {
     alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingVertical: 16,
     paddingHorizontal: 24,
-    paddingVertical: 12,
   },
-  weekArrow: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.ui.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  monthHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  monthText: {
+  dateRangeText: {
     fontSize: 18,
     fontWeight: 'bold',
     color: Colors.primary.dark,
-    marginLeft: 8,
-    letterSpacing: 1,
+    marginTop: 8,
+  },
+  dateRangeSubtext: {
+    fontSize: 14,
+    color: Colors.text.secondary,
+    marginTop: 4,
   },
   daySelector: {
     height: 80,
@@ -523,6 +499,21 @@ const styles = StyleSheet.create({
   },
   dayIndicatorActive: {
     backgroundColor: '#FFFFFF',
+  },
+  dayButtonToday: {
+    borderWidth: 2,
+    borderColor: Colors.primary.green,
+  },
+  todayLabel: {
+    position: 'absolute',
+    top: 4,
+    fontSize: 8,
+    fontWeight: 'bold',
+    color: Colors.primary.green,
+    letterSpacing: 0.5,
+  },
+  todayLabelActive: {
+    color: '#FFFFFF',
   },
   classesContainer: {
     paddingHorizontal: 24,

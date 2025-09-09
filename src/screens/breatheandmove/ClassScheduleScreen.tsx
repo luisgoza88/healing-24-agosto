@@ -14,7 +14,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
-import { format, addDays, startOfWeek, isSameDay, getDay } from 'date-fns';
+import { format, addDays, startOfWeek, isSameDay, getDay, isToday } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getClassesByType } from '../../constants/breatheMoveSchedule';
 
@@ -35,21 +35,22 @@ export const ClassScheduleScreen = ({ navigation, route }: any) => {
   const { className, classDescription } = route.params;
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [weekStart, setWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const today = new Date();
+  const next7Days = Array.from({ length: 7 }, (_, i) => addDays(today, i));
   const [classes, setClasses] = useState<Class[]>([]);
   const [enrolledClasses, setEnrolledClasses] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadClasses();
-  }, [weekStart, className]);
+  }, [className]);
 
   const loadClasses = async () => {
     try {
       setLoading(true);
       
-      const startDate = format(weekStart, 'yyyy-MM-dd');
-      const endDate = format(addDays(weekStart, 6), 'yyyy-MM-dd');
+      const startDate = format(today, 'yyyy-MM-dd');
+      const endDate = format(addDays(today, 6), 'yyyy-MM-dd');
       
       const { data: supabaseClasses, error } = await supabase
         .from('breathe_move_classes')
@@ -131,17 +132,6 @@ export const ClassScheduleScreen = ({ navigation, route }: any) => {
     }
   };
 
-  const handlePreviousWeek = () => {
-    const newWeekStart = addDays(weekStart, -7);
-    setWeekStart(newWeekStart);
-    setSelectedDate(addDays(newWeekStart, selectedDate.getDay() === 0 ? 6 : selectedDate.getDay() - 1));
-  };
-
-  const handleNextWeek = () => {
-    const newWeekStart = addDays(weekStart, 7);
-    setWeekStart(newWeekStart);
-    setSelectedDate(addDays(newWeekStart, selectedDate.getDay() === 0 ? 6 : selectedDate.getDay() - 1));
-  };
 
   const handleDateSelect = (date: Date) => {
     setSelectedDate(date);
@@ -156,16 +146,19 @@ export const ClassScheduleScreen = ({ navigation, route }: any) => {
   };
 
   const renderWeekDays = () => {
-    const days = [];
-    for (let i = 0; i < 7; i++) {
-      const date = addDays(weekStart, i);
+    return next7Days.map((date, i) => {
       const isSelected = isSameDay(date, selectedDate);
+      const isTodayDate = isToday(date);
       const dayClasses = classes.filter(c => c.class_date === format(date, 'yyyy-MM-dd'));
 
-      days.push(
+      return (
         <TouchableOpacity
           key={i}
-          style={[styles.dayButton, isSelected && styles.dayButtonSelected]}
+          style={[
+            styles.dayButton,
+            isSelected && styles.dayButtonSelected,
+            isTodayDate && styles.dayButtonToday
+          ]}
           onPress={() => handleDateSelect(date)}
         >
           <Text style={[styles.dayName, isSelected && styles.dayTextSelected]}>
@@ -177,10 +170,14 @@ export const ClassScheduleScreen = ({ navigation, route }: any) => {
           {dayClasses.length > 0 && (
             <View style={[styles.dayIndicator, isSelected && styles.dayIndicatorSelected]} />
           )}
+          {isTodayDate && (
+            <Text style={[styles.todayLabel, isSelected && styles.todayLabelSelected]}>
+              HOY
+            </Text>
+          )}
         </TouchableOpacity>
       );
-    }
-    return days;
+    });
   };
 
   const renderClassCard = (classItem: Class) => {
@@ -264,16 +261,13 @@ export const ClassScheduleScreen = ({ navigation, route }: any) => {
         <View style={styles.headerRight} />
       </View>
 
-      <View style={styles.weekNavigation}>
-        <TouchableOpacity onPress={handlePreviousWeek} style={styles.weekButton}>
-          <Ionicons name="chevron-back" size={24} color={Colors.primary.dark} />
-        </TouchableOpacity>
-        <Text style={styles.weekTitle}>
-          {format(weekStart, 'MMMM yyyy', { locale: es })}
+      <View style={styles.dateRangeHeader}>
+        <Text style={styles.dateRangeText}>
+          {className} - Próximos 7 días
         </Text>
-        <TouchableOpacity onPress={handleNextWeek} style={styles.weekButton}>
-          <Ionicons name="chevron-forward" size={24} color={Colors.primary.dark} />
-        </TouchableOpacity>
+        <Text style={styles.dateRangeSubtext}>
+          {format(today, 'd MMM', { locale: es })} - {format(addDays(today, 6), 'd MMM yyyy', { locale: es })}
+        </Text>
       </View>
 
       <View style={styles.weekDays}>
@@ -363,21 +357,20 @@ const styles = StyleSheet.create({
   headerRight: {
     width: 40,
   },
-  weekNavigation: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  dateRangeHeader: {
     alignItems: 'center',
-    paddingHorizontal: 24,
     paddingVertical: 16,
+    paddingHorizontal: 24,
   },
-  weekButton: {
-    padding: 8,
-  },
-  weekTitle: {
+  dateRangeText: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: Colors.primary.dark,
-    textTransform: 'capitalize',
+  },
+  dateRangeSubtext: {
+    fontSize: 14,
+    color: Colors.text.secondary,
+    marginTop: 4,
   },
   weekDays: {
     flexDirection: 'row',
@@ -418,6 +411,21 @@ const styles = StyleSheet.create({
   },
   dayIndicatorSelected: {
     backgroundColor: '#FFFFFF',
+  },
+  dayButtonToday: {
+    borderWidth: 2,
+    borderColor: Colors.primary.green,
+  },
+  todayLabel: {
+    position: 'absolute',
+    top: 2,
+    fontSize: 8,
+    fontWeight: 'bold',
+    color: Colors.primary.green,
+    letterSpacing: 0.5,
+  },
+  todayLabelSelected: {
+    color: '#FFFFFF',
   },
   content: {
     paddingHorizontal: 24,
