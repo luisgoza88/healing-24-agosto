@@ -623,6 +623,9 @@ const styles = StyleSheet.create({
   detailIcon: {
     marginRight: 8,
   },
+  detailIconView: {
+    marginRight: 8,
+  },
   detailText: {
     fontSize: 14,
     color: Colors.text.primary,

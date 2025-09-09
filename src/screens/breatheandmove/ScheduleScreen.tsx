@@ -1,19 +1,36 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Dimensions
+  Dimensions,
+  ActivityIndicator,
+  RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors } from '../../constants/colors';
-import { SEPTEMBER_2025_SCHEDULE, getClassesByDay } from '../../constants/breatheMoveSchedule';
+import { supabase } from '../../lib/supabase';
+import { format, addDays, startOfWeek } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 const { width } = Dimensions.get('window');
+
+interface BreatheMoveClass {
+  id: string;
+  class_name: string;
+  instructor: string;
+  class_date: string;
+  start_time: string;
+  end_time: string;
+  max_capacity: number;
+  current_capacity: number;
+  status: string;
+  intensity: string;
+}
 
 const DAYS = [
   { id: 1, name: 'Lunes', short: 'LUN' },
@@ -26,46 +43,97 @@ const DAYS = [
 
 const getClassColor = (className: string) => {
   const colors: { [key: string]: string } = {
-    'WildPower': '#B8604D', // Pantone 7523C - Terracota
-    'GutReboot': '#879794', // Pantone 5497C - Gris verde
-    'FireRush': '#5E3532', // Pantone 7630C - Vino/Borgoña
-    'BloomBeat': '#ECD0B6', // Pantone 475C - Coral suave
-    'WindMove': '#B2B8B0', // Pantone 5655C - Gris claro
-    'ForestFire': '#3E5444', // Pantone 7736C - Verde bosque
-    'StoneBarre': '#879794', // Pantone 5497C - Gris verde
-    'OmRoot': '#3E5444', // Pantone 7736C - Verde bosque
-    'HazeRocket': '#61473B', // Pantone 411C - Café oscuro
-    'MoonRelief': '#1F2E3B', // Pantone 532C - Azul marino
-    'WindFlow': '#879794', // Pantone 5497C - Gris verde
-    'WaveMind': '#61473B' // Pantone 411C - Café oscuro
+    'WildPower': '#B8604D',
+    'GutReboot': '#879794',
+    'FireRush': '#5E3532',
+    'BloomBeat': '#ECD0B6',
+    'WindMove': '#B2B8B0',
+    'ForestFire': '#3E5444',
+    'StoneBarre': '#879794',
+    'OmRoot': '#3E5444',
+    'HazeRocket': '#61473B',
+    'MoonRelief': '#1F2E3B',
+    'WindFlow': '#879794',
+    'WaveMind': '#61473B'
   };
   return colors[className] || '#879794';
 };
 
 export const ScheduleScreen = ({ navigation }: any) => {
-  const [selectedDay, setSelectedDay] = useState(1); // Lunes por defecto
-  const dayClasses = getClassesByDay(selectedDay);
+  const [selectedDay, setSelectedDay] = useState(1);
+  const [classes, setClasses] = useState<BreatheMoveClass[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [weekStart, setWeekStart] = useState(new Date('2025-09-01')); // Septiembre 2025
 
-  const renderClassItem = (classItem: any) => {
-    const color = getClassColor(classItem.className);
+  useEffect(() => {
+    loadClasses();
+  }, []);
+
+  const loadClasses = async () => {
+    try {
+      setLoading(true);
+      
+      // Cargar clases de la semana actual
+      const startDate = weekStart;
+      const endDate = addDays(weekStart, 6);
+      
+      const { data, error } = await supabase
+        .from('breathe_move_classes')
+        .select('*')
+        .gte('class_date', format(startDate, 'yyyy-MM-dd'))
+        .lte('class_date', format(endDate, 'yyyy-MM-dd'))
+        .order('class_date', { ascending: true })
+        .order('start_time', { ascending: true });
+
+      if (error) throw error;
+
+      setClasses(data || []);
+    } catch (error) {
+      console.error('Error loading classes:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadClasses();
+  };
+
+  const getClassesForDay = (dayNumber: number) => {
+    // Calcular la fecha para el día seleccionado
+    const targetDate = addDays(weekStart, dayNumber - 1);
+    const dateString = format(targetDate, 'yyyy-MM-dd');
+    
+    return classes.filter(c => c.class_date === dateString);
+  };
+
+  const handleClassPress = (classItem: BreatheMoveClass) => {
+    navigation.navigate('BreatheAndMoveClassEnrollment', { classId: classItem.id });
+  };
+
+  const renderClassItem = (classItem: BreatheMoveClass) => {
+    const color = getClassColor(classItem.class_name);
+    const spotsLeft = classItem.max_capacity - classItem.current_capacity;
     
     return (
       <TouchableOpacity
         key={classItem.id}
         style={[styles.classCard, { backgroundColor: color }]}
         activeOpacity={0.8}
-        onPress={() => {
-          // Generar un ID temporal para la clase
-          const tempId = `temp_${classItem.className}_2025-09-0${selectedDay}_${classItem.time.replace(':', '_')}`;
-          navigation.navigate('BreatheAndMoveClassEnrollment', { classId: tempId });
-        }}
+        onPress={() => handleClassPress(classItem)}
       >
         <View style={styles.classTime}>
-          <Text style={styles.timeText}>{classItem.time}</Text>
+          <Text style={styles.timeText}>{classItem.start_time.slice(0, 5)}</Text>
         </View>
         <View style={styles.classInfo}>
-          <Text style={styles.className}>{classItem.className}</Text>
+          <Text style={styles.className}>{classItem.class_name}</Text>
           <Text style={styles.instructor}>{classItem.instructor}</Text>
+          <Text style={styles.spotsLeft}>
+            {spotsLeft > 0 ? `${spotsLeft} lugares disponibles` : 'Clase llena'}
+          </Text>
         </View>
         <View style={styles.intensityBadge}>
           {classItem.intensity === 'high' && (
@@ -82,6 +150,18 @@ export const ScheduleScreen = ({ navigation }: any) => {
     );
   };
 
+  const dayClasses = getClassesForDay(selectedDay);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary.dark} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -92,7 +172,12 @@ export const ScheduleScreen = ({ navigation }: any) => {
           <Ionicons name="arrow-back" size={24} color={Colors.primary.dark} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Horarios Septiembre 2025</Text>
-        <View style={styles.headerRight} />
+        <TouchableOpacity 
+          style={styles.refreshButton}
+          onPress={onRefresh}
+        >
+          <Ionicons name="refresh" size={24} color={Colors.primary.dark} />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.monthHeader}>
@@ -135,6 +220,13 @@ export const ScheduleScreen = ({ navigation }: any) => {
       <ScrollView 
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.classesContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[Colors.primary.dark]}
+          />
+        }
       >
         <View style={styles.dayHeader}>
           <Text style={styles.dayTitle}>
@@ -145,7 +237,17 @@ export const ScheduleScreen = ({ navigation }: any) => {
           </Text>
         </View>
 
-        {dayClasses.map(renderClassItem)}
+        {dayClasses.length === 0 ? (
+          <View style={styles.emptyState}>
+            <MaterialCommunityIcons name="calendar-blank" size={48} color={Colors.text.light} />
+            <Text style={styles.emptyTitle}>No hay clases este día</Text>
+            <Text style={styles.emptyText}>
+              Revisa otros días de la semana
+            </Text>
+          </View>
+        ) : (
+          dayClasses.map(renderClassItem)
+        )}
 
         <View style={styles.infoSection}>
           <View style={styles.infoItem}>
@@ -167,6 +269,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.ui.background,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -187,8 +294,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.primary.dark,
   },
-  headerRight: {
+  refreshButton: {
     width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.ui.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   monthHeader: {
     flexDirection: 'row',
@@ -294,10 +406,32 @@ const styles = StyleSheet.create({
   instructor: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.9)',
+    marginBottom: 2,
+  },
+  spotsLeft: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    fontStyle: 'italic',
   },
   intensityBadge: {
     width: 30,
     alignItems: 'center',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.text.secondary,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: Colors.text.light,
+    textAlign: 'center',
   },
   infoSection: {
     backgroundColor: Colors.ui.surface,

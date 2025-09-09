@@ -54,49 +54,7 @@ export const ClassEnrollmentScreen = ({ navigation, route }: any) => {
     try {
       setLoading(true);
       
-      // Si el ID es temporal, mostramos los datos locales
-      if (classId && classId.startsWith('temp_')) {
-        // Extraer información del ID temporal
-        const parts = classId.split('_');
-        const className = parts[1];
-        const date = parts[2];
-        const time = parts[3] + ':' + parts[4];
-        
-        setClassDetails({
-          id: classId,
-          class_name: className,
-          instructor: 'INSTRUCTOR', // Esto vendría del horario
-          class_date: date,
-          start_time: time,
-          end_time: calculateEndTime(time),
-          max_capacity: 12,
-          current_capacity: Math.floor(Math.random() * 8),
-          status: 'scheduled'
-        });
-        
-        // IMPORTANTE: Para clases temporales, también cargar paquetes del usuario
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          console.log('Loading packages for temporary class, user:', user.id);
-          
-          const { data: packages, error: packagesError } = await supabase
-            .from('breathe_move_packages')
-            .select('*')
-            .eq('user_id', user.id)
-            .eq('status', 'active')
-            .gte('valid_until', new Date().toISOString());
-
-          console.log('Packages for temp class:', { packages, packagesError });
-
-          if (packages) {
-            const activePackages = packages.filter(pkg => 
-              (pkg.classes_total - pkg.classes_used) > 0
-            );
-            console.log('Active packages for temp class:', activePackages);
-            setUserPackages(activePackages);
-          }
-        }
-      } else if (classId) {
+      if (classId) {
         // Cargar detalles de la clase desde Supabase
         const { data: classData, error: classError } = await supabase
           .from('breathe_move_classes')
@@ -145,12 +103,6 @@ export const ClassEnrollmentScreen = ({ navigation, route }: any) => {
     }
   };
 
-  const calculateEndTime = (startTime: string): string => {
-    const [hours, minutes] = startTime.split(':').map(Number);
-    const endHours = minutes + 50 >= 60 ? hours + 1 : hours;
-    const endMinutes = (minutes + 50) % 60;
-    return `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
-  };
 
   const handleEnrollWithPackage = async () => {
     if (!selectedPackage) {
@@ -167,118 +119,6 @@ export const ClassEnrollmentScreen = ({ navigation, route }: any) => {
         return;
       }
 
-      // Para clases temporales con paquete, crear una cita en appointments
-      if (classDetails?.id.startsWith('temp_')) {
-        const selectedPkg = userPackages.find(p => p.id === selectedPackage);
-        if (!selectedPkg) {
-          Alert.alert('Error', 'Paquete no encontrado');
-          return;
-        }
-        
-        // Primero, necesitamos encontrar o crear el servicio de Breathe & Move
-        const { data: services } = await supabase
-          .from('services')
-          .select('id')
-          .eq('code', 'breathe-and-move')
-          .single();
-        
-        let serviceId = services?.id;
-        
-        // Si no existe el servicio, lo creamos
-        if (!serviceId) {
-          const { data: newService } = await supabase
-            .from('services')
-            .insert({
-              code: 'breathe-and-move',
-              name: 'Breathe & Move',
-              description: 'Clases de movimiento y respiración',
-              active: true
-            })
-            .select()
-            .single();
-          
-          serviceId = newService?.id;
-        }
-        
-        if (!serviceId) {
-          Alert.alert('Error', 'No se pudo crear el servicio');
-          return;
-        }
-        
-        // Buscar o crear un profesional para la clase
-        const { data: professionals } = await supabase
-          .from('professionals')
-          .select('id')
-          .eq('full_name', classDetails.instructor === 'INSTRUCTOR' ? 'Instructor Breathe & Move' : classDetails.instructor)
-          .single();
-        
-        let professionalId = professionals?.id;
-        
-        if (!professionalId) {
-          const { data: newProfessional } = await supabase
-            .from('professionals')
-            .insert({
-              full_name: classDetails.instructor === 'INSTRUCTOR' ? 'Instructor Breathe & Move' : classDetails.instructor,
-              title: 'Instructor',
-              specialties: ['Breathe & Move'],
-              active: true
-            })
-            .select()
-            .single();
-          
-          professionalId = newProfessional?.id;
-        }
-        
-        // Crear la cita
-        const { data: appointment, error: appointmentError } = await supabase
-          .from('appointments')
-          .insert({
-            user_id: user.id,
-            service_id: serviceId,
-            professional_id: professionalId,
-            appointment_date: classDetails.class_date,
-            appointment_time: classDetails.start_time + ':00',
-            end_time: classDetails.end_time + ':00',
-            duration: 50,
-            status: 'confirmed',
-            total_amount: 0, // Pagado con paquete
-            notes: `Breathe & Move - ${classDetails.class_name} - Clase pagada con paquete`
-          })
-          .select()
-          .single();
-        
-        if (appointmentError) {
-          console.error('Error creating appointment:', appointmentError);
-          Alert.alert('Error', 'No se pudo crear la reserva');
-          return;
-        }
-        
-        // Actualizar clases usadas en el paquete
-        const { error: updateError } = await supabase
-          .from('breathe_move_packages')
-          .update({ 
-            classes_used: selectedPkg.classes_used + 1
-          })
-          .eq('id', selectedPackage);
-
-        if (updateError) {
-          console.error('Error updating package:', updateError);
-          Alert.alert('Error', 'No se pudo actualizar el paquete');
-          return;
-        }
-
-        Alert.alert(
-          '¡Inscripción exitosa!',
-          `Te has inscrito en ${classDetails.class_name} usando tu paquete.\n\nClases restantes: ${selectedPkg.classes_total - selectedPkg.classes_used - 1}`,
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.goBack()
-            }
-          ]
-        );
-        return;
-      }
 
       // Crear inscripción
       const { error: enrollError } = await supabase
