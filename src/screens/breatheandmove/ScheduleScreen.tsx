@@ -14,8 +14,9 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
-import { format, addDays, startOfWeek } from 'date-fns';
+import { format, addDays, startOfWeek, getDay } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { SEPTEMBER_2025_SCHEDULE } from '../../constants/breatheMoveSchedule';
 
 const { width } = Dimensions.get('window');
 
@@ -64,7 +65,7 @@ export const ScheduleScreen = ({ navigation }: any) => {
   const [classes, setClasses] = useState<BreatheMoveClass[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [weekStart, setWeekStart] = useState(new Date('2025-09-01')); // Septiembre 2025
+  const [weekStart, setWeekStart] = useState(startOfWeek(new Date('2025-09-01'), { weekStartsOn: 1 })); // Septiembre 2025
 
   useEffect(() => {
     loadClasses();
@@ -74,7 +75,7 @@ export const ScheduleScreen = ({ navigation }: any) => {
     try {
       setLoading(true);
       
-      // Cargar clases de la semana actual
+      // Primero intentar cargar clases de la semana actual desde Supabase
       const startDate = weekStart;
       const endDate = addDays(weekStart, 6);
       
@@ -86,9 +87,45 @@ export const ScheduleScreen = ({ navigation }: any) => {
         .order('class_date', { ascending: true })
         .order('start_time', { ascending: true });
 
-      if (error) throw error;
-
-      setClasses(data || []);
+      if (!error && data && data.length > 0) {
+        // Si hay clases en Supabase, las usamos
+        setClasses(data);
+      } else {
+        // Si no hay clases en Supabase, generar desde el horario
+        const generatedClasses: BreatheMoveClass[] = [];
+        
+        for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+          const currentDate = addDays(startDate, dayOffset);
+          const dayOfWeek = getDay(currentDate);
+          const adjustedDayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek; // Ajustar domingo
+          
+          // Obtener clases del horario para este día
+          const dayClasses = SEPTEMBER_2025_SCHEDULE.filter(c => c.dayOfWeek === adjustedDayOfWeek);
+          
+          dayClasses.forEach(scheduleClass => {
+            // Calcular hora de fin (50 minutos después)
+            const [hours, minutes] = scheduleClass.time.split(':').map(Number);
+            const endHours = minutes + 50 >= 60 ? hours + 1 : hours;
+            const endMinutes = (minutes + 50) % 60;
+            const endTime = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
+            
+            generatedClasses.push({
+              id: `${format(currentDate, 'yyyy-MM-dd')}_${scheduleClass.id}`,
+              class_name: scheduleClass.className,
+              instructor: scheduleClass.instructor,
+              class_date: format(currentDate, 'yyyy-MM-dd'),
+              start_time: scheduleClass.time,
+              end_time: endTime,
+              max_capacity: 12,
+              current_capacity: Math.floor(Math.random() * 8),
+              status: 'scheduled',
+              intensity: scheduleClass.intensity
+            });
+          });
+        }
+        
+        setClasses(generatedClasses);
+      }
     } catch (error) {
       console.error('Error loading classes:', error);
     } finally {

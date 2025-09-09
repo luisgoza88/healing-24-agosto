@@ -14,8 +14,9 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
-import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
+import { format, addDays, startOfWeek, isSameDay, getDay } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { getClassesByType } from '../../constants/breatheMoveSchedule';
 
 interface Class {
   id: string;
@@ -59,25 +60,66 @@ export const ClassScheduleScreen = ({ navigation, route }: any) => {
         .order('class_date', { ascending: true })
         .order('start_time', { ascending: true });
 
-      if (error) {
-        console.error('Error loading classes:', error);
-        Alert.alert('Error', 'No se pudieron cargar las clases');
-        setClasses([]);
+      if (!error && supabaseClasses && supabaseClasses.length > 0) {
+        // Si hay clases en Supabase, las usamos
+        setClasses(supabaseClasses);
       } else {
-        setClasses(supabaseClasses || []);
+        // Si no hay clases en Supabase, generar desde el horario
+        const classesForType = getClassesByType(className);
+        const weekClasses: Class[] = [];
         
-        // Cargar inscripciones del usuario
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data: enrollments } = await supabase
-            .from('breathe_move_enrollments')
-            .select('class_id')
-            .eq('user_id', user.id)
-            .eq('status', 'confirmed');
+        for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+          const currentDate = addDays(weekStart, dayOffset);
+          const dayOfWeek = getDay(currentDate);
+          const adjustedDayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek; // Ajustar domingo
           
-          if (enrollments) {
-            setEnrolledClasses(enrollments.map(e => e.class_id));
-          }
+          // Filtrar las clases que corresponden a este día
+          const dayClasses = classesForType.filter(c => c.dayOfWeek === adjustedDayOfWeek);
+          
+          // Crear objetos de clase para cada horario
+          dayClasses.forEach(scheduleClass => {
+            // Calcular la hora de fin (50 minutos después)
+            const [hours, minutes] = scheduleClass.time.split(':').map(Number);
+            const endHours = minutes + 50 >= 60 ? hours + 1 : hours;
+            const endMinutes = (minutes + 50) % 60;
+            const endTime = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
+            
+            weekClasses.push({
+              id: `${format(currentDate, 'yyyy-MM-dd')}_${scheduleClass.id}`,
+              className: scheduleClass.className,
+              instructor: scheduleClass.instructor,
+              time: scheduleClass.time,
+              class_date: format(currentDate, 'yyyy-MM-dd'),
+              start_time: scheduleClass.time,
+              end_time: endTime,
+              max_capacity: 12,
+              current_capacity: Math.floor(Math.random() * 8),
+              status: 'scheduled'
+            });
+          });
+        }
+        
+        // Ordenar por fecha y hora
+        weekClasses.sort((a, b) => {
+          const dateCompare = a.class_date.localeCompare(b.class_date);
+          if (dateCompare !== 0) return dateCompare;
+          return a.start_time.localeCompare(b.start_time);
+        });
+        
+        setClasses(weekClasses);
+      }
+      
+      // Cargar inscripciones del usuario
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: enrollments } = await supabase
+          .from('breathe_move_enrollments')
+          .select('class_id')
+          .eq('user_id', user.id)
+          .eq('status', 'confirmed');
+        
+        if (enrollments) {
+          setEnrolledClasses(enrollments.map(e => e.class_id));
         }
       }
       
