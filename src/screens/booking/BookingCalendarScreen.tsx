@@ -11,6 +11,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { Colors } from '../../constants/colors';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 // Configurar español para el calendario
 LocaleConfig.locales['es'] = {
@@ -102,20 +104,24 @@ export const BookingCalendarScreen: React.FC<BookingCalendarScreenProps> = ({
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Pressable onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backIcon}>‹</Text>
+        <TouchableOpacity onPress={onBack} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color={Colors.primary.dark} />
           <Text style={styles.backText}>Atrás</Text>
-        </Pressable>
+        </TouchableOpacity>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.serviceInfo}>
           <Text style={styles.serviceName}>{subService.name}</Text>
           <View style={styles.serviceDetails}>
-            <Text style={styles.detailText}>⏱ {subService.duration} minutos</Text>
-            <Text style={styles.detailText}>
-              💰 ${subService.price.toLocaleString('es-CO')}
-            </Text>
+            <View style={styles.detailItem}>
+              <MaterialCommunityIcons name="clock-outline" size={16} color={Colors.text.secondary} />
+              <Text style={styles.detailText}>{subService.duration} minutos</Text>
+            </View>
+            <View style={styles.detailItem}>
+              <MaterialCommunityIcons name="cash" size={16} color={Colors.text.secondary} />
+              <Text style={styles.detailText}>${subService.price.toLocaleString('es-CO')}</Text>
+            </View>
           </View>
         </View>
 
@@ -129,21 +135,21 @@ export const BookingCalendarScreen: React.FC<BookingCalendarScreenProps> = ({
             markedDates={{
               [selectedDate]: {
                 selected: true,
-                selectedColor: Colors.primary.green,
+                selectedColor: Colors.primary.dark,
               }
             }}
             theme={{
               backgroundColor: Colors.ui.background,
               calendarBackground: Colors.ui.background,
               textSectionTitleColor: Colors.text.secondary,
-              selectedDayBackgroundColor: Colors.primary.green,
+              selectedDayBackgroundColor: Colors.primary.dark,
               selectedDayTextColor: '#FFFFFF',
-              todayTextColor: Colors.primary.green,
+              todayTextColor: Colors.primary.dark,
               dayTextColor: Colors.text.primary,
               textDisabledColor: Colors.text.light,
-              dotColor: Colors.primary.green,
+              dotColor: Colors.primary.dark,
               selectedDotColor: '#FFFFFF',
-              arrowColor: Colors.primary.green,
+              arrowColor: Colors.primary.dark,
               monthTextColor: Colors.primary.dark,
               textDayFontFamily: 'System',
               textMonthFontFamily: 'System',
@@ -197,9 +203,18 @@ export const BookingCalendarScreen: React.FC<BookingCalendarScreenProps> = ({
           <View style={styles.confirmSection}>
             <View style={styles.summaryCard}>
               <Text style={styles.summaryTitle}>Resumen de tu cita</Text>
-              <Text style={styles.summaryText}>📅 {selectedDate}</Text>
-              <Text style={styles.summaryText}>⏰ {selectedTime}</Text>
-              <Text style={styles.summaryText}>⏱ Duración: {subService.duration} min</Text>
+              <View style={styles.summaryItem}>
+                <MaterialCommunityIcons name="calendar" size={20} color={Colors.secondary.green} />
+                <Text style={styles.summaryText}>{selectedDate}</Text>
+              </View>
+              <View style={styles.summaryItem}>
+                <MaterialCommunityIcons name="clock-outline" size={20} color={Colors.secondary.green} />
+                <Text style={styles.summaryText}>{selectedTime}</Text>
+              </View>
+              <View style={styles.summaryItem}>
+                <MaterialCommunityIcons name="timer-outline" size={20} color={Colors.secondary.green} />
+                <Text style={styles.summaryText}>Duración: {subService.duration} min</Text>
+              </View>
             </View>
             <TouchableOpacity
               style={styles.confirmButton}
@@ -228,15 +243,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  backIcon: {
-    fontSize: 28,
-    color: Colors.primary.green,
-    marginRight: 4,
-  },
   backText: {
     fontSize: 16,
-    color: Colors.primary.green,
+    color: Colors.primary.dark,
     fontWeight: '500',
+    marginLeft: 8,
   },
   serviceInfo: {
     paddingHorizontal: 24,
@@ -251,6 +262,11 @@ const styles = StyleSheet.create({
   serviceDetails: {
     flexDirection: 'row',
     gap: 20,
+  },
+  detailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   detailText: {
     fontSize: 16,
@@ -291,8 +307,8 @@ const styles = StyleSheet.create({
     borderColor: Colors.ui.surface,
   },
   timeSlotSelected: {
-    backgroundColor: Colors.primary.green,
-    borderColor: Colors.primary.green,
+    backgroundColor: Colors.primary.dark,
+    borderColor: Colors.primary.dark,
   },
   timeText: {
     fontSize: 16,
@@ -318,13 +334,19 @@ const styles = StyleSheet.create({
     color: Colors.primary.dark,
     marginBottom: 12,
   },
+  summaryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
   summaryText: {
     fontSize: 16,
     color: Colors.text.primary,
-    marginBottom: 8,
+    flex: 1,
   },
   confirmButton: {
-    backgroundColor: Colors.primary.green,
+    backgroundColor: Colors.primary.dark,
     paddingVertical: 16,
     borderRadius: 50,
     alignItems: 'center',

@@ -32,10 +32,18 @@ interface PaymentMethod {
   id: string;
   name: string;
   icon: string;
+  iconFamily?: string;
   description: string;
 }
 
 const PAYMENT_METHODS: PaymentMethod[] = [
+  {
+    id: 'test_payment',
+    name: 'Pago de Prueba',
+    icon: 'flask',
+    iconFamily: 'MaterialCommunityIcons',
+    description: 'Simula el pago para pruebas (temporal)'
+  },
   {
     id: 'nequi',
     name: 'Nequi',
@@ -106,8 +114,13 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
         userPhone: user?.phone
       };
 
-      // Simular procesamiento de pago
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Si es pago de prueba, procesamiento instantáneo
+      if (selectedMethod === 'test_payment') {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } else {
+        // Simular procesamiento de pago real
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
 
       // Actualizar el estado de la cita
       const { error: updateError } = await supabase
@@ -130,7 +143,7 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
           user_id: user?.id,
           amount: subService.price,
           payment_method: selectedMethod,
-          status: 'completed',
+          status: selectedMethod === 'test_payment' ? 'test_completed' : 'completed',
           description: `${service.name} - ${subService.name} - ${format(parseISO(date), 'd MMMM yyyy', { locale: es })}`,
           metadata: {
             type: 'appointment',
@@ -146,8 +159,10 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
       }
 
       Alert.alert(
-        '¡Pago exitoso!',
-        'Tu cita ha sido confirmada. Recibirás un correo con los detalles.',
+        selectedMethod === 'test_payment' ? '¡Pago de prueba exitoso!' : '¡Pago exitoso!',
+        selectedMethod === 'test_payment' 
+          ? 'Tu cita ha sido confirmada en modo prueba. Este es solo para testing.'
+          : 'Tu cita ha sido confirmada. Recibirás un correo con los detalles.',
         [{ text: 'OK', onPress: onSuccess }]
       );
     } catch (error) {
@@ -169,11 +184,19 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
         activeOpacity={0.8}
       >
         <View style={styles.paymentMethodIcon}>
-          <Ionicons 
-            name={method.icon as any} 
-            size={24} 
-            color={isSelected ? Colors.primary.dark : Colors.text.secondary} 
-          />
+          {method.iconFamily === 'MaterialCommunityIcons' ? (
+            <MaterialCommunityIcons 
+              name={method.icon as any} 
+              size={24} 
+              color={isSelected ? Colors.primary.dark : Colors.text.secondary} 
+            />
+          ) : (
+            <Ionicons 
+              name={method.icon as any} 
+              size={24} 
+              color={isSelected ? Colors.primary.dark : Colors.text.secondary} 
+            />
+          )}
         </View>
         <View style={styles.paymentMethodInfo}>
           <Text style={[styles.paymentMethodName, isSelected && styles.textSelected]}>

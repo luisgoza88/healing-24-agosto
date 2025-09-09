@@ -13,6 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
 import { Button } from '../../components/Button';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 interface NotificationPreferences {
   appointments_reminder: boolean;
@@ -127,11 +129,19 @@ export const NotificationPreferencesScreen = ({ navigation }: any) => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.navigationHeader}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color={Colors.primary.dark} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Preferencias de Notificación</Text>
+        <View style={styles.headerRight} />
+      </View>
+      
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Text style={styles.title}>Preferencias de Notificación</Text>
+          <Text style={styles.title}>Personaliza tus notificaciones</Text>
           <Text style={styles.subtitle}>
-            Personaliza cómo y cuándo recibir notificaciones
+            Elige cómo y cuándo recibir actualizaciones
           </Text>
         </View>
 
@@ -141,7 +151,10 @@ export const NotificationPreferencesScreen = ({ navigation }: any) => {
           
           <View style={styles.preferenceItem}>
             <View style={styles.preferenceInfo}>
-              <Text style={styles.preferenceName}>📧 Notificaciones por Email</Text>
+              <View style={styles.preferenceNameRow}>
+                <MaterialCommunityIcons name="email" size={20} color={Colors.primary.dark} style={styles.preferenceIcon} />
+                <Text style={styles.preferenceName}>Notificaciones por Email</Text>
+              </View>
               <Text style={styles.preferenceDescription}>
                 Recibe notificaciones en tu correo electrónico
               </Text>
@@ -156,7 +169,10 @@ export const NotificationPreferencesScreen = ({ navigation }: any) => {
 
           <View style={styles.preferenceItem}>
             <View style={styles.preferenceInfo}>
-              <Text style={styles.preferenceName}>📱 Notificaciones Push</Text>
+              <View style={styles.preferenceNameRow}>
+                <MaterialCommunityIcons name="cellphone" size={20} color={Colors.primary.dark} style={styles.preferenceIcon} />
+                <Text style={styles.preferenceName}>Notificaciones Push</Text>
+              </View>
               <Text style={styles.preferenceDescription}>
                 Recibe notificaciones en tu dispositivo móvil
               </Text>
@@ -171,7 +187,10 @@ export const NotificationPreferencesScreen = ({ navigation }: any) => {
 
           <View style={styles.preferenceItem}>
             <View style={styles.preferenceInfo}>
-              <Text style={styles.preferenceName}>💬 SMS</Text>
+              <View style={styles.preferenceNameRow}>
+                <MaterialCommunityIcons name="message-text" size={20} color={Colors.primary.dark} style={styles.preferenceIcon} />
+                <Text style={styles.preferenceName}>SMS</Text>
+              </View>
               <Text style={styles.preferenceDescription}>
                 Recibe mensajes de texto (pueden aplicar cargos)
               </Text>
@@ -310,6 +329,31 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.ui.background,
   },
+  navigationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.ui.divider,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: Colors.primary.dark,
+    flex: 1,
+    textAlign: 'center',
+    marginHorizontal: 16,
+  },
+  headerRight: {
+    width: 40,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -352,11 +396,18 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 16,
   },
+  preferenceNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  preferenceIcon: {
+    marginRight: 8,
+  },
   preferenceName: {
     fontSize: 16,
     fontWeight: '500',
     color: Colors.text.primary,
-    marginBottom: 4,
   },
   preferenceDescription: {
     fontSize: 14,

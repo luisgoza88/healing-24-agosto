@@ -311,6 +311,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   bottomSpacing: {
-    height: 32,
+    height: 90, // Espacio para la barra de navegación
   },
 });

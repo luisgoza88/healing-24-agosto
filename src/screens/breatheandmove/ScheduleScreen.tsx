@@ -54,6 +54,11 @@ export const ScheduleScreen = ({ navigation }: any) => {
         key={classItem.id}
         style={[styles.classCard, { backgroundColor: color }]}
         activeOpacity={0.8}
+        onPress={() => {
+          // Generar un ID temporal para la clase
+          const tempId = `temp_${classItem.className}_2025-09-0${selectedDay}_${classItem.time.replace(':', '_')}`;
+          navigation.navigate('BreatheAndMoveClassEnrollment', { classId: tempId });
+        }}
       >
         <View style={styles.classTime}>
           <Text style={styles.timeText}>{classItem.time}</Text>

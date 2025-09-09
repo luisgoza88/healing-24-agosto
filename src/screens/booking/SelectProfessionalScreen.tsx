@@ -11,6 +11,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 interface Professional {
   id: string;
@@ -52,38 +54,15 @@ export const SelectProfessionalScreen: React.FC<SelectProfessionalScreenProps> =
       const mockProfessionals: Professional[] = [
         {
           id: '1',
-          name: 'Dra. María González',
-          specialties: ['Medicina Funcional', 'Medicina Integrativa'],
-          bio: 'Especialista en medicina funcional con 15 años de experiencia',
-          avatar: '👩‍⚕️'
-        },
-        {
-          id: '2',
-          name: 'Dr. Carlos Rodríguez',
-          specialties: ['Medicina Funcional', 'Nutrición Clínica'],
-          bio: 'Experto en optimización hormonal y nutrición personalizada',
-          avatar: '👨‍⚕️'
-        },
-        {
-          id: '3',
-          name: 'Dra. Ana Martínez',
-          specialties: ['Medicina Estética', 'Dermatología'],
-          bio: 'Especialista en tratamientos estéticos no invasivos',
-          avatar: '👩‍⚕️'
+          name: 'Dra. Estefanía González',
+          specialties: ['Medicina Funcional', 'Medicina Integrativa', 'Medicina Estética'],
+          bio: 'Especialista en medicina funcional e integrativa con enfoque holístico',
+          avatar: 'doctor'
         }
       ];
 
-      // Filtrar según el servicio
-      const filtered = mockProfessionals.filter(prof => {
-        if (service.id === 'medicina-funcional') {
-          return prof.specialties.some(s => s.includes('Medicina Funcional'));
-        }
-        if (service.id === 'medicina-estetica') {
-          return prof.specialties.some(s => s.includes('Medicina Estética'));
-        }
-        // Para otros servicios, mostrar todos por ahora
-        return true;
-      });
+      // Por ahora mostrar la única profesional disponible para todos los servicios
+      const filtered = mockProfessionals;
 
       setProfessionals(filtered);
       setLoading(false);
@@ -120,8 +99,14 @@ export const SelectProfessionalScreen: React.FC<SelectProfessionalScreenProps> =
           </Text>
 
           <View style={styles.appointmentInfo}>
-            <Text style={styles.infoText}>📅 {date}</Text>
-            <Text style={styles.infoText}>⏰ {time}</Text>
+            <View style={styles.infoItem}>
+              <MaterialCommunityIcons name="calendar" size={16} color={Colors.text.secondary} />
+              <Text style={styles.infoText}>{date}</Text>
+            </View>
+            <View style={styles.infoItem}>
+              <MaterialCommunityIcons name="clock-outline" size={16} color={Colors.text.secondary} />
+              <Text style={styles.infoText}>{time}</Text>
+            </View>
           </View>
 
           <View style={styles.professionalsContainer}>
@@ -136,7 +121,9 @@ export const SelectProfessionalScreen: React.FC<SelectProfessionalScreenProps> =
                 activeOpacity={0.7}
               >
                 <View style={styles.professionalHeader}>
-                  <Text style={styles.avatar}>{professional.avatar}</Text>
+                  <View style={styles.avatarContainer}>
+                    <MaterialCommunityIcons name={professional.avatar} size={40} color={Colors.secondary.green} />
+                  </View>
                   <View style={styles.professionalInfo}>
                     <Text style={styles.professionalName}>{professional.name}</Text>
                     <Text style={styles.specialties}>
@@ -145,7 +132,7 @@ export const SelectProfessionalScreen: React.FC<SelectProfessionalScreenProps> =
                   </View>
                   {selectedProfessional?.id === professional.id && (
                     <View style={styles.checkmark}>
-                      <Text style={styles.checkmarkText}>✓</Text>
+                      <Ionicons name="checkmark" size={16} color="#FFFFFF" />
                     </View>
                   )}
                 </View>
@@ -184,12 +171,12 @@ const styles = StyleSheet.create({
   },
   backIcon: {
     fontSize: 28,
-    color: Colors.primary.green,
+    color: Colors.primary.dark,
     marginRight: 4,
   },
   backText: {
     fontSize: 16,
-    color: Colors.primary.green,
+    color: Colors.primary.dark,
     fontWeight: '500',
   },
   content: {
@@ -211,6 +198,11 @@ const styles = StyleSheet.create({
     gap: 20,
     marginBottom: 24,
   },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   infoText: {
     fontSize: 16,
     color: Colors.text.secondary,
@@ -227,7 +219,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.ui.surface,
   },
   professionalCardSelected: {
-    borderColor: Colors.primary.green,
+    borderColor: Colors.primary.dark,
     backgroundColor: Colors.primary.beige + '20',
   },
   professionalHeader: {
@@ -235,8 +227,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  avatar: {
-    fontSize: 40,
+  avatarContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: Colors.primary.beige,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 16,
   },
   professionalInfo: {
@@ -261,7 +258,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: Colors.primary.green,
+    backgroundColor: Colors.primary.dark,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -271,7 +268,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   continueButton: {
-    backgroundColor: Colors.primary.green,
+    backgroundColor: Colors.primary.dark,
     paddingVertical: 16,
     borderRadius: 50,
     alignItems: 'center',

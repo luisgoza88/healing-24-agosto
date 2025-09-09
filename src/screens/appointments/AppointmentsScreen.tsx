@@ -13,6 +13,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
 import { SERVICES } from '../../constants/services';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { ServiceIcon } from '../../components/ServiceIcon';
 
 interface Appointment {
   id: string;
@@ -59,8 +62,21 @@ export const AppointmentsScreen = ({ navigation }: any) => {
 
   const loadAppointments = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      console.log('=== LOADING APPOINTMENTS ===');
+      
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        console.error('Error getting user in AppointmentsScreen:', userError);
+        return;
+      }
+      
+      if (!user) {
+        console.log('No user found in AppointmentsScreen');
+        return;
+      }
+      
+      console.log('Loading appointments for user:', user.id, user.email);
 
       // Cargar citas médicas
       const { data: medicalAppointments, error: medicalError } = await supabase
@@ -69,7 +85,13 @@ export const AppointmentsScreen = ({ navigation }: any) => {
         .eq('user_id', user.id)
         .order('appointment_date', { ascending: false });
 
-      if (medicalError) throw medicalError;
+      if (medicalError) {
+        console.error('Error loading medical appointments:', medicalError);
+        throw medicalError;
+      }
+      
+      console.log('Medical appointments loaded:', medicalAppointments?.length || 0);
+      console.log('First appointment:', medicalAppointments?.[0]);
 
       // Cargar clases de Hot Studio
       const { data: hotStudioEnrollments, error: hotStudioError } = await supabase
@@ -99,9 +121,7 @@ export const AppointmentsScreen = ({ navigation }: any) => {
         }
 
         const professional = {
-          name: apt.professional_id === '1' ? 'Dra. María González' :
-                apt.professional_id === '2' ? 'Dr. Carlos Rodríguez' :
-                'Dra. Ana Martínez'
+          name: 'Dra. Estefanía González'
         };
 
         return {
@@ -289,9 +309,7 @@ export const AppointmentsScreen = ({ navigation }: any) => {
         >
           <View style={styles.appointmentHeader}>
             <View style={[styles.serviceIcon, { backgroundColor: classData.class_type?.color || Colors.primary.green }]}>
-              <Text style={styles.serviceIconText}>
-                {classData.class_type?.icon || '🧘‍♀️'}
-              </Text>
+              <MaterialCommunityIcons name="yoga" size={24} color="#FFFFFF" />
             </View>
             <View style={styles.appointmentInfo}>
               <Text style={styles.serviceName}>
@@ -308,23 +326,23 @@ export const AppointmentsScreen = ({ navigation }: any) => {
 
           <View style={styles.appointmentDetails}>
             <View style={styles.detailRow}>
-              <Text style={styles.detailIcon}>📅</Text>
+              <MaterialCommunityIcons name="calendar" size={16} color={Colors.text.secondary} style={styles.detailIconView} />
               <Text style={styles.detailText}>{formatDate(appointment.appointment_date)}</Text>
             </View>
             <View style={styles.detailRow}>
-              <Text style={styles.detailIcon}>⏰</Text>
+              <MaterialCommunityIcons name="clock-outline" size={16} color={Colors.text.secondary} style={styles.detailIconView} />
               <Text style={styles.detailText}>
                 {classData.start_time.slice(0, 5)} - {classData.end_time.slice(0, 5)}
               </Text>
             </View>
             {classData.instructor && (
               <View style={styles.detailRow}>
-                <Text style={styles.detailIcon}>🧘‍♀️</Text>
+                <MaterialCommunityIcons name="account" size={16} color={Colors.text.secondary} style={styles.detailIconView} />
                 <Text style={styles.detailText}>{classData.instructor.name}</Text>
               </View>
             )}
             <View style={styles.detailRow}>
-              <Text style={styles.detailIcon}>🎫</Text>
+              <MaterialCommunityIcons name="ticket-confirmation" size={16} color={Colors.text.secondary} style={styles.detailIconView} />
               <Text style={styles.detailText}>Incluido en membresía</Text>
             </View>
           </View>
@@ -347,19 +365,32 @@ export const AppointmentsScreen = ({ navigation }: any) => {
     return (
       <View key={appointment.id} style={styles.appointmentCard}>
         <View style={styles.appointmentHeader}>
-          <View style={[styles.serviceIcon, { backgroundColor: appointment.service?.color || Colors.primary.green }]}>
-            <Text style={styles.serviceIconText}>
-              {appointment.service?.id === 'medicina-funcional' ? '🩺' :
-               appointment.service?.id === 'medicina-estetica' ? '✨' :
-               appointment.service?.id === 'medicina-regenerativa' ? '🧬' :
-               appointment.service?.id === 'faciales' ? '🧖‍♀️' : '💆‍♀️'}
-            </Text>
+          <View style={[styles.serviceIcon, { 
+            backgroundColor: appointment.notes?.includes('Breathe & Move') 
+              ? Colors.primary.dark 
+              : (appointment.service?.color || Colors.primary.green) 
+          }]}>
+            {appointment.notes?.includes('Breathe & Move') ? (
+              <MaterialCommunityIcons name="yoga" size={24} color="#FFFFFF" />
+            ) : (
+              <ServiceIcon 
+                serviceId={appointment.service?.id || ''} 
+                size={24} 
+                color="#FFFFFF"
+              />
+            )}
           </View>
           <View style={styles.appointmentInfo}>
             <Text style={styles.serviceName}>
-              {appointment.subService?.name || appointment.notes}
+              {appointment.notes?.includes('Breathe & Move') 
+                ? appointment.notes.split(' - ')[1] 
+                : (appointment.subService?.name || appointment.notes)}
             </Text>
-            <Text style={styles.serviceCategory}>{appointment.service?.name}</Text>
+            <Text style={styles.serviceCategory}>
+              {appointment.notes?.includes('Breathe & Move') 
+                ? 'Breathe & Move' 
+                : appointment.service?.name}
+            </Text>
           </View>
           <View style={[styles.statusBadge, { backgroundColor: getStatusColor(appointment.status) + '20' }]}>
             <Text style={[styles.statusText, { color: getStatusColor(appointment.status) }]}>
@@ -370,25 +401,29 @@ export const AppointmentsScreen = ({ navigation }: any) => {
 
         <View style={styles.appointmentDetails}>
           <View style={styles.detailRow}>
-            <Text style={styles.detailIcon}>📅</Text>
+            <MaterialCommunityIcons name="calendar" size={16} color={Colors.text.secondary} style={styles.detailIcon} />
             <Text style={styles.detailText}>{formatDate(appointment.appointment_date)}</Text>
           </View>
           <View style={styles.detailRow}>
-            <Text style={styles.detailIcon}>⏰</Text>
+            <MaterialCommunityIcons name="clock-outline" size={16} color={Colors.text.secondary} style={styles.detailIcon} />
             <Text style={styles.detailText}>
-              {formatTime(appointment.appointment_date)}
+              {appointment.appointment_time 
+                ? `${appointment.appointment_time.slice(0, 5)} - ${appointment.end_time?.slice(0, 5) || ''}`
+                : formatTime(appointment.appointment_date)}
             </Text>
           </View>
           {appointment.professional && (
             <View style={styles.detailRow}>
-              <Text style={styles.detailIcon}>👨‍⚕️</Text>
+              <MaterialCommunityIcons name="doctor" size={16} color={Colors.text.secondary} style={styles.detailIcon} />
               <Text style={styles.detailText}>{appointment.professional.name}</Text>
             </View>
           )}
           <View style={styles.detailRow}>
-            <Text style={styles.detailIcon}>💰</Text>
+            <MaterialCommunityIcons name="cash" size={16} color={Colors.text.secondary} style={styles.detailIcon} />
             <Text style={styles.detailText}>
-              ${appointment.total_amount.toLocaleString('es-CO')} COP
+              {appointment.total_amount === 0 && appointment.notes?.includes('paquete') 
+                ? 'Incluido en paquete' 
+                : `$${appointment.total_amount.toLocaleString('es-CO')} COP`}
             </Text>
           </View>
         </View>
@@ -462,9 +497,12 @@ export const AppointmentsScreen = ({ navigation }: any) => {
         <View style={styles.content}>
           {filteredAppointments.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>
-                {activeTab === 'upcoming' ? '📅' : '📆'}
-              </Text>
+              <MaterialCommunityIcons 
+                name={activeTab === 'upcoming' ? 'calendar-clock' : 'calendar-check'} 
+                size={64} 
+                color={Colors.text.secondary} 
+                style={{ marginBottom: 16 }}
+              />
               <Text style={styles.emptyTitle}>
                 No tienes citas {activeTab === 'upcoming' ? 'próximas' : 'pasadas'}
               </Text>
@@ -583,9 +621,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   detailIcon: {
-    fontSize: 16,
     marginRight: 8,
-    width: 24,
   },
   detailText: {
     fontSize: 14,
@@ -626,10 +662,6 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     paddingVertical: 60,
-  },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
   },
   emptyTitle: {
     fontSize: 20,

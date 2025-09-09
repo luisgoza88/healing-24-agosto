@@ -91,8 +91,11 @@ export const HomeScreen = ({ navigation }: any) => {
           user_id: user.id,
           service_id: currentService.id,
           professional_id: bookingData.professional.id,
-          appointment_date: appointmentDateTime.toISOString(),
-          status: 'pending_payment',
+          appointment_date: bookingData.date,
+          appointment_time: bookingData.time + ':00',
+          end_time: new Date(appointmentDateTime.getTime() + selectedSubService.duration * 60000).toTimeString().slice(0, 8),
+          duration: selectedSubService.duration,
+          status: 'pending',
           total_amount: selectedSubService.price,
           notes: `${currentService.name} - ${selectedSubService.name} - ${selectedSubService.duration} min`
         })

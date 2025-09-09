@@ -32,10 +32,17 @@ interface MembershipPaymentScreenProps {
 
 export const MembershipPaymentScreen: React.FC<MembershipPaymentScreenProps> = ({ route, navigation }) => {
   const { membership, userMembershipId } = route.params;
-  const [selectedMethod, setSelectedMethod] = useState<'credit_card' | 'pse' | null>(null);
+  const [selectedMethod, setSelectedMethod] = useState<'test_payment' | 'credit_card' | 'pse' | null>(null);
   const [processing, setProcessing] = useState(false);
 
   const paymentMethods = [
+    {
+      id: 'test_payment',
+      name: 'Pago de Prueba',
+      description: 'Simula el pago para pruebas (temporal)',
+      icon: '🧪',
+      brands: ['Modo desarrollo - No se cobra']
+    },
     {
       id: 'credit_card',
       name: 'Tarjeta de crédito o débito',
@@ -62,19 +69,28 @@ export const MembershipPaymentScreen: React.FC<MembershipPaymentScreenProps> = (
 
     try {
       // Simular procesamiento de pago
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      if (selectedMethod === 'test_payment') {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
 
       // Actualizar el estado de pago de la membresía
       const { error } = await supabase
         .from('user_memberships')
-        .update({ payment_status: 'paid' })
+        .update({ 
+          payment_status: selectedMethod === 'test_payment' ? 'test_paid' : 'paid',
+          payment_method: selectedMethod
+        })
         .eq('id', userMembershipId);
 
       if (error) throw error;
 
       Alert.alert(
-        '¡Pago exitoso!',
-        `Tu membresía ${membership.name} ha sido activada.`,
+        selectedMethod === 'test_payment' ? '¡Pago de prueba exitoso!' : '¡Pago exitoso!',
+        selectedMethod === 'test_payment' 
+          ? `Tu membresía ${membership.name} ha sido activada en modo prueba.`
+          : `Tu membresía ${membership.name} ha sido activada.`,
         [
           {
             text: 'OK',
@@ -142,7 +158,7 @@ export const MembershipPaymentScreen: React.FC<MembershipPaymentScreenProps> = (
                   styles.methodCard,
                   selectedMethod === method.id && styles.methodCardSelected
                 ]}
-                onPress={() => setSelectedMethod(method.id as 'credit_card' | 'pse')}
+                onPress={() => setSelectedMethod(method.id as 'test_payment' | 'credit_card' | 'pse')}
                 activeOpacity={0.7}
               >
                 <View style={styles.methodHeader}>

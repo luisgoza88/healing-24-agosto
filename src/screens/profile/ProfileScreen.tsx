@@ -9,14 +9,18 @@ import {
   Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 interface ProfileData {
   full_name: string;
@@ -39,6 +43,8 @@ export const ProfileScreen = ({ navigation }: any) => {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [devTapCount, setDevTapCount] = useState(0);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showGenderPicker, setShowGenderPicker] = useState(false);
   const [profile, setProfile] = useState<ProfileData>({
     full_name: '',
     phone: '',
@@ -143,7 +149,7 @@ export const ProfileScreen = ({ navigation }: any) => {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: [ImagePicker.MediaType.Images],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.5,
@@ -174,10 +180,14 @@ export const ProfileScreen = ({ navigation }: any) => {
         .from('avatars')
         .upload(filePath, blob, {
           contentType: `image/${fileExt}`,
+          cacheControl: '3600',
           upsert: true
         });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw uploadError;
+      }
 
       // Obtener URL pública
       const { data: { publicUrl } } = supabase.storage
@@ -200,6 +210,35 @@ export const ProfileScreen = ({ navigation }: any) => {
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      const formattedDate = selectedDate.toISOString().split('T')[0];
+      setProfile({ ...profile, date_of_birth: formattedDate });
+    }
+  };
+
+  const formatDateDisplay = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const options: Intl.DateTimeFormatOptions = { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    };
+    return date.toLocaleDateString('es-ES', options);
+  };
+
+  const getDateForPicker = () => {
+    if (profile.date_of_birth) {
+      return new Date(profile.date_of_birth);
+    }
+    // Fecha por defecto: hace 25 años
+    const defaultDate = new Date();
+    defaultDate.setFullYear(defaultDate.getFullYear() - 25);
+    return defaultDate;
   };
 
   const saveProfile = async () => {
@@ -311,15 +350,17 @@ export const ProfileScreen = ({ navigation }: any) => {
                 </View>
               )}
               <View style={styles.cameraIcon}>
-                <Text>📷</Text>
+                <MaterialCommunityIcons name="camera" size={16} color="#FFFFFF" />
               </View>
             </TouchableOpacity>
-            <Text style={styles.changePhotoText}>Cambiar foto</Text>
           </View>
 
           {/* Información personal */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Información Personal</Text>
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <MaterialCommunityIcons name="account-outline" size={20} color={Colors.primary.dark} />
+              <Text style={styles.sectionTitle}>Información Personal</Text>
+            </View>
             
             <Input
               label="Nombre completo"
@@ -354,27 +395,45 @@ export const ProfileScreen = ({ navigation }: any) => {
 
             <View style={styles.row}>
               <View style={styles.halfInput}>
-                <Input
-                  label="Fecha de nacimiento"
-                  value={profile.date_of_birth}
-                  onChangeText={(text) => setProfile({ ...profile, date_of_birth: text })}
-                  placeholder="YYYY-MM-DD"
-                />
+                <Text style={styles.inputLabel}>Fecha de nacimiento</Text>
+                <TouchableOpacity
+                  style={styles.datePickerButton}
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <MaterialCommunityIcons name="calendar" size={20} color={Colors.primary.green} />
+                  <Text style={styles.datePickerText}>
+                    {profile.date_of_birth 
+                      ? formatDateDisplay(profile.date_of_birth) 
+                      : 'Seleccionar fecha'}
+                  </Text>
+                </TouchableOpacity>
               </View>
+              
               <View style={styles.halfInput}>
-                <Input
-                  label="Género"
-                  value={profile.gender}
-                  onChangeText={(text) => setProfile({ ...profile, gender: text })}
-                  placeholder="Género"
-                />
+                <Text style={styles.inputLabel}>Género</Text>
+                <TouchableOpacity
+                  style={styles.datePickerButton}
+                  onPress={() => setShowGenderPicker(true)}
+                >
+                  <MaterialCommunityIcons 
+                    name="gender-male-female" 
+                    size={20} 
+                    color={Colors.primary.green} 
+                  />
+                  <Text style={styles.datePickerText}>
+                    {profile.gender || 'Seleccionar'}
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
           </View>
 
           {/* Dirección */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Dirección</Text>
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <MaterialCommunityIcons name="map-marker-outline" size={20} color={Colors.primary.dark} />
+              <Text style={styles.sectionTitle}>Dirección</Text>
+            </View>
             
             <Input
               label="Dirección"
@@ -392,8 +451,11 @@ export const ProfileScreen = ({ navigation }: any) => {
           </View>
 
           {/* Contacto de emergencia */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Contacto de Emergencia</Text>
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <MaterialCommunityIcons name="phone-alert" size={20} color={Colors.primary.dark} />
+              <Text style={styles.sectionTitle}>Contacto de Emergencia</Text>
+            </View>
             
             <Input
               label="Nombre del contacto"
@@ -412,8 +474,11 @@ export const ProfileScreen = ({ navigation }: any) => {
           </View>
 
           {/* Información médica */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Información Médica</Text>
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <MaterialCommunityIcons name="medical-bag" size={20} color={Colors.primary.dark} />
+              <Text style={styles.sectionTitle}>Información Médica</Text>
+            </View>
             
             <Input
               label="Condiciones médicas"
@@ -435,34 +500,114 @@ export const ProfileScreen = ({ navigation }: any) => {
           </View>
 
           {/* Botones de acción */}
-          <View style={styles.actions}>
-            <Button
-              title="Guardar cambios"
+          <View style={styles.buttonsContainer}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.saveButtonStyle]}
               onPress={saveProfile}
-              loading={saving}
               disabled={saving}
-            />
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <View style={styles.buttonContent}>
+                  <MaterialCommunityIcons name="content-save" size={20} color="#FFFFFF" />
+                  <Text style={styles.saveButtonText}>Guardar cambios</Text>
+                </View>
+              )}
+            </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.secondaryButton}
+              style={[styles.actionButton, styles.notificationButtonStyle]}
               onPress={() => navigation.navigate('NotificationPreferences')}
             >
-              <Text style={styles.secondaryButtonText}>
-                🔔 Preferencias de notificación
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.secondaryButton, { backgroundColor: '#2E7653' }]}
-              onPress={() => navigation.navigate('TestNotifications' as any)}
-            >
-              <Text style={[styles.secondaryButtonText, { color: '#fff' }]}>
-                🧪 Probar Notificaciones
-              </Text>
+              <View style={styles.buttonContent}>
+                <MaterialCommunityIcons name="bell-outline" size={20} color="#FFFFFF" />
+                <Text style={styles.notificationButtonText}>Notificaciones</Text>
+              </View>
             </TouchableOpacity>
           </View>
+          
+          <View style={styles.bottomSpacing} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Date Picker Modal */}
+      {showDatePicker && (
+        <DateTimePicker
+          value={getDateForPicker()}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'calendar'}
+          onChange={handleDateChange}
+          maximumDate={new Date()}
+          minimumDate={new Date(1900, 0, 1)}
+          locale="es"
+        />
+      )}
+
+      {/* Gender Picker Modal */}
+      <Modal
+        visible={showGenderPicker}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowGenderPicker(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowGenderPicker(false)}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Seleccionar Género</Text>
+              <TouchableOpacity onPress={() => setShowGenderPicker(false)}>
+                <Ionicons name="close" size={24} color={Colors.text.primary} />
+              </TouchableOpacity>
+            </View>
+            
+            <TouchableOpacity
+              style={styles.genderOption}
+              onPress={() => {
+                setProfile({ ...profile, gender: 'Masculino' });
+                setShowGenderPicker(false);
+              }}
+            >
+              <MaterialCommunityIcons name="gender-male" size={24} color={Colors.primary.green} />
+              <Text style={styles.genderOptionText}>Masculino</Text>
+              {profile.gender === 'Masculino' && (
+                <Ionicons name="checkmark-circle" size={24} color={Colors.primary.green} />
+              )}
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.genderOption}
+              onPress={() => {
+                setProfile({ ...profile, gender: 'Femenino' });
+                setShowGenderPicker(false);
+              }}
+            >
+              <MaterialCommunityIcons name="gender-female" size={24} color="#FF69B4" />
+              <Text style={styles.genderOptionText}>Femenino</Text>
+              {profile.gender === 'Femenino' && (
+                <Ionicons name="checkmark-circle" size={24} color={Colors.primary.green} />
+              )}
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.genderOption}
+              onPress={() => {
+                setProfile({ ...profile, gender: 'Otro' });
+                setShowGenderPicker(false);
+              }}
+            >
+              <MaterialCommunityIcons name="gender-transgender" size={24} color="#9B59B6" />
+              <Text style={styles.genderOptionText}>Otro</Text>
+              {profile.gender === 'Otro' && (
+                <Ionicons name="checkmark-circle" size={24} color={Colors.primary.green} />
+              )}
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -489,7 +634,8 @@ const styles = StyleSheet.create({
   },
   avatarSection: {
     alignItems: 'center',
-    paddingVertical: 24,
+    paddingVertical: 20,
+    marginBottom: 16,
   },
   avatar: {
     width: 120,
@@ -500,13 +646,13 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: Colors.primary.green,
+    backgroundColor: Colors.ui.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarPlaceholderText: {
     fontSize: 48,
-    color: '#FFFFFF',
+    color: Colors.text.secondary,
     fontWeight: 'bold',
   },
   uploadingOverlay: {
@@ -518,9 +664,9 @@ const styles = StyleSheet.create({
   },
   cameraIcon: {
     position: 'absolute',
-    right: 0,
-    bottom: 0,
-    backgroundColor: Colors.ui.surface,
+    right: 5,
+    bottom: 5,
+    backgroundColor: Colors.primary.dark,
     width: 36,
     height: 36,
     borderRadius: 18,
@@ -529,24 +675,19 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: Colors.ui.background,
   },
-  changePhotoText: {
-    marginTop: 8,
-    fontSize: 16,
-    color: Colors.primary.green,
-    fontWeight: '500',
-  },
   section: {
     paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingBottom: 32,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
     color: Colors.primary.dark,
-    marginBottom: 16,
+    flex: 1,
   },
   disabledInput: {
-    backgroundColor: Colors.ui.disabled,
+    backgroundColor: '#F5F5F5',
+    borderColor: '#E0E0E0',
   },
   row: {
     flexDirection: 'row',
@@ -555,21 +696,130 @@ const styles = StyleSheet.create({
   halfInput: {
     flex: 1,
   },
-  actions: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
+  sectionCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 24,
+    marginBottom: 16,
+    padding: 18,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 3.84,
+    elevation: 2,
   },
-  secondaryButton: {
-    marginTop: 16,
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  bottomSpacing: {
+    height: 100,
+  },
+  buttonsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    marginTop: 8,
+    gap: 12,
+  },
+  actionButton: {
+    flex: 1,
     paddingVertical: 16,
     borderRadius: 50,
-    borderWidth: 1,
-    borderColor: Colors.primary.green,
     alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  secondaryButtonText: {
-    fontSize: 16,
-    color: Colors.primary.green,
+  saveButtonStyle: {
+    backgroundColor: Colors.primary.dark,
+  },
+  notificationButtonStyle: {
+    backgroundColor: Colors.primary.dark,
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  saveButtonText: {
+    fontSize: 15,
+    color: '#FFFFFF',
     fontWeight: '600',
+  },
+  notificationButtonText: {
+    fontSize: 15,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text.primary,
+    marginBottom: 8,
+  },
+  datePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: Colors.ui.border,
+    gap: 10,
+  },
+  datePickerText: {
+    flex: 1,
+    fontSize: 15,
+    color: Colors.text.primary,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+    paddingTop: 16,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.primary.dark,
+  },
+  genderOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.ui.border,
+    gap: 16,
+  },
+  genderOptionText: {
+    flex: 1,
+    fontSize: 16,
+    color: Colors.text.primary,
   },
 });

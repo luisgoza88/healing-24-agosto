@@ -26,6 +26,12 @@ interface PaymentMethod {
 
 const PAYMENT_METHODS: PaymentMethod[] = [
   {
+    id: 'test_payment',
+    name: 'Pago de Prueba',
+    icon: 'flask-empty',
+    description: 'Simula el pago para pruebas (temporal)'
+  },
+  {
     id: 'nequi',
     name: 'Nequi',
     icon: 'phone-portrait',
@@ -91,7 +97,7 @@ export const ClassPaymentScreen = ({ navigation, route }: any) => {
       // Si es una clase temporal, crear primero la clase en Supabase
       let finalClassId = classDetails.id;
       
-      if (classDetails.id.startsWith('temp_')) {
+      if (classDetails.id.startsWith('temp_') && selectedMethod !== 'test_payment') {
         // Extraer instructor del horario
         const { SEPTEMBER_2025_SCHEDULE } = require('../../constants/breatheMoveSchedule');
         const scheduleEntry = SEPTEMBER_2025_SCHEDULE.find(
@@ -118,19 +124,24 @@ export const ClassPaymentScreen = ({ navigation, route }: any) => {
 
         if (createError) throw createError;
         finalClassId = newClass.id;
+      } else if (classDetails.id.startsWith('temp_') && selectedMethod === 'test_payment') {
+        // Para pagos de prueba, no crear la clase, solo simular
+        finalClassId = classDetails.id; // Mantener el ID temporal
       }
 
-      // Crear la inscripción
-      const { error: enrollError } = await supabase
-        .from('breathe_move_enrollments')
-        .insert({
-          user_id: user.id,
-          class_id: finalClassId,
-          package_id: paymentType === 'package' ? packageId : null,
-          status: 'confirmed'
-        });
+      // Crear la inscripción solo si no es un pago de prueba con clase temporal
+      if (!(selectedMethod === 'test_payment' && classDetails.id.startsWith('temp_'))) {
+        const { error: enrollError } = await supabase
+          .from('breathe_move_enrollments')
+          .insert({
+            user_id: user.id,
+            class_id: finalClassId,
+            package_id: paymentType === 'package' ? packageId : null,
+            status: 'confirmed'
+          });
 
-      if (enrollError) throw enrollError;
+        if (enrollError) throw enrollError;
+      }
 
       // Registrar el pago
       const { error: paymentError } = await supabase
@@ -151,8 +162,10 @@ export const ClassPaymentScreen = ({ navigation, route }: any) => {
       if (paymentError) throw paymentError;
 
       Alert.alert(
-        '¡Pago exitoso!',
-        'Te has inscrito correctamente en la clase',
+        selectedMethod === 'test_payment' ? '¡Pago de prueba exitoso!' : '¡Pago exitoso!',
+        selectedMethod === 'test_payment' 
+          ? 'Reserva de prueba realizada (no se guardó en base de datos)'
+          : 'Te has inscrito correctamente en la clase',
         [
           {
             text: 'Ver mis clases',
@@ -284,6 +297,7 @@ export const ClassPaymentScreen = ({ navigation, route }: any) => {
             {' '}Pago seguro y encriptado
           </Text>
         </View>
+        <View style={styles.bottomSpacing} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -293,6 +307,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.ui.background,
+  },
+  bottomSpacing: {
+    height: 90, // Espacio para la barra de navegación
   },
   header: {
     flexDirection: 'row',

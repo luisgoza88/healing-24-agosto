@@ -281,7 +281,7 @@ export const ClassScheduleScreen = ({ navigation, route }: any) => {
         {renderWeekDays()}
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
           {selectedDayClasses.length === 0 ? (
             <View style={styles.emptyState}>
@@ -307,6 +307,9 @@ export const ClassScheduleScreen = ({ navigation, route }: any) => {
 };
 
 const styles = StyleSheet.create({
+  scrollContent: {
+    paddingBottom: 85, // Espacio para la barra de navegación
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.ui.background,

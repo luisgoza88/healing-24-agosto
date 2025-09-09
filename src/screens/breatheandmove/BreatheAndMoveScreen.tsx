@@ -119,7 +119,7 @@ const BREATHE_MOVE_CLASSES: ClassItem[] = [
     id: 'windflow',
     name: 'WindFlow',
     description: 'Secuencias dinámicas. Fluidez, energía y conexión en movimiento constante.',
-    icon: 'air',
+    icon: 'weather-windy',
     iconLibrary: 'MaterialCommunityIcons',
     color: '#879794', // Pantone 5497C - Gris verde
     intensity: 'medium'
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   bottomSpacing: {
-    height: 32,
+    height: 90, // Espacio para la barra de navegación
   },
   buttonsRow: {
     flexDirection: 'row',

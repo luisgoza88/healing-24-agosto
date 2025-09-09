@@ -31,6 +31,12 @@ interface PaymentMethod {
 
 const PAYMENT_METHODS: PaymentMethod[] = [
   {
+    id: 'test_payment',
+    name: 'Pago de Prueba',
+    icon: 'flask-empty',
+    description: 'Simula el pago para pruebas (temporal)'
+  },
+  {
     id: 'nequi',
     name: 'Nequi',
     icon: 'phone-portrait',
@@ -109,7 +115,11 @@ export const PackagePaymentScreen = ({ navigation, route }: any) => {
       }
 
       // Simular procesamiento de pago
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      if (selectedMethod === 'test_payment') {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
 
       // Crear el paquete para el usuario
       const expiryDate = calculateExpiryDate();
@@ -136,7 +146,8 @@ export const PackagePaymentScreen = ({ navigation, route }: any) => {
           user_id: user.id,
           amount: selectedPackage.price,
           payment_method: selectedMethod,
-          status: 'completed',
+          status: selectedMethod === 'test_payment' ? 'test_completed' : 'completed',
+          payment_status: selectedMethod === 'test_payment' ? 'test_paid' : 'paid',
           description: `Paquete ${selectedPackage.name} - Breathe & Move`,
           metadata: {
             type: 'breathe_move_package',
@@ -150,8 +161,10 @@ export const PackagePaymentScreen = ({ navigation, route }: any) => {
 
       // Enviar notificación o email de confirmación
       Alert.alert(
-        '¡Compra exitosa!',
-        `Has adquirido el paquete "${selectedPackage.name}" con ${getClassesText(selectedPackage.classes)}.`,
+        selectedMethod === 'test_payment' ? '¡Compra de prueba exitosa!' : '¡Compra exitosa!',
+        selectedMethod === 'test_payment' 
+          ? `Has adquirido el paquete "${selectedPackage.name}" con ${getClassesText(selectedPackage.classes)} en modo prueba.`
+          : `Has adquirido el paquete "${selectedPackage.name}" con ${getClassesText(selectedPackage.classes)}.`,
         [
           {
             text: 'Ver mis paquetes',
@@ -324,6 +337,7 @@ export const PackagePaymentScreen = ({ navigation, route }: any) => {
             )}
           </TouchableOpacity>
         </View>
+        <View style={styles.bottomSpacing} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -333,6 +347,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.ui.background,
+  },
+  bottomSpacing: {
+    height: 90, // Espacio para la barra de navegación
   },
   header: {
     flexDirection: 'row',

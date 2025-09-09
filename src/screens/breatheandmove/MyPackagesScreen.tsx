@@ -19,11 +19,11 @@ import { es } from 'date-fns/locale';
 interface UserPackage {
   id: string;
   package_type: string;
-  classes_included: number;
-  classes_remaining: number;
-  purchased_at: string;
-  expires_at: string;
-  status: 'active' | 'expired' | 'used';
+  classes_total: number;
+  classes_used: number;
+  created_at: string;
+  valid_until: string;
+  status: 'active' | 'expired' | 'completed';
 }
 
 interface ClassHistory {
@@ -58,7 +58,7 @@ export const MyPackagesScreen = ({ navigation }: any) => {
         .from('breathe_move_packages')
         .select('*')
         .eq('user_id', user.id)
-        .order('purchased_at', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (packagesError) throw packagesError;
 
@@ -67,13 +67,13 @@ export const MyPackagesScreen = ({ navigation }: any) => {
         const now = new Date();
         const active = packages.filter(p => 
           p.status === 'active' && 
-          isAfter(parseISO(p.expires_at), now) &&
-          p.classes_remaining > 0
+          isAfter(parseISO(p.valid_until), now) &&
+          (p.classes_total - p.classes_used) > 0
         );
         const expired = packages.filter(p => 
           p.status !== 'active' || 
-          !isAfter(parseISO(p.expires_at), now) ||
-          p.classes_remaining === 0
+          !isAfter(parseISO(p.valid_until), now) ||
+          (p.classes_total - p.classes_used) === 0
         );
 
         setActivePackages(active);
@@ -128,8 +128,8 @@ export const MyPackagesScreen = ({ navigation }: any) => {
   };
 
   const renderPackageCard = (pkg: UserPackage, isActive: boolean = true) => {
-    const usedClasses = pkg.classes_included - pkg.classes_remaining;
-    const usagePercentage = (usedClasses / pkg.classes_included) * 100;
+    const classesRemaining = pkg.classes_total - pkg.classes_used;
+    const usagePercentage = (pkg.classes_used / pkg.classes_total) * 100;
 
     return (
       <View key={pkg.id} style={[styles.packageCard, !isActive && styles.expiredCard]}>
@@ -137,7 +137,7 @@ export const MyPackagesScreen = ({ navigation }: any) => {
           <Text style={[styles.packageType, !isActive && styles.expiredText]}>
             {pkg.package_type}
           </Text>
-          {isActive && pkg.classes_remaining < 3 && pkg.classes_remaining > 0 && (
+          {isActive && classesRemaining < 3 && classesRemaining > 0 && (
             <View style={styles.lowClassesBadge}>
               <Text style={styles.lowClassesText}>Pocas clases</Text>
             </View>
@@ -146,10 +146,10 @@ export const MyPackagesScreen = ({ navigation }: any) => {
 
         <View style={styles.classesInfo}>
           <Text style={[styles.classesRemaining, !isActive && styles.expiredText]}>
-            {pkg.classes_remaining}
+            {classesRemaining}
           </Text>
           <Text style={[styles.classesLabel, !isActive && styles.expiredText]}>
-            clases restantes de {pkg.classes_included}
+            clases restantes de {pkg.classes_total}
           </Text>
         </View>
 
@@ -169,7 +169,7 @@ export const MyPackagesScreen = ({ navigation }: any) => {
           <View style={styles.dateInfo}>
             <Text style={styles.dateLabel}>Comprado:</Text>
             <Text style={styles.dateValue}>
-              {format(parseISO(pkg.purchased_at), 'd MMM yyyy', { locale: es })}
+              {format(parseISO(pkg.created_at), 'd MMM yyyy', { locale: es })}
             </Text>
           </View>
           <View style={styles.dateInfo}>
@@ -177,7 +177,7 @@ export const MyPackagesScreen = ({ navigation }: any) => {
               {isActive ? 'Vence:' : 'Venció:'}
             </Text>
             <Text style={[styles.dateValue, !isActive && styles.expiredDateText]}>
-              {format(parseISO(pkg.expires_at), 'd MMM yyyy', { locale: es })}
+              {format(parseISO(pkg.valid_until), 'd MMM yyyy', { locale: es })}
             </Text>
           </View>
         </View>
@@ -342,6 +342,7 @@ export const MyPackagesScreen = ({ navigation }: any) => {
             )}
           </View>
         )}
+        <View style={styles.bottomSpacing} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -351,6 +352,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.ui.background,
+  },
+  bottomSpacing: {
+    height: 90, // Espacio para la barra de navegación
   },
   loadingContainer: {
     flex: 1,

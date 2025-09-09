@@ -9,6 +9,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { ServiceIcon } from '../../components/ServiceIcon';
 
 interface BookingConfirmationScreenProps {
   service: any;
@@ -50,10 +53,10 @@ export const BookingConfirmationScreen: React.FC<BookingConfirmationScreenProps>
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Pressable onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backIcon}>‹</Text>
+        <TouchableOpacity onPress={onBack} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color={Colors.text.inverse} />
           <Text style={styles.backText}>Atrás</Text>
-        </Pressable>
+        </TouchableOpacity>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -68,12 +71,11 @@ export const BookingConfirmationScreen: React.FC<BookingConfirmationScreenProps>
             <Text style={styles.sectionTitle}>Servicio</Text>
             <View style={styles.serviceCard}>
               <View style={[styles.serviceIcon, { backgroundColor: service.color }]}>
-                <Text style={styles.serviceIconText}>
-                  {service.id === 'medicina-funcional' ? '🩺' :
-                   service.id === 'medicina-estetica' ? '✨' :
-                   service.id === 'medicina-regenerativa' ? '🧬' :
-                   service.id === 'faciales' ? '🧖‍♀️' : '💆‍♀️'}
-                </Text>
+                <ServiceIcon 
+                  icon={service.icon} 
+                  size={24} 
+                  color="#FFFFFF"
+                />
               </View>
               <View style={styles.serviceInfo}>
                 <Text style={styles.serviceName}>{subService.name}</Text>
@@ -87,11 +89,11 @@ export const BookingConfirmationScreen: React.FC<BookingConfirmationScreenProps>
             <Text style={styles.sectionTitle}>Fecha y hora</Text>
             <View style={styles.infoCard}>
               <View style={styles.infoRow}>
-                <Text style={styles.infoIcon}>📅</Text>
+                <MaterialCommunityIcons name="calendar" size={20} color={Colors.secondary.green} />
                 <Text style={styles.infoText}>{formattedDate}</Text>
               </View>
               <View style={styles.infoRow}>
-                <Text style={styles.infoIcon}>⏰</Text>
+                <MaterialCommunityIcons name="clock-outline" size={20} color={Colors.secondary.green} />
                 <Text style={styles.infoText}>
                   {time} - {calculateEndTime()} ({subService.duration} min)
                 </Text>
@@ -103,7 +105,9 @@ export const BookingConfirmationScreen: React.FC<BookingConfirmationScreenProps>
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Profesional</Text>
             <View style={styles.professionalCard}>
-              <Text style={styles.professionalAvatar}>{professional.avatar}</Text>
+              <View style={styles.professionalAvatarContainer}>
+                <MaterialCommunityIcons name="doctor" size={32} color={Colors.secondary.green} />
+              </View>
               <View style={styles.professionalInfo}>
                 <Text style={styles.professionalName}>{professional.name}</Text>
                 <Text style={styles.professionalSpecialty}>
@@ -126,7 +130,10 @@ export const BookingConfirmationScreen: React.FC<BookingConfirmationScreenProps>
 
           {/* Política de cancelación */}
           <View style={styles.policyCard}>
-            <Text style={styles.policyTitle}>📌 Política de cancelación</Text>
+            <View style={styles.policyHeader}>
+              <MaterialCommunityIcons name="information-outline" size={20} color={Colors.primary.dark} />
+              <Text style={styles.policyTitle}>Política de cancelación</Text>
+            </View>
             <Text style={styles.policyText}>
               Puedes cancelar o reprogramar tu cita hasta 24 horas antes sin costo.
             </Text>
@@ -161,15 +168,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  backIcon: {
-    fontSize: 28,
-    color: Colors.text.inverse,
-    marginRight: 4,
-  },
   backText: {
     fontSize: 16,
     color: Colors.text.inverse,
     fontWeight: '500',
+    marginLeft: 8,
   },
   content: {
     paddingHorizontal: 24,
@@ -214,9 +217,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 16,
   },
-  serviceIconText: {
-    fontSize: 24,
-  },
   serviceInfo: {
     flex: 1,
   },
@@ -243,11 +243,8 @@ const styles = StyleSheet.create({
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
     marginBottom: 8,
-  },
-  infoIcon: {
-    fontSize: 20,
-    marginRight: 12,
   },
   infoText: {
     fontSize: 16,
@@ -266,8 +263,13 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
-  professionalAvatar: {
-    fontSize: 32,
+  professionalAvatarContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.primary.beige,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 16,
   },
   professionalInfo: {
@@ -284,7 +286,7 @@ const styles = StyleSheet.create({
     color: Colors.text.secondary,
   },
   priceCard: {
-    backgroundColor: 'rgba(52, 199, 89, 0.1)',
+    backgroundColor: Colors.secondary.green + '15',
     padding: 24,
     borderRadius: 20,
     flexDirection: 'row',
@@ -306,11 +308,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 24,
   },
+  policyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
   policyTitle: {
     fontSize: 14,
     fontWeight: '600',
     color: Colors.primary.dark,
-    marginBottom: 8,
   },
   policyText: {
     fontSize: 14,
@@ -318,7 +325,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   confirmButton: {
-    backgroundColor: Colors.primary.green,
+    backgroundColor: Colors.primary.dark,
     paddingVertical: 16,
     borderRadius: 50,
     alignItems: 'center',

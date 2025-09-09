@@ -37,7 +37,12 @@ const Stack = createStackNavigator();
 // Navigator principal para cuando el usuario está autenticado
 const MainNavigator = () => {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator 
+      screenOptions={{ 
+        headerShown: false,
+        presentation: 'card', 
+      }}
+    >
       <Stack.Screen name="MainTabs" component={TabNavigator} />
       <Stack.Screen name="NotificationPreferences" component={NotificationPreferencesScreen} />
       <Stack.Screen name="RescheduleAppointment" component={RescheduleAppointmentScreen} />
@@ -50,15 +55,6 @@ const MainNavigator = () => {
       <Stack.Screen name="MyMembership" component={MyMembershipScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="TestNotifications" component={TestNotificationsScreen} />
-      <Stack.Screen name="BreatheAndMove" component={BreatheAndMoveScreen} />
-      <Stack.Screen name="ClassSchedule" component={ClassScheduleScreen} />
-      <Stack.Screen name="Packages" component={PackagesScreen} />
-      <Stack.Screen name="Schedule" component={ScheduleScreen} />
-      <Stack.Screen name="BreatheAndMoveClassEnrollment" component={BreatheAndMoveClassEnrollmentScreen} />
-      <Stack.Screen name="BreatheAndMoveClassDetail" component={BreatheAndMoveClassDetailScreen} />
-      <Stack.Screen name="ClassPayment" component={ClassPaymentScreen} />
-      <Stack.Screen name="PackagePayment" component={PackagePaymentScreen} />
-      <Stack.Screen name="MyPackages" component={MyPackagesScreen} />
     </Stack.Navigator>
   );
 };

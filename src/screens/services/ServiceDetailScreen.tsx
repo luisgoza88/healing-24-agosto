@@ -10,6 +10,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { SERVICES } from '../../constants/services';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import { ServiceIcon } from '../../components/ServiceIcon';
 
 interface ServiceDetailScreenProps {
   serviceId: string;
@@ -26,30 +29,25 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
   
   if (!service) return null;
 
-  const getServiceIcon = (serviceId: string) => {
-    const icons: { [key: string]: string } = {
-      'medicina-funcional': '🩺',
-      'medicina-estetica': '✨',
-      'medicina-regenerativa': '🧬',
-      'faciales': '🧖‍♀️',
-      'masajes': '💆‍♀️',
-    };
-    return icons[serviceId] || '🌿';
-  };
+  // ServiceIcon component will handle the icon rendering
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Pressable onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backIcon}>‹</Text>
+        <TouchableOpacity onPress={onBack} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color={Colors.primary.dark} />
           <Text style={styles.backText}>Atrás</Text>
-        </Pressable>
+        </TouchableOpacity>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.serviceHeader}>
           <View style={[styles.iconContainer, { backgroundColor: service.color }]}>
-            <Text style={styles.icon}>{getServiceIcon(service.id)}</Text>
+            <ServiceIcon 
+              icon={service.icon} 
+              size={40} 
+              color="#FFFFFF"
+            />
           </View>
           <Text style={styles.serviceTitle}>{service.name}</Text>
           <Text style={styles.serviceDescription}>{service.description}</Text>
@@ -69,14 +67,20 @@ export const ServiceDetailScreen: React.FC<ServiceDetailScreenProps> = ({
                 <View style={styles.subServiceInfo}>
                   <Text style={styles.subServiceName}>{subService.name}</Text>
                   <View style={styles.subServiceDetails}>
-                    <Text style={styles.duration}>⏱ {subService.duration} min</Text>
-                    <Text style={styles.price}>
-                      {subService.priceNote === 'desde' ? 'Desde ' : ''}
-                      ${subService.price.toLocaleString('es-CO')}
-                    </Text>
+                    <View style={styles.durationContainer}>
+                      <MaterialCommunityIcons name="clock-outline" size={16} color={Colors.text.secondary} />
+                      <Text style={styles.duration}>{subService.duration} min</Text>
+                    </View>
+                    <View style={styles.priceContainer}>
+                      <MaterialCommunityIcons name="cash" size={16} color={Colors.text.secondary} />
+                      <Text style={styles.price}>
+                        {subService.priceNote === 'desde' ? 'Desde ' : ''}
+                        ${subService.price.toLocaleString('es-CO')}
+                      </Text>
+                    </View>
                   </View>
                 </View>
-                <Text style={styles.arrow}>→</Text>
+                <Ionicons name="chevron-forward" size={20} color={Colors.text.secondary} />
               </View>
             </TouchableOpacity>
           ))}
@@ -173,9 +177,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 16,
   },
+  durationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   duration: {
     fontSize: 14,
     color: Colors.text.secondary,
+  },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   price: {
     fontSize: 15,
