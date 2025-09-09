@@ -65,10 +65,10 @@ export const ScheduleScreen = ({ navigation }: any) => {
   const [classes, setClasses] = useState<BreatheMoveClass[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [weekStart, setWeekStart] = useState(startOfWeek(new Date('2025-09-01'), { weekStartsOn: 1 })); // Septiembre 2025
+  const [weekStart, setWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 })); // Semana actual
 
   useEffect(() => {
-    loadClasses();
+    loadClassesForWeek(weekStart);
   }, []);
 
   const loadClasses = async () => {
@@ -136,7 +136,7 @@ export const ScheduleScreen = ({ navigation }: any) => {
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadClasses();
+    loadClassesForWeek(weekStart).finally(() => setRefreshing(false));
   };
 
   const getClassesForDay = (dayNumber: number) => {
@@ -187,6 +187,76 @@ export const ScheduleScreen = ({ navigation }: any) => {
     );
   };
 
+  const handlePreviousWeek = () => {
+    const newWeekStart = addDays(weekStart, -7);
+    setWeekStart(newWeekStart);
+    loadClassesForWeek(newWeekStart);
+  };
+
+  const handleNextWeek = () => {
+    const newWeekStart = addDays(weekStart, 7);
+    setWeekStart(newWeekStart);
+    loadClassesForWeek(newWeekStart);
+  };
+
+  const loadClassesForWeek = async (weekStartDate: Date) => {
+    try {
+      setLoading(true);
+      
+      const startDate = weekStartDate;
+      const endDate = addDays(weekStartDate, 6);
+      
+      const { data, error } = await supabase
+        .from('breathe_move_classes')
+        .select('*')
+        .gte('class_date', format(startDate, 'yyyy-MM-dd'))
+        .lte('class_date', format(endDate, 'yyyy-MM-dd'))
+        .order('class_date', { ascending: true })
+        .order('start_time', { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        setClasses(data);
+      } else {
+        // Si no hay clases en Supabase, generar desde el horario
+        const generatedClasses: BreatheMoveClass[] = [];
+        
+        for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+          const currentDate = addDays(startDate, dayOffset);
+          const dayOfWeek = getDay(currentDate);
+          const adjustedDayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek;
+          
+          const dayClasses = SEPTEMBER_2025_SCHEDULE.filter(c => c.dayOfWeek === adjustedDayOfWeek);
+          
+          dayClasses.forEach(scheduleClass => {
+            const [hours, minutes] = scheduleClass.time.split(':').map(Number);
+            const endHours = minutes + 50 >= 60 ? hours + 1 : hours;
+            const endMinutes = (minutes + 50) % 60;
+            const endTime = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
+            
+            generatedClasses.push({
+              id: `${format(currentDate, 'yyyy-MM-dd')}_${scheduleClass.id}`,
+              class_name: scheduleClass.className,
+              instructor: scheduleClass.instructor,
+              class_date: format(currentDate, 'yyyy-MM-dd'),
+              start_time: scheduleClass.time,
+              end_time: endTime,
+              max_capacity: 12,
+              current_capacity: Math.floor(Math.random() * 8),
+              status: 'scheduled',
+              intensity: scheduleClass.intensity
+            });
+          });
+        }
+        
+        setClasses(generatedClasses);
+      }
+    } catch (error) {
+      console.error('Error loading classes:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const dayClasses = getClassesForDay(selectedDay);
 
   if (loading) {
@@ -208,7 +278,7 @@ export const ScheduleScreen = ({ navigation }: any) => {
         >
           <Ionicons name="arrow-back" size={24} color={Colors.primary.dark} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Horarios Septiembre 2025</Text>
+        <Text style={styles.headerTitle}>Horarios</Text>
         <TouchableOpacity 
           style={styles.refreshButton}
           onPress={onRefresh}
@@ -217,9 +287,27 @@ export const ScheduleScreen = ({ navigation }: any) => {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.monthHeader}>
-        <MaterialCommunityIcons name="calendar-month" size={24} color={Colors.primary.dark} />
-        <Text style={styles.monthText}>SEPTIEMBRE 2025</Text>
+      <View style={styles.weekNavigation}>
+        <TouchableOpacity 
+          onPress={handlePreviousWeek}
+          style={styles.weekArrow}
+        >
+          <Ionicons name="chevron-back" size={24} color={Colors.primary.dark} />
+        </TouchableOpacity>
+        
+        <View style={styles.monthHeader}>
+          <MaterialCommunityIcons name="calendar-month" size={20} color={Colors.primary.dark} />
+          <Text style={styles.monthText}>
+            {format(weekStart, 'MMMM yyyy', { locale: es }).toUpperCase()}
+          </Text>
+        </View>
+        
+        <TouchableOpacity 
+          onPress={handleNextWeek}
+          style={styles.weekArrow}
+        >
+          <Ionicons name="chevron-forward" size={24} color={Colors.primary.dark} />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.daySelector}>
@@ -228,29 +316,40 @@ export const ScheduleScreen = ({ navigation }: any) => {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.daySelectorContent}
         >
-          {DAYS.map(day => (
-            <TouchableOpacity
-              key={day.id}
-              style={[
-                styles.dayButton,
-                selectedDay === day.id && styles.dayButtonActive
-              ]}
-              onPress={() => setSelectedDay(day.id)}
-            >
-              <Text style={[
-                styles.dayButtonText,
-                selectedDay === day.id && styles.dayButtonTextActive
-              ]}>
-                {day.short}
-              </Text>
-              <Text style={[
-                styles.dayName,
-                selectedDay === day.id && styles.dayNameActive
-              ]}>
-                {day.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {DAYS.map((day, index) => {
+            const dayDate = addDays(weekStart, index);
+            const hasClasses = classes.some(c => c.class_date === format(dayDate, 'yyyy-MM-dd'));
+            
+            return (
+              <TouchableOpacity
+                key={day.id}
+                style={[
+                  styles.dayButton,
+                  selectedDay === day.id && styles.dayButtonActive
+                ]}
+                onPress={() => setSelectedDay(day.id)}
+              >
+                <Text style={[
+                  styles.dayButtonText,
+                  selectedDay === day.id && styles.dayButtonTextActive
+                ]}>
+                  {day.short}
+                </Text>
+                <Text style={[
+                  styles.dayDate,
+                  selectedDay === day.id && styles.dayDateActive
+                ]}>
+                  {format(dayDate, 'd')}
+                </Text>
+                {hasClasses && (
+                  <View style={[
+                    styles.dayIndicator,
+                    selectedDay === day.id && styles.dayIndicatorActive
+                  ]} />
+                )}
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       </View>
 
@@ -266,9 +365,14 @@ export const ScheduleScreen = ({ navigation }: any) => {
         }
       >
         <View style={styles.dayHeader}>
-          <Text style={styles.dayTitle}>
-            {DAYS.find(d => d.id === selectedDay)?.name}
-          </Text>
+          <View>
+            <Text style={styles.dayTitle}>
+              {DAYS.find(d => d.id === selectedDay)?.name}
+            </Text>
+            <Text style={styles.daySubtitle}>
+              {format(addDays(weekStart, selectedDay - 1), "d 'de' MMMM", { locale: es })}
+            </Text>
+          </View>
           <Text style={styles.classCount}>
             {dayClasses.length} clases
           </Text>
@@ -339,11 +443,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  weekNavigation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  weekArrow: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.ui.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   monthHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
   },
   monthText: {
     fontSize: 18,
@@ -386,6 +504,26 @@ const styles = StyleSheet.create({
   dayNameActive: {
     color: '#FFFFFF',
   },
+  dayDate: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.text.primary,
+    marginTop: 2,
+  },
+  dayDateActive: {
+    color: '#FFFFFF',
+  },
+  dayIndicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.primary.green,
+    position: 'absolute',
+    bottom: 4,
+  },
+  dayIndicatorActive: {
+    backgroundColor: '#FFFFFF',
+  },
   classesContainer: {
     paddingHorizontal: 24,
     paddingBottom: 32,
@@ -401,6 +539,11 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: Colors.primary.dark,
+  },
+  daySubtitle: {
+    fontSize: 14,
+    color: Colors.text.secondary,
+    marginTop: 2,
   },
   classCount: {
     fontSize: 14,
