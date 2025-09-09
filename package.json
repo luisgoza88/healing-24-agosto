@@ -6,7 +6,10 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "admin": "cd web && npm run dev",
+    "admin:build": "cd web && npm run build",
+    "dev:all": "concurrently \"npm start\" \"npm run admin\""
   },
   "dependencies": {
     "@expo/metro-runtime": "~5.0.4",
