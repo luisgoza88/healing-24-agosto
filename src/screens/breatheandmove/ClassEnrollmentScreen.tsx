@@ -153,7 +153,7 @@ export const ClassEnrollmentScreen = ({ navigation, route }: any) => {
         [
           {
             text: 'OK',
-            onPress: () => navigation.navigate('ClassSchedule')
+            onPress: () => navigation.goBack()
           }
         ]
       );
