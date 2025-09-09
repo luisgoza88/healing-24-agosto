@@ -80,30 +80,38 @@ export const MyPackagesScreen = ({ navigation }: any) => {
         setExpiredPackages(expired);
       }
 
-      // Cargar historial de clases recientes
-      const { data: classHistory, error: historyError } = await supabase
-        .from('breathe_move_enrollments')
+      // Cargar historial de clases recientes desde appointments
+      const { data: appointments, error: appointmentsError } = await supabase
+        .from('appointments')
         .select(`
           id,
+          appointment_date,
+          appointment_time,
           status,
-          breathe_move_classes (
-            class_name,
-            class_date,
-            instructor
-          )
+          notes,
+          professional:professionals(full_name)
         `)
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
+        .like('notes', '%Breathe & Move%')
+        .order('appointment_date', { ascending: false })
         .limit(10);
 
-      if (!historyError && classHistory) {
-        const formattedHistory = classHistory.map(item => ({
-          id: item.id,
-          class_name: item.breathe_move_classes.class_name,
-          class_date: item.breathe_move_classes.class_date,
-          instructor: item.breathe_move_classes.instructor,
-          status: item.status
-        }));
+      if (!appointmentsError && appointments) {
+        const formattedHistory = appointments.map(apt => {
+          // Extraer el nombre de la clase de las notas
+          const className = apt.notes.split(' - ')[1] || 'Clase Breathe & Move';
+          
+          return {
+            id: apt.id,
+            class_name: className,
+            class_date: apt.appointment_date,
+            instructor: apt.professional?.full_name || 'Instructor',
+            status: apt.status === 'confirmed' ? 'Confirmada' : 
+                    apt.status === 'completed' ? 'Completada' : 
+                    apt.status === 'cancelled' ? 'Cancelada' : apt.status
+          };
+        });
+        
         setRecentClasses(formattedHistory);
       }
     } catch (error) {
@@ -198,7 +206,11 @@ export const MyPackagesScreen = ({ navigation }: any) => {
   const renderClassHistoryItem = (classItem: ClassHistory) => {
     const statusConfig = {
       confirmed: { color: Colors.primary.green, text: 'Confirmada', icon: 'checkmark-circle' },
+      Confirmada: { color: Colors.primary.green, text: 'Confirmada', icon: 'checkmark-circle' },
       cancelled: { color: Colors.ui.error, text: 'Cancelada', icon: 'close-circle' },
+      Cancelada: { color: Colors.ui.error, text: 'Cancelada', icon: 'close-circle' },
+      completed: { color: Colors.primary.dark, text: 'Completada', icon: 'checkmark-done-circle' },
+      Completada: { color: Colors.primary.dark, text: 'Completada', icon: 'checkmark-done-circle' },
       attended: { color: Colors.primary.dark, text: 'Asistida', icon: 'checkmark-done-circle' },
       no_show: { color: Colors.text.light, text: 'No asistió', icon: 'remove-circle' }
     };

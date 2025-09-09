@@ -13,6 +13,7 @@ import { Colors } from '../../constants/colors';
 import { seedTestAppointments, clearUserAppointments } from '../../utils/seedTestData';
 import { supabase } from '../../lib/supabase';
 import { createTestBreatheMovePackage } from '../../utils/testPayment';
+import { checkBreatheMoveCitas } from '../../utils/checkBreatheMoveCitas';
 
 export const DevToolsScreen = ({ navigation }: any) => {
   const [loading, setLoading] = useState(false);
@@ -848,6 +849,19 @@ ${membershipsError ? `\n❌ Memberships Error: ${membershipsError.message}` : ''
             disabled={loading}
           >
             <Text style={[styles.buttonText, { color: '#FFFFFF' }]}>🎫 Activar Acceso Total de Prueba</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: Colors.primary.dark }]}
+            onPress={async () => {
+              setLoading(true);
+              await checkBreatheMoveCitas();
+              setLoading(false);
+              Alert.alert('Verificación completada', 'Revisa la consola para ver los detalles');
+            }}
+            disabled={loading}
+          >
+            <Text style={[styles.buttonText, { color: '#FFFFFF' }]}>🧘 Verificar Citas Breathe & Move</Text>
           </TouchableOpacity>
           
           <View style={styles.infoCard}>

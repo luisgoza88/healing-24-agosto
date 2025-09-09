@@ -78,10 +78,16 @@ export const AppointmentsScreen = ({ navigation }: any) => {
       
       console.log('Loading appointments for user:', user.id, user.email);
 
-      // Cargar citas médicas
+      // Cargar citas médicas (incluye Breathe & Move)
       const { data: medicalAppointments, error: medicalError } = await supabase
         .from('appointments')
-        .select('*')
+        .select(`
+          *,
+          professional:professionals(
+            id,
+            full_name
+          )
+        `)
         .eq('user_id', user.id)
         .order('appointment_date', { ascending: false });
 
@@ -92,6 +98,13 @@ export const AppointmentsScreen = ({ navigation }: any) => {
       
       console.log('Medical appointments loaded:', medicalAppointments?.length || 0);
       console.log('First appointment:', medicalAppointments?.[0]);
+      
+      // Log para ver si hay citas de Breathe & Move
+      const breatheMoveAppointments = medicalAppointments?.filter(apt => 
+        apt.notes && apt.notes.includes('Breathe & Move')
+      );
+      console.log('Breathe & Move appointments:', breatheMoveAppointments?.length || 0);
+      console.log('Breathe & Move details:', breatheMoveAppointments);
 
       // Cargar clases de Hot Studio
       const { data: hotStudioEnrollments, error: hotStudioError } = await supabase
@@ -120,7 +133,10 @@ export const AppointmentsScreen = ({ navigation }: any) => {
           subService = service.subServices?.find(ss => ss.name === subServiceName);
         }
 
-        const professional = {
+        // Si es una cita de Breathe & Move, usar el instructor del appointment
+        const professional = apt.professional ? {
+          name: apt.professional.full_name
+        } : {
           name: 'Dra. Estefanía González'
         };
 
