@@ -1,182 +1,48 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { createClient } from '@/src/lib/supabase'
+import { useState, useEffect } from 'react'
 import { Calendar, Clock, User, Search, Filter, Eye, Edit, X } from 'lucide-react'
 import Link from 'next/link'
 import NewAppointmentModal from '@/components/NewAppointmentModal'
-
-interface Appointment {
-  id: string
-  appointment_date: string
-  appointment_time: string
-  service?: string
-  professional_id: string
-  professional_name: string
-  user_id: string
-  patient_name: string
-  patient_email: string
-  status: 'confirmed' | 'pending' | 'cancelled' | 'completed' | 'no_show'
-  notes?: string
-  total_amount: number
-  payment_status?: 'pending' | 'paid' | 'failed' | 'refunded' | 'cancelled'
-  created_at: string
-}
+import { useAppointments, useUpdateAppointmentStatus } from '@/hooks/useAppointments'
+import { useDebounce } from '@/hooks/useDebounce'
+import { usePrefetchNextPage } from '@/hooks/usePrefetchAppointments'
 
 export default function AppointmentsPage() {
-  const [appointments, setAppointments] = useState<Appointment[]>([])
-  const [filteredAppointments, setFilteredAppointments] = useState<Appointment[]>([])
-  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('todos')
   const [dateFilter, setDateFilter] = useState('')
   const [showNewModal, setShowNewModal] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const itemsPerPage = 50 // Más items para vista admin
-  const supabase = createClient()
+  
+  // Debounce search term
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
+  
+  // React Query hooks
+  const { data, isLoading, error, refetch } = useAppointments({
+    searchTerm: debouncedSearchTerm,
+    statusFilter,
+    dateFilter,
+    page: currentPage
+  })
+  
+  const updateStatusMutation = useUpdateAppointmentStatus()
 
+  const appointments = data?.appointments || []
+  const totalPages = data?.totalPages || 1
+  
+  // Prefetch siguiente página
+  const prefetchNextPage = usePrefetchNextPage(
+    { searchTerm: debouncedSearchTerm, statusFilter, dateFilter },
+    currentPage
+  )
+  
+  // Prefetch cuando estemos cerca del final de la página actual
   useEffect(() => {
-    fetchAppointments()
-  }, [])
-
-  useEffect(() => {
-    filterAppointments()
-  }, [appointments, searchTerm, statusFilter, dateFilter])
-
-  const fetchAppointments = async () => {
-    try {
-      // Fecha límite por defecto: últimos 30 días
-      const thirtyDaysAgo = new Date()
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-
-      // Primero obtenemos las citas básicas
-      const { data, error } = await supabase
-        .from('appointments')
-        .select(`
-          id,
-          appointment_date,
-          appointment_time,
-          status,
-          total_amount,
-          payment_status,
-          user_id,
-          professional_id,
-          service_id,
-          notes,
-          created_at
-        `)
-        .gte('appointment_date', thirtyDaysAgo.toISOString().split('T')[0])
-        .order('appointment_date', { ascending: false })
-        .order('appointment_time', { ascending: false })
-        .limit(200) // Límite máximo para evitar sobrecarga
-
-      if (error) {
-        console.error('Error fetching appointments:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        })
-        throw error
-      }
-
-      console.log('Fetched appointments:', data?.length || 0)
-
-      // Obtener IDs únicos
-      const professionalIds = [...new Set(data?.map(apt => apt.professional_id).filter(Boolean))]
-      const userIds = [...new Set(data?.map(apt => apt.user_id).filter(Boolean))]
-      const serviceIds = [...new Set(data?.map(apt => apt.service_id).filter(Boolean))]
-
-      console.log('Loading related data for:', {
-        professionalIds: professionalIds.length,
-        userIds: userIds.length,
-        serviceIds: serviceIds.length
-      })
-
-      // Cargar datos relacionados en paralelo
-      const [professionalsRes, profilesRes, servicesRes] = await Promise.all([
-        professionalIds.length > 0 
-          ? supabase.from('professionals').select('id, full_name').in('id', professionalIds)
-          : { data: [], error: null },
-        userIds.length > 0
-          ? supabase.from('profiles').select('id, full_name, email').in('id', userIds)
-          : { data: [], error: null },
-        serviceIds.length > 0
-          ? supabase.from('services').select('id, name').in('id', serviceIds.filter(id => id !== null))
-          : { data: [], error: null }
-      ])
-
-      console.log('Related data results:', {
-        professionals: professionalsRes.error || `${professionalsRes.data?.length} found`,
-        profiles: profilesRes.error || `${profilesRes.data?.length} found`,
-        services: servicesRes.error || `${servicesRes.data?.length} found`
-      })
-
-      // Crear mapas para búsqueda rápida
-      const professionalsMap = new Map(professionalsRes.data?.map(p => [p.id, p]) || [])
-      const profilesMap = new Map(profilesRes.data?.map(p => [p.id, p]) || [])
-      const servicesMap = new Map(servicesRes.data?.map(s => [s.id, s]) || [])
-
-      const formattedData = data?.map(apt => {
-        const professional = professionalsMap.get(apt.professional_id)
-        const profile = profilesMap.get(apt.user_id)
-        const service = servicesMap.get(apt.service_id)
-        
-        return {
-          id: apt.id,
-          appointment_date: apt.appointment_date,
-          appointment_time: apt.appointment_time,
-          service: service?.name || 'Servicio general',
-          professional_id: apt.professional_id,
-          professional_name: professional?.full_name || 'No asignado',
-          user_id: apt.user_id,
-          patient_name: profile?.full_name || 'Paciente',
-          patient_email: profile?.email || '',
-          status: apt.status,
-          notes: apt.notes,
-          total_amount: apt.total_amount || 0,
-          payment_status: apt.payment_status,
-          created_at: apt.created_at
-        }
-      }) || []
-
-      setAppointments(formattedData)
-    } catch (error: any) {
-      console.error('Error in fetchAppointments:', {
-        error,
-        message: error?.message,
-        stack: error?.stack
-      })
-      // Set empty array to prevent UI crash
-      setAppointments([])
-    } finally {
-      setLoading(false)
+    if (currentPage < totalPages && !isLoading) {
+      prefetchNextPage()
     }
-  }
-
-  const filterAppointments = () => {
-    let filtered = [...appointments]
-
-    if (searchTerm) {
-      filtered = filtered.filter(apt =>
-        apt.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        apt.patient_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        apt.professional_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        apt.service.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    }
-
-    if (statusFilter !== 'todos') {
-      filtered = filtered.filter(apt => apt.status === statusFilter)
-    }
-
-    if (dateFilter) {
-      filtered = filtered.filter(apt => apt.appointment_date === dateFilter)
-    }
-
-    setFilteredAppointments(filtered)
-  }
+  }, [currentPage, totalPages, isLoading])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -222,24 +88,28 @@ export default function AppointmentsPage() {
   }
 
   const handleStatusChange = async (appointmentId: string, newStatus: string) => {
-    try {
-      const { error } = await supabase
-        .from('appointments')
-        .update({ status: newStatus })
-        .eq('id', appointmentId)
-
-      if (error) throw error
-
-      await fetchAppointments()
-    } catch (error) {
-      console.error('Error updating status:', error)
-    }
+    updateStatusMutation.mutate({ appointmentId, status: newStatus })
   }
 
-  if (loading) {
+  const handleClearFilters = () => {
+    setSearchTerm('')
+    setStatusFilter('todos')
+    setDateFilter('')
+    setCurrentPage(1)
+  }
+
+  if (error) {
     return (
       <div className="flex justify-center items-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+        <div className="text-center">
+          <p className="text-red-600 text-lg">Error al cargar las citas</p>
+          <button 
+            onClick={() => refetch()}
+            className="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+          >
+            Reintentar
+          </button>
+        </div>
       </div>
     )
   }
@@ -272,14 +142,20 @@ export default function AppointmentsPage() {
               type="text"
               placeholder="Buscar citas..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value)
+                setCurrentPage(1) // Reset to first page on search
+              }}
               className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
             />
           </div>
 
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value)
+              setCurrentPage(1) // Reset to first page on filter change
+            }}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
           >
             <option value="todos">Todos los estados</option>
@@ -293,16 +169,15 @@ export default function AppointmentsPage() {
           <input
             type="date"
             value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
+            onChange={(e) => {
+              setDateFilter(e.target.value)
+              setCurrentPage(1) // Reset to first page on filter change
+            }}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
           />
 
           <button
-            onClick={() => {
-              setSearchTerm('')
-              setStatusFilter('todos')
-              setDateFilter('')
-            }}
+            onClick={handleClearFilters}
             className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
           >
             <X className="h-4 w-4" />
@@ -361,78 +236,161 @@ export default function AppointmentsPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredAppointments.map((appointment) => (
-                <tr key={appointment.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <Calendar className="h-5 w-5 text-gray-400 mr-2" />
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {formatDate(appointment.appointment_date)}
-                        </div>
-                        <div className="text-sm text-gray-500">{appointment.appointment_time}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <User className="h-5 w-5 text-gray-400 mr-2" />
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {appointment.patient_name}
-                        </div>
-                        <div className="text-sm text-gray-500">{appointment.patient_email}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {appointment.service}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {appointment.professional_name}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <select
-                      value={appointment.status}
-                      onChange={(e) => handleStatusChange(appointment.id, e.target.value)}
-                      className={`text-xs font-medium px-2 py-1 rounded-full ${getStatusColor(appointment.status)}`}
-                    >
-                      <option value="pending">Pendiente</option>
-                      <option value="confirmed">Confirmada</option>
-                      <option value="completed">Completada</option>
-                      <option value="cancelled">Cancelada</option>
-                      <option value="no_show">No asistió</option>
-                    </select>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPaymentStatusColor(appointment.payment_status || 'pendiente')}`}>
-                      {appointment.payment_status === 'paid' ? 'Pagado' : appointment.payment_status === 'pending' ? 'Pendiente' : appointment.payment_status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <Link 
-                        href={`/dashboard/appointments/${appointment.id}`}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        <Eye className="h-5 w-5" />
-                      </Link>
-                      <button className="text-green-600 hover:text-green-900">
-                        <Edit className="h-5 w-5" />
-                      </button>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center">
+                    <div className="flex justify-center items-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                      <span className="ml-2 text-gray-600">Cargando citas...</span>
                     </div>
                   </td>
                 </tr>
-              ))}
+              ) : appointments.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                    No se encontraron citas con los filtros aplicados
+                  </td>
+                </tr>
+              ) : (
+                appointments.map((appointment) => (
+                  <tr key={appointment.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <Calendar className="h-5 w-5 text-gray-400 mr-2" />
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {formatDate(appointment.appointment_date)}
+                          </div>
+                          <div className="text-sm text-gray-500">{appointment.appointment_time}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <User className="h-5 w-5 text-gray-400 mr-2" />
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {appointment.patient_name}
+                          </div>
+                          <div className="text-sm text-gray-500">{appointment.patient_email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {appointment.service}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {appointment.professional_name}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <select
+                        value={appointment.status}
+                        onChange={(e) => handleStatusChange(appointment.id, e.target.value)}
+                        disabled={updateStatusMutation.isLoading}
+                        className={`text-xs font-medium px-2 py-1 rounded-full ${getStatusColor(appointment.status)}`}
+                      >
+                        <option value="pending">Pendiente</option>
+                        <option value="confirmed">Confirmada</option>
+                        <option value="completed">Completada</option>
+                        <option value="cancelled">Cancelada</option>
+                        <option value="no_show">No asistió</option>
+                      </select>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPaymentStatusColor(appointment.payment_status || 'pendiente')}`}>
+                        {appointment.payment_status === 'paid' ? 'Pagado' : appointment.payment_status === 'pending' ? 'Pendiente' : appointment.payment_status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
+                        <Link 
+                          href={`/dashboard/appointments/${appointment.id}`}
+                          className="text-blue-600 hover:text-blue-900"
+                        >
+                          <Eye className="h-5 w-5" />
+                        </Link>
+                        <Link 
+                          href={`/dashboard/appointments/${appointment.id}/edit`}
+                          className="text-green-600 hover:text-green-900"
+                        >
+                          <Edit className="h-5 w-5" />
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center space-x-2 mt-6">
+          <button
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            disabled={currentPage === 1 || isLoading}
+            className={`px-4 py-2 rounded-lg transition-colors ${
+              currentPage === 1 || isLoading
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+            }`}
+          >
+            Anterior
+          </button>
+          
+          <div className="flex items-center space-x-2">
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNum
+              if (totalPages <= 5) {
+                pageNum = i + 1
+              } else if (currentPage <= 3) {
+                pageNum = i + 1
+              } else if (currentPage >= totalPages - 2) {
+                pageNum = totalPages - 4 + i
+              } else {
+                pageNum = currentPage - 2 + i
+              }
+              
+              return (
+                <button
+                  key={i}
+                  onClick={() => setCurrentPage(pageNum)}
+                  disabled={isLoading}
+                  className={`w-10 h-10 rounded-lg transition-colors ${
+                    pageNum === currentPage
+                      ? 'bg-green-600 text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              )
+            })}
+          </div>
+          
+          <button
+            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            disabled={currentPage === totalPages || isLoading}
+            className={`px-4 py-2 rounded-lg transition-colors ${
+              currentPage === totalPages || isLoading
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+            }`}
+          >
+            Siguiente
+          </button>
+        </div>
+      )}
+
       <NewAppointmentModal
         isOpen={showNewModal}
         onClose={() => setShowNewModal(false)}
-        onSuccess={fetchAppointments}
+        onSuccess={() => {
+          refetch()
+          setShowNewModal(false)
+        }}
       />
     </div>
   )

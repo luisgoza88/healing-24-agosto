@@ -1,51 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { createClient } from '@/src/lib/supabase'
 import { X } from 'lucide-react'
+import { useProfessionals, useServices, usePatients } from '@/hooks/useCachedData'
 
 interface NewAppointmentModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
-}
-
-interface Professional {
-  id: string
-  name: string
-  specialty: string
-}
-
-interface Patient {
-  id: string
-  full_name: string
-  email: string
-}
-
-const SERVICES = [
-  'Medicina General',
-  'Medicina Integrativa',
-  'Terapia Neural',
-  'Homeopatía',
-  'Acupuntura',
-  'Osteopatía',
-  'Psicología',
-  'Nutrición',
-  'Fisioterapia',
-  'Masaje Terapéutico'
-]
-
-const SERVICE_PRICES: { [key: string]: number } = {
-  'Medicina General': 150000,
-  'Medicina Integrativa': 200000,
-  'Terapia Neural': 180000,
-  'Homeopatía': 150000,
-  'Acupuntura': 120000,
-  'Osteopatía': 180000,
-  'Psicología': 150000,
-  'Nutrición': 120000,
-  'Fisioterapia': 100000,
-  'Masaje Terapéutico': 100000
 }
 
 const calculateEndTime = (startTime: string, durationMinutes: number): string => {
@@ -57,73 +20,41 @@ const calculateEndTime = (startTime: string, durationMinutes: number): string =>
 }
 
 export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewAppointmentModalProps) {
-  const [professionals, setProfessionals] = useState<Professional[]>([])
-  const [patients, setPatients] = useState<Patient[]>([])
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     patient_id: '',
     professional_id: '',
-    service: '',
+    service_id: '',
     date: '',
     time: '',
     notes: ''
   })
 
   const supabase = createClient()
+  
+  // Usar hooks con caché
+  const { data: professionals = [], isLoading: loadingProfessionals } = useProfessionals()
+  const { data: services = [], isLoading: loadingServices } = useServices()
+  const { data: patients = [], isLoading: loadingPatients } = usePatients()
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchProfessionals()
-      fetchPatients()
-    }
-  }, [isOpen])
-
-  const fetchProfessionals = async () => {
-    const { data } = await supabase
-      .from('professionals')
-      .select('id, full_name, title')
-      .eq('active', true)
-      .order('full_name')
-
-    setProfessionals(data?.map(p => ({
-      id: p.id,
-      name: p.full_name,
-      specialty: p.title || 'Profesional'
-    })) || [])
-  }
-
-  const fetchPatients = async () => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, full_name, email')
-      .order('full_name')
-
-    setPatients(data || [])
-  }
+  const selectedService = services.find(s => s.id === formData.service_id)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      // First, get the service_id from the service name
-      const { data: serviceData } = await supabase
-        .from('services')
-        .select('id')
-        .eq('name', formData.service)
-        .single()
-
       const appointmentData = {
         user_id: formData.patient_id,
         professional_id: formData.professional_id,
-        service_id: serviceData?.id || null,
+        service_id: formData.service_id,
         appointment_date: formData.date,
         appointment_time: formData.time,
-        end_time: calculateEndTime(formData.time, 60), // 60 min default
-        duration: 60,
+        end_time: calculateEndTime(formData.time, selectedService?.duration || 60),
+        duration: selectedService?.duration || 60,
         notes: formData.notes,
         status: 'pending',
-        total_amount: SERVICE_PRICES[formData.service] || 0,
+        total_amount: selectedService?.price || 0,
         payment_status: 'pending'
       }
 
@@ -147,12 +78,21 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewA
     setFormData({
       patient_id: '',
       professional_id: '',
-      service: '',
+      service_id: '',
       date: '',
       time: '',
       notes: ''
     })
     onClose()
+  }
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount)
   }
 
   if (!isOpen) return null
@@ -183,9 +123,12 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewA
                 required
                 value={formData.patient_id}
                 onChange={(e) => setFormData({ ...formData, patient_id: e.target.value })}
+                disabled={loadingPatients}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
               >
-                <option value="">Seleccionar paciente</option>
+                <option value="">
+                  {loadingPatients ? 'Cargando pacientes...' : 'Seleccionar paciente'}
+                </option>
                 {patients.map((patient) => (
                   <option key={patient.id} value={patient.id}>
                     {patient.full_name} ({patient.email})
@@ -200,14 +143,17 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewA
               </label>
               <select
                 required
-                value={formData.service}
-                onChange={(e) => setFormData({ ...formData, service: e.target.value })}
+                value={formData.service_id}
+                onChange={(e) => setFormData({ ...formData, service_id: e.target.value })}
+                disabled={loadingServices}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
               >
-                <option value="">Seleccionar servicio</option>
-                {SERVICES.map((service) => (
-                  <option key={service} value={service}>
-                    {service} - ${SERVICE_PRICES[service]?.toLocaleString('es-CO') || '0'}
+                <option value="">
+                  {loadingServices ? 'Cargando servicios...' : 'Seleccionar servicio'}
+                </option>
+                {services.map((service) => (
+                  <option key={service.id} value={service.id}>
+                    {service.name} - {formatCurrency(service.price)} ({service.duration} min)
                   </option>
                 ))}
               </select>
@@ -221,12 +167,15 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewA
                 required
                 value={formData.professional_id}
                 onChange={(e) => setFormData({ ...formData, professional_id: e.target.value })}
+                disabled={loadingProfessionals}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
               >
-                <option value="">Seleccionar profesional</option>
+                <option value="">
+                  {loadingProfessionals ? 'Cargando profesionales...' : 'Seleccionar profesional'}
+                </option>
                 {professionals.map((prof) => (
                   <option key={prof.id} value={prof.id}>
-                    {prof.name} - {prof.specialty}
+                    {prof.full_name} - {prof.specialties?.[0] || 'General'}
                   </option>
                 ))}
               </select>
@@ -265,6 +214,15 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewA
               </div>
             </div>
 
+            {selectedService && (
+              <div className="bg-blue-50 p-3 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <strong>Duración:</strong> {selectedService.duration} minutos<br/>
+                  <strong>Valor:</strong> {formatCurrency(selectedService.price)}
+                </p>
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Notas (opcional)
@@ -281,7 +239,7 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewA
             <div className="flex gap-3 pt-4">
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || loadingPatients || loadingProfessionals || loadingServices}
                 className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
                 {loading ? 'Creando...' : 'Crear Cita'}
