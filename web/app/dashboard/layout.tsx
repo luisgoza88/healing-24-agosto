@@ -18,8 +18,7 @@ import {
 
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/dashboard/my-appointments", label: "Mis Citas", icon: Calendar },
-  { href: "/dashboard/appointments", label: "Todas las Citas", icon: Calendar },
+  { href: "/dashboard/appointments", label: "Citas", icon: Calendar },
   { href: "/dashboard/patients", label: "Pacientes", icon: Users },
   { href: "/dashboard/professionals", label: "Profesionales", icon: UserCog },
   { href: "/dashboard/reports", label: "Reportes", icon: FileBarChart },
@@ -138,8 +137,8 @@ export default function DashboardLayout({
             <Menu className="w-6 h-6" />
           </button>
           <div className="flex items-center">
-            <span className="text-sm text-gray-500">Bienvenido,</span>
-            <span className="ml-2 font-medium">{user?.email}</span>
+            <span className="text-sm text-gray-500">Panel Administrativo</span>
+            <span className="ml-2 font-medium text-green-600">Healing Forest</span>
           </div>
         </header>
         <main className="flex-1 overflow-y-auto">

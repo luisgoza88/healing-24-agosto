@@ -249,7 +249,7 @@ export default function AppointmentsPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Gestión de Citas</h1>
-          <p className="text-sm text-gray-600 mt-1">Mostrando citas de los últimos 30 días</p>
+          <p className="text-sm text-gray-600 mt-1">Panel administrativo - Todas las citas del sistema (últimos 30 días)</p>
         </div>
         <div className="flex gap-2">
           <button 
