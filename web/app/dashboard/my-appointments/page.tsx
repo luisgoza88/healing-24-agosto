@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/src/lib/supabase'
 import { Calendar, Clock, User, Search, Eye, Edit, X, AlertCircle, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
+import { useDebounce } from '@/hooks/useDebounce'
+import AppointmentSkeleton from '@/components/AppointmentSkeleton'
 
 interface Appointment {
   id: string
@@ -26,15 +28,27 @@ export default function MyAppointmentsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming')
   const [user, setUser] = useState<any>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const itemsPerPage = 20
   const supabase = createClient()
+  
+  // Debounce search term
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
   useEffect(() => {
     checkUserAndFetchAppointments()
   }, [])
 
   useEffect(() => {
+    if (user) {
+      fetchMyAppointments(user.id)
+    }
+  }, [currentPage])
+
+  useEffect(() => {
     filterAppointments()
-  }, [appointments, searchTerm, activeTab])
+  }, [appointments, debouncedSearchTerm, activeTab])
 
   const checkUserAndFetchAppointments = async () => {
     try {
@@ -54,17 +68,42 @@ export default function MyAppointmentsPage() {
 
   const fetchMyAppointments = async (userId: string) => {
     try {
+      // Obtener fecha límite (60 días atrás)
+      const sixtyDaysAgo = new Date()
+      sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
+      
+      // Primero contar el total para paginación
+      const { count } = await supabase
+        .from('appointments')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .neq('status', 'cancelled')
+        .gte('appointment_date', sixtyDaysAgo.toISOString().split('T')[0])
+
+      const totalItems = count || 0
+      setTotalPages(Math.ceil(totalItems / itemsPerPage))
+
+      // Luego obtener solo los campos necesarios con paginación
       const { data, error } = await supabase
         .from('appointments')
         .select(`
-          *,
+          id,
+          appointment_date,
+          appointment_time,
+          status,
+          total_amount,
+          payment_status,
+          notes,
+          professional_id,
           professionals!appointments_professional_id_fkey(full_name),
           services!appointments_service_id_fkey(name)
         `)
         .eq('user_id', userId)
         .neq('status', 'cancelled')
+        .gte('appointment_date', sixtyDaysAgo.toISOString().split('T')[0])
         .order('appointment_date', { ascending: false })
         .order('appointment_time', { ascending: false })
+        .range((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage - 1)
 
       if (error) {
         console.error('Supabase error details:', error)
@@ -82,10 +121,10 @@ export default function MyAppointmentsPage() {
         notes: apt.notes,
         total_amount: apt.total_amount || 0,
         payment_status: apt.payment_status,
-        created_at: apt.created_at
+        created_at: ''
       })) || []
 
-      console.log(`Found ${formattedData.length} appointments for user ${userId}`)
+      console.log(`Found ${formattedData.length} appointments (page ${currentPage}/${totalPages})`)
       setAppointments(formattedData)
     } catch (error) {
       console.error('Error fetching my appointments:', error)
@@ -114,10 +153,10 @@ export default function MyAppointmentsPage() {
       })
     }
 
-    if (searchTerm) {
+    if (debouncedSearchTerm) {
       filtered = filtered.filter(apt =>
-        apt.professional_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        apt.service.toLowerCase().includes(searchTerm.toLowerCase())
+        apt.professional_name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        apt.service.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
       )
     }
 
@@ -185,10 +224,20 @@ export default function MyAppointmentsPage() {
     return date.toDateString() === tomorrow.toDateString()
   }
 
-  if (loading) {
+  if (loading && appointments.length === 0) {
     return (
-      <div className="flex justify-center items-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Mis Citas</h1>
+            <p className="text-sm text-gray-600 mt-1">Cargando...</p>
+          </div>
+        </div>
+        <div className="space-y-4">
+          <AppointmentSkeleton />
+          <AppointmentSkeleton />
+          <AppointmentSkeleton />
+        </div>
       </div>
     )
   }
@@ -342,9 +391,12 @@ export default function MyAppointmentsPage() {
                     <Eye className="h-5 w-5" />
                   </Link>
                   {appointment.status === 'pending' && activeTab === 'upcoming' && (
-                    <button className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors">
+                    <Link 
+                      href={`/dashboard/appointments/${appointment.id}/edit`}
+                      className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                    >
                       <Edit className="h-5 w-5" />
-                    </button>
+                    </Link>
                   )}
                 </div>
               </div>
@@ -354,15 +406,81 @@ export default function MyAppointmentsPage() {
       )}
 
       {appointments.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-sm text-blue-800">
-            <span className="font-semibold">Nota:</span> Esta vista muestra únicamente tus citas personales. 
-            Para ver todas las citas del sistema, usa la {' '}
-            <Link href="/dashboard/appointments" className="underline">
-              vista administrativa
-            </Link>.
-          </p>
-        </div>
+        <>
+          {/* Controles de paginación */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center space-x-2 mt-6">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  currentPage === 1
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                }`}
+              >
+                Anterior
+              </button>
+              
+              <div className="flex items-center space-x-2 mx-4">
+                <span className="text-sm text-gray-600">
+                  Página {currentPage} de {totalPages}
+                </span>
+              </div>
+              
+              <div className="flex items-center space-x-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum
+                  if (totalPages <= 5) {
+                    pageNum = i + 1
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i
+                  } else {
+                    pageNum = currentPage - 2 + i
+                  }
+                  
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`w-10 h-10 rounded-lg transition-colors ${
+                        pageNum === currentPage
+                          ? 'bg-green-600 text-white'
+                          : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  )
+                })}
+              </div>
+              
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  currentPage === totalPages
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                }`}
+              >
+                Siguiente
+              </button>
+            </div>
+          )}
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
+            <p className="text-sm text-blue-800">
+              <span className="font-semibold">Nota:</span> Esta vista muestra únicamente tus citas personales de los últimos 60 días. 
+              Para ver todas las citas del sistema, usa la {' '}
+              <Link href="/dashboard/appointments" className="underline">
+                vista administrativa
+              </Link>.
+            </p>
+          </div>
+        </>
       )}
     </div>
   )

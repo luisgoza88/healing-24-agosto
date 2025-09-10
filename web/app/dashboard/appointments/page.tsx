@@ -31,6 +31,9 @@ export default function AppointmentsPage() {
   const [statusFilter, setStatusFilter] = useState('todos')
   const [dateFilter, setDateFilter] = useState('')
   const [showNewModal, setShowNewModal] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const itemsPerPage = 50 // Más items para vista admin
   const supabase = createClient()
 
   useEffect(() => {
@@ -43,68 +46,36 @@ export default function AppointmentsPage() {
 
   const fetchAppointments = async () => {
     try {
-      // Primero obtenemos las citas básicas
-      const { data: appointmentsData, error } = await supabase
+      // Fecha límite por defecto: últimos 30 días
+      const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+      // Primero obtenemos las citas con joins optimizados
+      const { data, error } = await supabase
         .from('appointments')
-        .select('*')
+        .select(`
+          id,
+          appointment_date,
+          appointment_time,
+          status,
+          total_amount,
+          payment_status,
+          user_id,
+          professional_id,
+          service_id,
+          professionals!appointments_professional_id_fkey(full_name),
+          profiles!appointments_user_id_fkey(full_name, email),
+          services!appointments_service_id_fkey(name)
+        `)
+        .gte('appointment_date', thirtyDaysAgo.toISOString().split('T')[0])
         .order('appointment_date', { ascending: false })
         .order('appointment_time', { ascending: false })
+        .limit(200) // Límite máximo para evitar sobrecarga
 
       if (error) {
-        console.error('Error fetching basic appointments:', error)
+        console.error('Error fetching appointments:', error)
         throw error
       }
-
-      // Luego enriquecemos los datos manualmente
-      const enrichedData = await Promise.all(
-        (appointmentsData || []).map(async (apt) => {
-          // Obtener profesional
-          let professionalName = 'No asignado'
-          if (apt.professional_id) {
-            const { data: prof } = await supabase
-              .from('professionals')
-              .select('full_name')
-              .eq('id', apt.professional_id)
-              .single()
-            if (prof) professionalName = prof.full_name
-          }
-
-          // Obtener paciente
-          let patientName = 'Paciente'
-          let patientEmail = ''
-          if (apt.user_id) {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('full_name, email')
-              .eq('id', apt.user_id)
-              .single()
-            if (profile) {
-              patientName = profile.full_name || 'Paciente'
-              patientEmail = profile.email || ''
-            }
-          }
-
-          // Obtener servicio
-          let serviceName = 'Servicio general'
-          if (apt.service_id) {
-            const { data: service } = await supabase
-              .from('services')
-              .select('name')
-              .eq('id', apt.service_id)
-              .single()
-            if (service) serviceName = service.name
-          }
-
-          return {
-            ...apt,
-            professionals: { full_name: professionalName },
-            profiles: { full_name: patientName, email: patientEmail },
-            services: { name: serviceName }
-          }
-        })
-      )
-
-      const data = enrichedData
 
       const formattedData = data?.map(apt => ({
         id: apt.id,
@@ -223,7 +194,10 @@ export default function AppointmentsPage() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Gestión de Citas</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Gestión de Citas</h1>
+          <p className="text-sm text-gray-600 mt-1">Mostrando citas de los últimos 30 días</p>
+        </div>
         <div className="flex gap-2">
           <button 
             onClick={() => setShowNewModal(true)}

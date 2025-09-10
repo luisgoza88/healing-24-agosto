@@ -1,87 +1,127 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/src/lib/supabase'
 import { 
-  ArrowLeft, 
-  Calendar, 
-  Clock, 
-  User, 
-  Mail, 
-  Phone, 
-  DollarSign, 
+  ArrowLeft,
+  Calendar,
+  Clock,
+  User,
+  MapPin,
+  Phone,
+  Mail,
+  CreditCard,
   FileText,
+  AlertCircle,
+  CheckCircle,
   Edit,
-  Save,
-  X
+  Trash2,
+  DollarSign
 } from 'lucide-react'
 import Link from 'next/link'
 
 interface AppointmentDetail {
   id: string
-  date: string
-  time: string
-  service: string
-  professional_id: string
-  professional: {
-    name: string
-    specialty: string
-    email: string
-  }
-  user_id: string
+  appointment_date: string
+  appointment_time: string
+  end_time: string
+  duration: number
+  status: string
+  payment_status: string
+  total_amount: number
+  notes?: string
+  created_at: string
+  updated_at: string
+  // Relations
   patient: {
+    id: string
     full_name: string
     email: string
     phone?: string
+    date_of_birth?: string
+    gender?: string
+    city?: string
   }
-  status: 'confirmada' | 'pendiente' | 'cancelada' | 'completada'
-  notes?: string
-  amount: number
-  payment_status?: 'pendiente' | 'pagado'
-  payment_method?: string
-  created_at: string
-  updated_at: string
+  professional: {
+    id: string
+    full_name: string
+    title?: string
+    specialties?: string[]
+    email?: string
+    phone?: string
+  }
+  service: {
+    id: string
+    name: string
+    description?: string
+    duration: number
+    price: number
+  }
 }
 
-export default function AppointmentDetailPage() {
+export default function AppointmentDetailPage({ params }: { params: { id: string } }) {
   const [appointment, setAppointment] = useState<AppointmentDetail | null>(null)
   const [loading, setLoading] = useState(true)
-  const [editing, setEditing] = useState(false)
-  const [formData, setFormData] = useState({
-    status: '',
-    notes: '',
-    payment_status: ''
-  })
+  const [updating, setUpdating] = useState(false)
   const router = useRouter()
-  const params = useParams()
   const supabase = createClient()
 
   useEffect(() => {
-    if (params.id) {
-      fetchAppointmentDetail(params.id as string)
-    }
+    fetchAppointmentDetail()
   }, [params.id])
 
-  const fetchAppointmentDetail = async (id: string) => {
+  const fetchAppointmentDetail = async () => {
     try {
-      const { data, error } = await supabase
+      // Primero obtenemos la cita básica
+      const { data: apt, error } = await supabase
         .from('appointments')
-        .select(`
-          *,
-          professional:professionals(name, specialty, email),
-          patient:profiles(full_name, email, phone)
-        `)
-        .eq('id', id)
+        .select('*')
+        .eq('id', params.id)
         .single()
 
-      if (error) throw error
+      if (error || !apt) {
+        console.error('Error fetching appointment:', error)
+        router.push('/dashboard/appointments')
+        return
+      }
 
-      setAppointment(data as AppointmentDetail)
-      setFormData({
-        status: data.status,
-        notes: data.notes || '',
-        payment_status: data.payment_status || 'pendiente'
+      // Luego obtenemos los datos relacionados
+      const [patientRes, professionalRes, serviceRes] = await Promise.all([
+        apt.user_id ? supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', apt.user_id)
+          .single() : null,
+        apt.professional_id ? supabase
+          .from('professionals')
+          .select('*')
+          .eq('id', apt.professional_id)
+          .single() : null,
+        apt.service_id ? supabase
+          .from('services')
+          .select('*')
+          .eq('id', apt.service_id)
+          .single() : null
+      ])
+
+      setAppointment({
+        ...apt,
+        patient: patientRes?.data || {
+          id: apt.user_id,
+          full_name: 'Paciente no encontrado',
+          email: 'N/A'
+        },
+        professional: professionalRes?.data || {
+          id: apt.professional_id,
+          full_name: 'Profesional no asignado'
+        },
+        service: serviceRes?.data || {
+          id: apt.service_id,
+          name: 'Servicio general',
+          duration: 60,
+          price: 0
+        }
       })
     } catch (error) {
       console.error('Error fetching appointment:', error)
@@ -91,74 +131,114 @@ export default function AppointmentDetailPage() {
     }
   }
 
-  const handleUpdate = async () => {
+  const handleStatusChange = async (newStatus: string) => {
     if (!appointment) return
-
+    
+    setUpdating(true)
     try {
       const { error } = await supabase
         .from('appointments')
-        .update({
-          status: formData.status,
-          notes: formData.notes,
-          payment_status: formData.payment_status,
-          updated_at: new Date().toISOString()
-        })
+        .update({ status: newStatus })
         .eq('id', appointment.id)
 
       if (error) throw error
 
-      await fetchAppointmentDetail(appointment.id)
-      setEditing(false)
+      setAppointment({ ...appointment, status: newStatus })
     } catch (error) {
-      console.error('Error updating appointment:', error)
+      console.error('Error updating status:', error)
+    } finally {
+      setUpdating(false)
     }
   }
 
-  const handleCancel = async () => {
+  const handlePaymentStatusChange = async (newStatus: string) => {
     if (!appointment) return
     
-    if (confirm('¿Estás seguro de que quieres cancelar esta cita?')) {
-      try {
-        const { error } = await supabase
-          .from('appointments')
-          .update({ 
-            status: 'cancelada',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', appointment.id)
+    setUpdating(true)
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .update({ payment_status: newStatus })
+        .eq('id', appointment.id)
 
-        if (error) throw error
+      if (error) throw error
 
-        router.push('/dashboard/appointments')
-      } catch (error) {
-        console.error('Error canceling appointment:', error)
-      }
+      setAppointment({ ...appointment, payment_status: newStatus })
+    } catch (error) {
+      console.error('Error updating payment status:', error)
+    } finally {
+      setUpdating(false)
     }
+  }
+
+  const handleDelete = async () => {
+    if (!appointment) return
+    
+    if (!confirm('¿Está seguro de eliminar esta cita?')) return
+
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .delete()
+        .eq('id', appointment.id)
+
+      if (error) throw error
+
+      router.push('/dashboard/appointments')
+    } catch (error) {
+      console.error('Error deleting appointment:', error)
+    }
+  }
+
+  const formatDate = (date: string) => {
+    return new Date(date).toLocaleDateString('es-ES', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
+  }
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount)
+  }
+
+  const calculateAge = (birthDate?: string) => {
+    if (!birthDate) return 'N/A'
+    const today = new Date()
+    const birth = new Date(birthDate)
+    let age = today.getFullYear() - birth.getFullYear()
+    const monthDiff = today.getMonth() - birth.getMonth()
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--
+    }
+    return `${age} años`
   }
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'confirmada':
-        return 'bg-green-100 text-green-800 border-green-200'
-      case 'pendiente':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-      case 'cancelada':
-        return 'bg-red-100 text-red-800 border-red-200'
-      case 'completada':
-        return 'bg-blue-100 text-blue-800 border-blue-200'
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200'
+      case 'confirmed': return 'bg-green-100 text-green-800'
+      case 'pending': return 'bg-yellow-100 text-yellow-800'
+      case 'cancelled': return 'bg-red-100 text-red-800'
+      case 'completed': return 'bg-blue-100 text-blue-800'
+      case 'no_show': return 'bg-gray-100 text-gray-800'
+      default: return 'bg-gray-100 text-gray-800'
     }
   }
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('es-ES', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    })
+  const getPaymentStatusColor = (status: string) => {
+    switch (status) {
+      case 'paid': return 'bg-green-100 text-green-800'
+      case 'pending': return 'bg-orange-100 text-orange-800'
+      case 'failed': return 'bg-red-100 text-red-800'
+      case 'refunded': return 'bg-blue-100 text-blue-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
   }
 
   if (loading) {
@@ -172,8 +252,9 @@ export default function AppointmentDetailPage() {
   if (!appointment) {
     return (
       <div className="text-center py-12">
-        <p>No se encontró la cita</p>
-        <Link href="/dashboard/appointments" className="text-green-600 hover:text-green-700">
+        <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+        <p className="text-gray-600">No se encontró la cita</p>
+        <Link href="/dashboard/appointments" className="text-blue-600 hover:underline mt-4 inline-block">
           Volver a citas
         </Link>
       </div>
@@ -181,229 +262,231 @@ export default function AppointmentDetailPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="mb-6">
-        <Link 
-          href="/dashboard/appointments"
-          className="inline-flex items-center text-gray-600 hover:text-gray-900"
-        >
-          <ArrowLeft className="h-5 w-5 mr-2" />
-          Volver a citas
-        </Link>
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <Link 
+            href="/dashboard/appointments"
+            className="inline-flex items-center text-gray-600 hover:text-gray-900"
+          >
+            <ArrowLeft className="h-5 w-5 mr-2" />
+            Volver
+          </Link>
+          <h1 className="text-2xl font-bold text-gray-900">Detalle de Cita</h1>
+        </div>
+        <div className="flex gap-2">
+          <Link
+            href={`/dashboard/appointments/${appointment.id}/edit`}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+          >
+            <Edit className="h-4 w-4" />
+            Editar
+          </Link>
+          <button
+            onClick={handleDelete}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+          >
+            <Trash2 className="h-4 w-4" />
+            Eliminar
+          </button>
+        </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-gray-900">Detalle de Cita</h1>
-            <div className="flex gap-2">
-              {editing ? (
-                <>
-                  <button
-                    onClick={handleUpdate}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-                  >
-                    <Save className="h-4 w-4" />
-                    Guardar
-                  </button>
-                  <button
-                    onClick={() => setEditing(false)}
-                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
-                  >
-                    <X className="h-4 w-4" />
-                    Cancelar
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={() => setEditing(true)}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-                  >
-                    <Edit className="h-4 w-4" />
-                    Editar
-                  </button>
-                  {appointment.status !== 'cancelada' && (
-                    <button
-                      onClick={handleCancel}
-                      className="px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors"
-                    >
-                      Cancelar Cita
-                    </button>
-                  )}
-                </>
-              )}
+      {/* Información general */}
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Información General</h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex items-start space-x-3">
+            <Calendar className="h-5 w-5 text-gray-400 mt-1" />
+            <div>
+              <p className="text-sm text-gray-600">Fecha</p>
+              <p className="font-medium">{formatDate(appointment.appointment_date)}</p>
+            </div>
+          </div>
+          
+          <div className="flex items-start space-x-3">
+            <Clock className="h-5 w-5 text-gray-400 mt-1" />
+            <div>
+              <p className="text-sm text-gray-600">Horario</p>
+              <p className="font-medium">
+                {appointment.appointment_time} - {appointment.end_time} ({appointment.duration} min)
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-start space-x-3">
+            <AlertCircle className="h-5 w-5 text-gray-400 mt-1" />
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Estado de la cita</p>
+              <select
+                value={appointment.status}
+                onChange={(e) => handleStatusChange(e.target.value)}
+                disabled={updating}
+                className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(appointment.status)}`}
+              >
+                <option value="pending">Pendiente</option>
+                <option value="confirmed">Confirmada</option>
+                <option value="completed">Completada</option>
+                <option value="cancelled">Cancelada</option>
+                <option value="no_show">No asistió</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-start space-x-3">
+            <CreditCard className="h-5 w-5 text-gray-400 mt-1" />
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Estado del pago</p>
+              <select
+                value={appointment.payment_status || 'pending'}
+                onChange={(e) => handlePaymentStatusChange(e.target.value)}
+                disabled={updating}
+                className={`px-3 py-1 rounded-full text-sm font-medium ${getPaymentStatusColor(appointment.payment_status || 'pending')}`}
+              >
+                <option value="pending">Pendiente</option>
+                <option value="paid">Pagado</option>
+                <option value="failed">Fallido</option>
+                <option value="refunded">Reembolsado</option>
+                <option value="cancelled">Cancelado</option>
+              </select>
             </div>
           </div>
         </div>
+      </div>
 
-        <div className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Información del servicio */}
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Servicio</h2>
+        <div className="space-y-3">
+          <div className="flex justify-between items-center">
             <div>
-              <h2 className="text-lg font-semibold mb-4 text-gray-900">Información de la Cita</h2>
-              <div className="space-y-3">
-                <div className="flex items-center">
-                  <Calendar className="h-5 w-5 text-gray-400 mr-3" />
-                  <div>
-                    <p className="text-sm text-gray-500">Fecha</p>
-                    <p className="font-medium">{formatDate(appointment.date)}</p>
-                  </div>
-                </div>
-                <div className="flex items-center">
-                  <Clock className="h-5 w-5 text-gray-400 mr-3" />
-                  <div>
-                    <p className="text-sm text-gray-500">Hora</p>
-                    <p className="font-medium">{appointment.time}</p>
-                  </div>
-                </div>
-                <div className="flex items-center">
-                  <FileText className="h-5 w-5 text-gray-400 mr-3" />
-                  <div>
-                    <p className="text-sm text-gray-500">Servicio</p>
-                    <p className="font-medium">{appointment.service}</p>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Estado</p>
-                  {editing ? (
-                    <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                      className="px-3 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    >
-                      <option value="pendiente">Pendiente</option>
-                      <option value="confirmada">Confirmada</option>
-                      <option value="completada">Completada</option>
-                      <option value="cancelada">Cancelada</option>
-                    </select>
-                  ) : (
-                    <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(appointment.status)}`}>
-                      {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
-                    </span>
-                  )}
-                </div>
+              <p className="font-medium text-gray-900">{appointment.service.name}</p>
+              {appointment.service.description && (
+                <p className="text-sm text-gray-600 mt-1">{appointment.service.description}</p>
+              )}
+              <p className="text-sm text-gray-500 mt-1">Duración: {appointment.service.duration} minutos</p>
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(appointment.total_amount)}</p>
+              <p className="text-sm text-gray-500">Precio del servicio</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Grid de paciente y profesional */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Información del paciente */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Paciente</h2>
+          <div className="space-y-3">
+            <div className="flex items-center space-x-3">
+              <User className="h-5 w-5 text-gray-400" />
+              <div>
+                <p className="font-medium">{appointment.patient.full_name}</p>
+                <p className="text-sm text-gray-600">
+                  {appointment.patient.gender === 'male' ? 'Masculino' : 
+                   appointment.patient.gender === 'female' ? 'Femenino' : 'No especificado'} - {calculateAge(appointment.patient.date_of_birth)}
+                </p>
               </div>
             </div>
+            
+            <div className="flex items-center space-x-3">
+              <Mail className="h-5 w-5 text-gray-400" />
+              <p className="text-sm">{appointment.patient.email}</p>
+            </div>
+            
+            {appointment.patient.phone && (
+              <div className="flex items-center space-x-3">
+                <Phone className="h-5 w-5 text-gray-400" />
+                <p className="text-sm">{appointment.patient.phone}</p>
+              </div>
+            )}
+            
+            {appointment.patient.city && (
+              <div className="flex items-center space-x-3">
+                <MapPin className="h-5 w-5 text-gray-400" />
+                <p className="text-sm">{appointment.patient.city}</p>
+              </div>
+            )}
 
-            <div>
-              <h2 className="text-lg font-semibold mb-4 text-gray-900">Información del Paciente</h2>
-              <div className="space-y-3">
-                <div className="flex items-center">
-                  <User className="h-5 w-5 text-gray-400 mr-3" />
-                  <div>
-                    <p className="text-sm text-gray-500">Nombre</p>
-                    <p className="font-medium">{appointment.patient.full_name}</p>
-                  </div>
-                </div>
-                <div className="flex items-center">
-                  <Mail className="h-5 w-5 text-gray-400 mr-3" />
-                  <div>
-                    <p className="text-sm text-gray-500">Email</p>
-                    <p className="font-medium">{appointment.patient.email}</p>
-                  </div>
-                </div>
-                {appointment.patient.phone && (
-                  <div className="flex items-center">
-                    <Phone className="h-5 w-5 text-gray-400 mr-3" />
-                    <div>
-                      <p className="text-sm text-gray-500">Teléfono</p>
-                      <p className="font-medium">{appointment.patient.phone}</p>
-                    </div>
-                  </div>
+            <Link 
+              href={`/dashboard/patients/${appointment.patient.id}`}
+              className="inline-flex items-center text-blue-600 hover:underline text-sm mt-2"
+            >
+              Ver perfil completo →
+            </Link>
+          </div>
+        </div>
+
+        {/* Información del profesional */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Profesional</h2>
+          <div className="space-y-3">
+            <div className="flex items-center space-x-3">
+              <User className="h-5 w-5 text-gray-400" />
+              <div>
+                <p className="font-medium">{appointment.professional.full_name}</p>
+                {appointment.professional.title && (
+                  <p className="text-sm text-gray-600">{appointment.professional.title}</p>
                 )}
               </div>
             </div>
-
-            <div>
-              <h2 className="text-lg font-semibold mb-4 text-gray-900">Profesional Asignado</h2>
-              <div className="space-y-3">
-                <div className="flex items-center">
-                  <User className="h-5 w-5 text-gray-400 mr-3" />
-                  <div>
-                    <p className="text-sm text-gray-500">Nombre</p>
-                    <p className="font-medium">{appointment.professional.name}</p>
-                  </div>
-                </div>
-                <div className="flex items-center">
-                  <FileText className="h-5 w-5 text-gray-400 mr-3" />
-                  <div>
-                    <p className="text-sm text-gray-500">Especialidad</p>
-                    <p className="font-medium">{appointment.professional.specialty}</p>
-                  </div>
-                </div>
-                <div className="flex items-center">
-                  <Mail className="h-5 w-5 text-gray-400 mr-3" />
-                  <div>
-                    <p className="text-sm text-gray-500">Email</p>
-                    <p className="font-medium">{appointment.professional.email}</p>
-                  </div>
-                </div>
+            
+            {appointment.professional.specialties && appointment.professional.specialties.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {appointment.professional.specialties.map((specialty, index) => (
+                  <span 
+                    key={index}
+                    className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs"
+                  >
+                    {specialty}
+                  </span>
+                ))}
               </div>
-            </div>
+            )}
 
-            <div>
-              <h2 className="text-lg font-semibold mb-4 text-gray-900">Información de Pago</h2>
-              <div className="space-y-3">
-                <div className="flex items-center">
-                  <DollarSign className="h-5 w-5 text-gray-400 mr-3" />
-                  <div>
-                    <p className="text-sm text-gray-500">Monto</p>
-                    <p className="font-medium">${appointment.amount.toFixed(2)}</p>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Estado de Pago</p>
-                  {editing ? (
-                    <select
-                      value={formData.payment_status}
-                      onChange={(e) => setFormData({ ...formData, payment_status: e.target.value })}
-                      className="px-3 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    >
-                      <option value="pendiente">Pendiente</option>
-                      <option value="pagado">Pagado</option>
-                    </select>
-                  ) : (
-                    <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                      appointment.payment_status === 'pagado'
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-orange-100 text-orange-800'
-                    }`}>
-                      {appointment.payment_status === 'pagado' ? 'Pagado' : 'Pendiente'}
-                    </span>
-                  )}
-                </div>
-                {appointment.payment_method && (
-                  <div>
-                    <p className="text-sm text-gray-500">Método de Pago</p>
-                    <p className="font-medium">{appointment.payment_method}</p>
-                  </div>
-                )}
+            {appointment.professional.email && (
+              <div className="flex items-center space-x-3">
+                <Mail className="h-5 w-5 text-gray-400" />
+                <p className="text-sm">{appointment.professional.email}</p>
               </div>
-            </div>
-          </div>
-
-          <div className="border-t pt-6">
-            <h2 className="text-lg font-semibold mb-4 text-gray-900">Notas</h2>
-            {editing ? (
-              <textarea
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                rows={4}
-                placeholder="Agregar notas sobre la cita..."
-              />
-            ) : (
-              <p className="text-gray-600">
-                {appointment.notes || 'No hay notas para esta cita'}
-              </p>
             )}
-          </div>
-
-          <div className="border-t pt-6 text-sm text-gray-500">
-            <p>Creada el: {new Date(appointment.created_at).toLocaleString('es-ES')}</p>
-            {appointment.updated_at && (
-              <p>Última actualización: {new Date(appointment.updated_at).toLocaleString('es-ES')}</p>
+            
+            {appointment.professional.phone && (
+              <div className="flex items-center space-x-3">
+                <Phone className="h-5 w-5 text-gray-400" />
+                <p className="text-sm">{appointment.professional.phone}</p>
+              </div>
             )}
+
+            <Link 
+              href={`/dashboard/professionals/${appointment.professional.id}`}
+              className="inline-flex items-center text-blue-600 hover:underline text-sm mt-2"
+            >
+              Ver perfil completo →
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Notas */}
+      {appointment.notes && (
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Notas</h2>
+          <p className="text-gray-700 whitespace-pre-wrap">{appointment.notes}</p>
+        </div>
+      )}
+
+      {/* Información del sistema */}
+      <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-600">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <span className="font-medium">Creado:</span> {new Date(appointment.created_at).toLocaleString('es-ES')}
+          </div>
+          <div>
+            <span className="font-medium">ID:</span> {appointment.id}
           </div>
         </div>
       </div>
