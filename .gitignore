@@ -42,3 +42,23 @@ web/.next/
 web/out/
 web/.vercel
 web/.env*.local
+
+# iOS
+ios/Pods/
+ios/build/
+ios/DerivedData/
+ios/.xcode.env.local
+ios/*.xcworkspace/xcuserdata/
+ios/*.xcodeproj/xcuserdata/
+
+# Android
+android/build/
+android/.gradle/
+android/app/build/
+android/local.properties
+android/.idea/
+android/*.iml
+
+# Build artifacts
+build/
+*.xcuserstate
