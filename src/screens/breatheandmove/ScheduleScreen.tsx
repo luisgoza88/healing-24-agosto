@@ -19,6 +19,7 @@ import { es } from 'date-fns/locale';
 import { SEPTEMBER_2025_SCHEDULE } from '../../constants/breatheMoveSchedule';
 import { seedBreatheMoveClasses } from '../../utils/seedBreatheMoveClasses';
 import { cleanSundayClasses } from '../../utils/cleanSundayClasses';
+import { resetBreatheMoveClasses } from '../../utils/resetBreatheMoveClasses';
 
 const { width } = Dimensions.get('window');
 
@@ -154,7 +155,11 @@ export const ScheduleScreen = ({ navigation }: any) => {
     const targetDate = next7Days[dayIndex];
     const dateString = format(targetDate, 'yyyy-MM-dd');
     
-    return classes.filter(c => c.class_date === dateString);
+    console.log(`Getting classes for ${dateString} (${format(targetDate, 'EEEE', { locale: es })})`);
+    const dayClasses = classes.filter(c => c.class_date === dateString);
+    console.log(`Found ${dayClasses.length} classes for this day`);
+    
+    return dayClasses;
   };
 
   const handleClassPress = (classItem: BreatheMoveClass) => {
@@ -224,7 +229,12 @@ export const ScheduleScreen = ({ navigation }: any) => {
         <Text style={styles.headerTitle}>Horarios</Text>
         <TouchableOpacity 
           style={styles.refreshButton}
-          onPress={onRefresh}
+          onPress={async () => {
+            const result = await resetBreatheMoveClasses();
+            console.log('Reset result:', result);
+            onRefresh();
+          }}
+          onLongPress={onRefresh}
         >
           <Ionicons name="refresh" size={24} color={Colors.primary.dark} />
         </TouchableOpacity>

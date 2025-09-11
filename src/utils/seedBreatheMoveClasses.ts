@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { format, addDays, getDay } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { SEPTEMBER_2025_SCHEDULE } from '../constants/breatheMoveSchedule';
 
 export const seedBreatheMoveClasses = async () => {
@@ -20,6 +21,9 @@ export const seedBreatheMoveClasses = async () => {
         continue;
       }
       
+      // Debug log
+      console.log(`Date: ${format(currentDate, 'yyyy-MM-dd EEEE', { locale: es })}, dayOfWeek: ${dayOfWeek}`);
+      
       // Find all classes for this day of week from the official schedule
       const classesForDay = SEPTEMBER_2025_SCHEDULE.filter(c => c.dayOfWeek === dayOfWeek);
       
@@ -38,7 +42,7 @@ export const seedBreatheMoveClasses = async () => {
         const endMinutes = (minutes + 50) % 60;
         const endTime = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
         
-        classesToInsert.push({
+        const classData = {
           class_name: classTemplate.className,
           class_date: format(currentDate, 'yyyy-MM-dd'),
           start_time: classTemplate.time + ':00',
@@ -48,7 +52,12 @@ export const seedBreatheMoveClasses = async () => {
           current_capacity: 0,
           status: 'scheduled',
           intensity: classTemplate.intensity
-        });
+        };
+        
+        // Debug log
+        console.log(`Creating class: ${classData.class_name} on ${classData.class_date} (${format(currentDate, 'EEEE', { locale: es })})`);
+        
+        classesToInsert.push(classData);
       }
     }
     
