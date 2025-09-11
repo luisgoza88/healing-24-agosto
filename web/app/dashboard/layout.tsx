@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useState } from "react";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/src/lib/supabase";
+import { useAuth } from "@/src/hooks/useAuth";
 import { 
   LayoutDashboard, 
   Calendar, 
@@ -31,28 +31,20 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
-  const router = useRouter();
   const pathname = usePathname();
-  const supabase = createClient();
+  const { user, loading, signOut } = useAuth();
 
-  useEffect(() => {
-    checkUser();
-  }, []);
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+      </div>
+    );
+  }
 
-  const checkUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      router.push("/");
-    } else {
-      setUser(user);
-    }
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push("/");
-  };
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -118,7 +110,7 @@ export default function DashboardLayout({
           </nav>
           <div className="p-4 border-t">
             <button
-              onClick={handleLogout}
+              onClick={signOut}
               className="flex items-center w-full px-3 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-100"
             >
               <LogOut className="w-5 h-5 mr-3" />

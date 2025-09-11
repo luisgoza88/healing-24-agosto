@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/src/lib/supabase'
-import { Calendar, Clock, User, Search, Filter, Eye, Edit, X } from 'lucide-react'
+import { Calendar, Clock, User, Search, Filter, Eye, Edit, X, Plus } from 'lucide-react'
 import Link from 'next/link'
 import NewAppointmentModal from '@/components/NewAppointmentModal'
 
@@ -63,6 +63,7 @@ export default function AppointmentsPage() {
           user_id,
           professional_id,
           service_id,
+          created_at,
           professionals!appointments_professional_id_fkey(full_name),
           profiles!appointments_user_id_fkey(full_name, email),
           services!appointments_service_id_fkey(name)

@@ -33,11 +33,20 @@ export const SERVICES = [
       { name: 'Baño helado', duration: 30, price: 80000 },
       { name: 'Sauna infrarrojo', duration: 45, price: 130000 },
       { name: 'Baño helado + sauna infrarrojo', duration: 60, price: 190000 },
+      { name: 'Cámara hiperbárica', duration: 60, price: 180000 },
+    ]
+  },
+  {
+    id: 'drips',
+    name: 'DRIPS - Sueroterapia',
+    color: '#4A6C9B',
+    icon: 'medical-services',
+    description: 'Terapias intravenosas y sueroterapia',
+    subServices: [
       { name: 'Vitaminas - IV Drips', duration: 60, price: 265000, priceNote: 'desde' },
       { name: 'NAD 125 mg', duration: 90, price: 400000 },
       { name: 'NAD 500 mg', duration: 180, price: 1500000 },
       { name: 'NAD 1000 mg', duration: 240, price: 2300000 },
-      { name: 'Cámara hiperbárica', duration: 60, price: 180000 },
       { name: 'Ozonoterapia – suero ozonizado', duration: 60, price: 300000 },
       { name: 'Ozonoterapia – autohemoterapia mayor', duration: 60, price: 350000 },
     ]

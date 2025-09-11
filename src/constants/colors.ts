@@ -1,10 +1,13 @@
 export const Colors = {
   // Paleta Principal
   primary: {
+    main: '#3E5444', // Verde bosque principal
     dark: '#12292F', // Pantone 546C - Dark teal principal
     beige: '#E7E4DE', // Pantone 7534C - Beige de fondo
     coral: '#ECD0B6', // Pantone 475C - Coral suave
     lightGray: '#B2B8B0', // Pantone 5655C - Gris claro
+    light: '#3E544420', // Verde bosque con transparencia
+    green: '#3E5444', // Verde bosque
   },
   // Paleta Secundaria
   secondary: {
@@ -23,6 +26,13 @@ export const Colors = {
     warning: '#F59E0B',
     info: '#3B82F6',
     border: '#E5DDD5', // Bordes sutiles beige
+    disabled: '#E5E7EB',
+    card: '#FFFFFF',
+  },
+  status: {
+    success: '#16A34A',
+    warning: '#F59E0B',
+    error: '#DC2626',
   },
   text: {
     primary: '#12292F', // Dark teal para textos

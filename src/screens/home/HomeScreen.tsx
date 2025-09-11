@@ -18,11 +18,13 @@ import { Button } from '../../components/Button';
 import { ServiceGrid } from '../../components/ServiceGrid';
 import { useNotifications } from '../../hooks/useNotifications';
 import { ServiceDetailScreen } from '../services/ServiceDetailScreen';
+import { DripsService } from '../../services/dripsService';
+import { getRealServiceId } from '../../utils/serviceMapping';
+import { scheduleAppointmentNotifications } from '../../utils/notificationScheduler';
 import { BookingCalendarScreen } from '../booking/BookingCalendarScreen';
 import { SelectProfessionalScreen } from '../booking/SelectProfessionalScreen';
 import { BookingConfirmationScreen } from '../booking/BookingConfirmationScreen';
 import { PaymentMethodScreen } from '../payment/PaymentMethodScreen';
-import { getRealServiceId } from '../../utils/serviceMapping';
 
 const { width } = Dimensions.get('window');
 
@@ -50,7 +52,23 @@ export const HomeScreen = ({ navigation }: any) => {
   const handleSubServicePress = (service: any, subService: any) => {
     setCurrentService(service);
     setSelectedSubService(subService);
-    setCurrentStep('professional');
+    
+    // Para DRIPS, saltar directamente al calendario sin seleccionar profesional
+    if (service.id === 'drips') {
+      // Asignar el profesional genérico para DRIPS
+      setBookingData({ 
+        ...bookingData, 
+        professional: {
+          id: 'b8f5a516-5b6a-4c89-a8f5-64de1c72f3d9',
+          full_name: 'Enfermera de Turno',
+          title: 'Enfermera',
+          specialties: ['DRIPS', 'Sueroterapia', 'Terapias IV']
+        }
+      });
+      setCurrentStep('calendar');
+    } else {
+      setCurrentStep('professional');
+    }
   };
 
   const handleProfessionalSelected = (professional: any) => {
@@ -89,22 +107,48 @@ export const HomeScreen = ({ navigation }: any) => {
       // Obtener el ID real del servicio desde Supabase
       const realServiceId = getRealServiceId(currentService.id);
       
-      const { data: appointment, error } = await supabase
-        .from('appointments')
-        .insert({
-          user_id: user.id,
-          service_id: realServiceId,
-          professional_id: bookingData.professional.id,
-          appointment_date: bookingData.date,
-          appointment_time: bookingData.time + ':00',
-          end_time: new Date(appointmentDateTime.getTime() + selectedSubService.duration * 60000).toTimeString().slice(0, 8),
-          duration: selectedSubService.duration,
-          status: 'pending',
-          total_amount: selectedSubService.price,
-          notes: `${currentService.name} - ${selectedSubService.name} - ${selectedSubService.duration} min`
-        })
-        .select()
-        .single();
+      let appointment;
+      let error;
+
+      // Si es un servicio DRIPS, usar el servicio especializado
+      if (currentService.id === 'drips') {
+        try {
+          appointment = await DripsService.createDripsAppointment(
+            user.id,
+            realServiceId,
+            null, // subServiceId - necesitamos agregarlo si usas sub_services
+            new Date(bookingData.date),
+            bookingData.time,
+            bookingData.professional.id,
+            selectedSubService.duration
+          );
+          error = null;
+        } catch (e) {
+          error = e;
+          appointment = null;
+        }
+      } else {
+        // Para otros servicios, usar el proceso normal
+        const result = await supabase
+          .from('appointments')
+          .insert({
+            user_id: user.id,
+            service_id: realServiceId,
+            professional_id: bookingData.professional.id,
+            appointment_date: bookingData.date,
+            appointment_time: bookingData.time + ':00',
+            end_time: new Date(appointmentDateTime.getTime() + selectedSubService.duration * 60000).toTimeString().slice(0, 8),
+            duration: selectedSubService.duration,
+            status: 'pending',
+            total_amount: selectedSubService.price,
+            notes: `${currentService.name} - ${selectedSubService.name} - ${selectedSubService.duration} min`
+          })
+          .select()
+          .single();
+        
+        appointment = result.data;
+        error = result.error;
+      }
 
       if (error) {
         console.error('Error creating appointment:', error);
@@ -135,7 +179,13 @@ export const HomeScreen = ({ navigation }: any) => {
         setCurrentStep('services');
         break;
       case 'calendar':
-        setCurrentStep('professional');
+        // Si es DRIPS, volver directo a servicios
+        if (currentService?.id === 'drips') {
+          setSelectedSubService(null);
+          setCurrentStep('services');
+        } else {
+          setCurrentStep('professional');
+        }
         break;
       case 'confirmation':
         setCurrentStep('calendar');
