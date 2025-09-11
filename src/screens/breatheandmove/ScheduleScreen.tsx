@@ -130,11 +130,18 @@ export const ScheduleScreen = ({ navigation }: any) => {
         setClasses(filteredData);
       } else {
         // Filtrar clases de domingo
+        console.log('Raw classes from DB:', data.length);
         const filteredData = data.filter(cls => {
-          const date = new Date(cls.class_date);
-          return date.getDay() !== 0; // No domingos
+          const date = new Date(cls.class_date + 'T00:00:00');
+          const dayOfWeek = date.getDay();
+          const isSunday = dayOfWeek === 0;
+          if (isSunday) {
+            console.log(`Filtering out Sunday class: ${cls.class_name} on ${cls.class_date}`);
+          }
+          return !isSunday;
         });
         
+        console.log('Classes after filtering Sundays:', filteredData.length);
         setClasses(filteredData);
       }
     } catch (error) {
@@ -154,10 +161,31 @@ export const ScheduleScreen = ({ navigation }: any) => {
   const getClassesForDay = (dayIndex: number) => {
     const targetDate = next7Days[dayIndex];
     const dateString = format(targetDate, 'yyyy-MM-dd');
+    const targetDayOfWeek = targetDate.getDay();
     
-    console.log(`Getting classes for ${dateString} (${format(targetDate, 'EEEE', { locale: es })})`);
-    const dayClasses = classes.filter(c => c.class_date === dateString);
-    console.log(`Found ${dayClasses.length} classes for this day`);
+    console.log(`\n=== GETTING CLASSES FOR DAY ${dayIndex} ===`);
+    console.log(`Target date: ${dateString} (${format(targetDate, 'EEEE', { locale: es })})`);
+    console.log(`Target day of week: ${targetDayOfWeek} (0=Sunday, 1=Monday, etc.)`);
+    
+    const dayClasses = classes.filter(c => {
+      const matches = c.class_date === dateString;
+      if (matches) {
+        console.log(`- Found class: ${c.class_name} at ${c.start_time}`);
+      }
+      return matches;
+    });
+    
+    console.log(`Total classes found: ${dayClasses.length}`);
+    
+    // También vamos a verificar si hay clases para otros días
+    if (dayClasses.length === 0 && classes.length > 0) {
+      console.log('No classes for this date. Classes in memory are for:');
+      const uniqueDates = [...new Set(classes.map(c => c.class_date))].sort();
+      uniqueDates.forEach(date => {
+        const d = new Date(date + 'T00:00:00');
+        console.log(`  - ${date} (${format(d, 'EEEE', { locale: es })})`);
+      });
+    }
     
     return dayClasses;
   };
