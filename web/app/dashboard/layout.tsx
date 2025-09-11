@@ -13,13 +13,14 @@ import {
   Settings,
   LogOut,
   Menu,
-  X
+  X,
+  Activity
 } from "lucide-react";
 
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/dashboard/my-appointments", label: "Mis Citas", icon: Calendar },
-  { href: "/dashboard/appointments", label: "Todas las Citas", icon: Calendar },
+  { href: "/dashboard/appointments", label: "Citas", icon: Calendar },
+  { href: "/dashboard/breathe-move", label: "Breathe & Move", icon: Activity },
   { href: "/dashboard/patients", label: "Pacientes", icon: Users },
   { href: "/dashboard/professionals", label: "Profesionales", icon: UserCog },
   { href: "/dashboard/reports", label: "Reportes", icon: FileBarChart },

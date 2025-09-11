@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/src/lib/supabase'
+import { useQueryClient } from '@tanstack/react-query'
 import { 
   ArrowLeft,
   Calendar,
@@ -60,16 +61,20 @@ interface AppointmentDetail {
   }
 }
 
-export default function AppointmentDetailPage({ params }: { params: { id: string } }) {
+export default function AppointmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const [appointment, setAppointment] = useState<AppointmentDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
   const router = useRouter()
   const supabase = createClient()
+  const queryClient = useQueryClient()
+  
+  // Unwrap the params Promise using React's use() hook
+  const { id } = use(params)
 
   useEffect(() => {
     fetchAppointmentDetail()
-  }, [params.id])
+  }, [id])
 
   const fetchAppointmentDetail = async () => {
     try {
@@ -77,7 +82,7 @@ export default function AppointmentDetailPage({ params }: { params: { id: string
       const { data: apt, error } = await supabase
         .from('appointments')
         .select('*')
-        .eq('id', params.id)
+        .eq('id', id)
         .single()
 
       if (error || !apt) {
@@ -144,6 +149,10 @@ export default function AppointmentDetailPage({ params }: { params: { id: string
       if (error) throw error
 
       setAppointment({ ...appointment, status: newStatus })
+      
+      // Invalidar el cache de React Query para que se actualice la lista
+      queryClient.invalidateQueries({ queryKey: ['appointments'] })
+      queryClient.invalidateQueries({ queryKey: ['appointment-stats'] })
     } catch (error) {
       console.error('Error updating status:', error)
     } finally {
@@ -164,6 +173,10 @@ export default function AppointmentDetailPage({ params }: { params: { id: string
       if (error) throw error
 
       setAppointment({ ...appointment, payment_status: newStatus })
+      
+      // Invalidar el cache de React Query para que se actualice la lista
+      queryClient.invalidateQueries({ queryKey: ['appointments'] })
+      queryClient.invalidateQueries({ queryKey: ['appointment-stats'] })
     } catch (error) {
       console.error('Error updating payment status:', error)
     } finally {
@@ -184,6 +197,10 @@ export default function AppointmentDetailPage({ params }: { params: { id: string
 
       if (error) throw error
 
+      // Invalidar el cache antes de navegar
+      queryClient.invalidateQueries({ queryKey: ['appointments'] })
+      queryClient.invalidateQueries({ queryKey: ['appointment-stats'] })
+      
       router.push('/dashboard/appointments')
     } catch (error) {
       console.error('Error deleting appointment:', error)

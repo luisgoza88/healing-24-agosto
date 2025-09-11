@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { createClient } from '@/src/lib/supabase'
+import { useState } from 'react'
 import { 
   Search, 
   Filter, 
@@ -13,370 +12,349 @@ import {
   Calendar,
   MapPin,
   Download,
-  Activity
+  Activity,
+  Loader2,
+  Users,
+  TrendingUp,
+  UserCheck,
+  Clock
 } from 'lucide-react'
 import Link from 'next/link'
-
-interface Patient {
-  id: string
-  full_name: string
-  email: string
-  phone?: string
-  date_of_birth?: string
-  gender?: string
-  city?: string
-  address?: string
-  created_at: string
-  total_appointments: number
-  last_appointment?: string
-  medical_conditions?: string
-  allergies?: string
-}
+import { usePatients, usePatientStats, useCities } from '@/src/hooks/usePatients'
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
+import NewPatientModal from '@/components/NewPatientModal'
 
 export default function PatientsPage() {
-  const [patients, setPatients] = useState<Patient[]>([])
-  const [filteredPatients, setFilteredPatients] = useState<Patient[]>([])
-  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [genderFilter, setGenderFilter] = useState('todos')
   const [cityFilter, setCityFilter] = useState('todos')
-  const [cities, setCities] = useState<string[]>([])
   const [showNewModal, setShowNewModal] = useState(false)
-  const supabase = createClient()
 
-  useEffect(() => {
-    fetchPatients()
-  }, [])
+  // React Query hooks
+  const { data: patients = [], isLoading } = usePatients({
+    searchTerm,
+    gender: genderFilter,
+    city: cityFilter,
+  })
+  
+  const { data: stats } = usePatientStats()
+  const { data: cities = [] } = useCities()
 
-  useEffect(() => {
-    filterPatients()
-  }, [patients, searchTerm, genderFilter, cityFilter])
-
-  const fetchPatients = async () => {
-    try {
-      const { data: patientsData, error: patientsError } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (patientsError) throw patientsError
-
-      const { data: appointmentsCount, error: appointmentsError } = await supabase
-        .from('appointments')
-        .select('user_id, appointment_date')
-        .order('appointment_date', { ascending: false })
-
-      if (appointmentsError) throw appointmentsError
-
-      const appointmentsByUser = appointmentsCount?.reduce((acc: any, apt) => {
-        if (!acc[apt.user_id]) {
-          acc[apt.user_id] = { count: 0, lastDate: apt.appointment_date }
-        }
-        acc[apt.user_id].count++
-        return acc
-      }, {})
-
-      const formattedPatients = patientsData?.map(patient => ({
-        id: patient.id,
-        full_name: patient.full_name || 'Sin nombre',
-        email: patient.email || '',
-        phone: patient.phone,
-        date_of_birth: patient.date_of_birth,
-        gender: patient.gender,
-        city: patient.city,
-        address: patient.address,
-        created_at: patient.created_at,
-        total_appointments: appointmentsByUser?.[patient.id]?.count || 0,
-        last_appointment: appointmentsByUser?.[patient.id]?.lastDate,
-        medical_conditions: patient.medical_conditions,
-        allergies: patient.allergies
-      })) || []
-
-      setPatients(formattedPatients)
-
-      const uniqueCities = [...new Set(formattedPatients
-        .map(p => p.city)
-        .filter(Boolean))] as string[]
-      setCities(uniqueCities)
-    } catch (error) {
-      console.error('Error fetching patients:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const filterPatients = () => {
-    let filtered = [...patients]
-
-    if (searchTerm) {
-      filtered = filtered.filter(patient =>
-        patient.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        patient.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        patient.phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        patient.city?.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    }
-
-    if (genderFilter !== 'todos') {
-      filtered = filtered.filter(patient => patient.gender === genderFilter)
-    }
-
-    if (cityFilter !== 'todos') {
-      filtered = filtered.filter(patient => patient.city === cityFilter)
-    }
-
-    setFilteredPatients(filtered)
-  }
-
-  const calculateAge = (birthDate: string) => {
-    const birth = new Date(birthDate)
+  const calculateAge = (dateOfBirth?: string) => {
+    if (!dateOfBirth) return null
     const today = new Date()
-    let age = today.getFullYear() - birth.getFullYear()
-    const monthDiff = today.getMonth() - birth.getMonth()
-    
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    const birthDate = new Date(dateOfBirth)
+    let age = today.getFullYear() - birthDate.getFullYear()
+    const monthDiff = today.getMonth() - birthDate.getMonth()
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
       age--
     }
-    
     return age
   }
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('es-ES', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
-    })
+  const formatDate = (date?: string) => {
+    if (!date) return 'N/A'
+    return format(new Date(date), 'dd/MM/yyyy')
   }
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
-      </div>
-    )
+  const exportToCSV = () => {
+    const headers = ['Nombre', 'Email', 'Teléfono', 'Ciudad', 'Fecha Nacimiento', 'Género', 'Total Citas', 'Última Cita']
+    const rows = patients.map(patient => [
+      patient.full_name,
+      patient.email,
+      patient.phone || '',
+      patient.city || '',
+      patient.date_of_birth || '',
+      patient.gender || '',
+      patient.total_appointments.toString(),
+      patient.last_appointment || ''
+    ])
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `pacientes_${format(new Date(), 'yyyy-MM-dd')}.csv`
+    link.click()
+  }
+
+  const getGenderText = (gender?: string) => {
+    switch (gender) {
+      case 'male': return 'Masculino'
+      case 'female': return 'Femenino'
+      case 'other': return 'Otro'
+      default: return 'No especificado'
+    }
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Gestión de Pacientes</h1>
-        <div className="flex gap-2">
-          <Link
-            href="/dashboard/patients/new"
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-          >
-            <UserPlus className="h-4 w-4" />
-            Nuevo Paciente
-          </Link>
-          <button className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2">
-            <Download className="h-4 w-4" />
-            Exportar
-          </button>
+    <div className="p-6">
+      <div className="mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-bold text-gray-800">Pacientes</h1>
+          <div className="flex space-x-2">
+            <button
+              onClick={exportToCSV}
+              disabled={patients.length === 0}
+              className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 hover:shadow-md transform hover:scale-105 transition-all duration-200 flex items-center space-x-2 disabled:opacity-50"
+            >
+              <Download className="w-5 h-5" />
+              <span>Exportar</span>
+            </button>
+            <button
+              onClick={() => setShowNewModal(true)}
+              className="bg-gradient-to-r from-green-600 to-green-500 text-white px-5 py-2.5 rounded-lg hover:from-green-700 hover:to-green-600 transform hover:scale-105 transition-all duration-200 flex items-center space-x-2 shadow-md hover:shadow-lg"
+            >
+              <UserPlus className="w-5 h-5" />
+              <span>Nuevo Paciente</span>
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div className="bg-white rounded-lg shadow-sm p-6 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="md:col-span-2">
+        {/* Estadísticas */}
+        {stats && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-white rounded-lg shadow-md hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 p-4 border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Total Pacientes</p>
+                  <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent">{stats.total}</p>
+                </div>
+                <div className="p-3 bg-blue-50 rounded-lg">
+                  <Users className="w-8 h-8 text-blue-500" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-lg shadow-md hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 p-4 border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Nuevos Este Mes</p>
+                  <p className="text-2xl font-bold bg-gradient-to-r from-green-600 to-green-500 bg-clip-text text-transparent">{stats.newThisMonth}</p>
+                </div>
+                <div className="p-3 bg-green-50 rounded-lg">
+                  <TrendingUp className="w-8 h-8 text-green-500" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-lg shadow-md hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 p-4 border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Con Citas</p>
+                  <p className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-purple-500 bg-clip-text text-transparent">{stats.withAppointments}</p>
+                </div>
+                <div className="p-3 bg-purple-50 rounded-lg">
+                  <UserCheck className="w-8 h-8 text-purple-500" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-lg shadow-md hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 p-4 border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Activos (3 meses)</p>
+                  <p className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-orange-500 bg-clip-text text-transparent">{stats.activePatients}</p>
+                </div>
+                <div className="p-3 bg-orange-50 rounded-lg">
+                  <Activity className="w-8 h-8 text-orange-500" />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Filtros */}
+        <div className="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 mb-6 border border-gray-100">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
-                placeholder="Buscar por nombre, email, teléfono o ciudad..."
+                placeholder="Buscar por nombre, email, teléfono..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="pl-10 pr-3 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
               />
             </div>
+            
+            <div className="relative">
+              <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <select
+                value={genderFilter}
+                onChange={(e) => setGenderFilter(e.target.value)}
+                className="pl-10 pr-3 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 appearance-none"
+              >
+                <option value="todos">Todos los géneros</option>
+                <option value="male">Masculino</option>
+                <option value="female">Femenino</option>
+                <option value="other">Otro</option>
+              </select>
+            </div>
+            
+            <div className="relative">
+              <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <select
+                value={cityFilter}
+                onChange={(e) => setCityFilter(e.target.value)}
+                className="pl-10 pr-3 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 appearance-none"
+              >
+                <option value="todos">Todas las ciudades</option>
+                {cities.map(city => (
+                  <option key={city} value={city}>{city}</option>
+                ))}
+              </select>
+            </div>
+            
+            <button
+              onClick={() => {
+                setSearchTerm('')
+                setGenderFilter('todos')
+                setCityFilter('todos')
+              }}
+              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transform hover:scale-105 transition-all duration-200"
+            >
+              Limpiar filtros
+            </button>
           </div>
-
-          <select
-            value={genderFilter}
-            onChange={(e) => setGenderFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-          >
-            <option value="todos">Todos los géneros</option>
-            <option value="masculino">Masculino</option>
-            <option value="femenino">Femenino</option>
-            <option value="otro">Otro</option>
-          </select>
-
-          <select
-            value={cityFilter}
-            onChange={(e) => setCityFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-          >
-            <option value="todos">Todas las ciudades</option>
-            {cities.map(city => (
-              <option key={city} value={city}>{city}</option>
-            ))}
-          </select>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <div className="text-sm text-blue-600">Total Pacientes</div>
-            <div className="text-2xl font-bold text-blue-700">{patients.length}</div>
-          </div>
-          <div className="bg-green-50 p-4 rounded-lg">
-            <div className="text-sm text-green-600">Nuevos este mes</div>
-            <div className="text-2xl font-bold text-green-700">
-              {patients.filter(p => {
-                const created = new Date(p.created_at)
-                const now = new Date()
-                return created.getMonth() === now.getMonth() && 
-                       created.getFullYear() === now.getFullYear()
-              }).length}
+        {/* Lista de pacientes */}
+        <div className="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden border border-gray-100">
+          {isLoading ? (
+            <div className="p-8 text-center">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-green-600" />
+              <p className="text-gray-600">Cargando pacientes...</p>
             </div>
-          </div>
-          <div className="bg-yellow-50 p-4 rounded-lg">
-            <div className="text-sm text-yellow-600">Con citas pendientes</div>
-            <div className="text-2xl font-bold text-yellow-700">
-              {patients.filter(p => p.total_appointments > 0).length}
+          ) : patients.length === 0 ? (
+            <div className="p-8 text-center">
+              <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-600">No se encontraron pacientes con los filtros aplicados</p>
             </div>
-          </div>
-          <div className="bg-purple-50 p-4 rounded-lg">
-            <div className="text-sm text-purple-600">Promedio de citas</div>
-            <div className="text-2xl font-bold text-purple-700">
-              {patients.length > 0 
-                ? (patients.reduce((sum, p) => sum + p.total_appointments, 0) / patients.length).toFixed(1)
-                : 0}
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Paciente
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Contacto
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Información Personal
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Historial
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Acciones
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {patients.map((patient) => (
+                    <tr key={patient.id} className="hover:bg-gray-50 transition-colors duration-200 border-b border-gray-100 hover:shadow-sm">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">{patient.full_name}</div>
+                          <div className="text-sm text-gray-500">
+                            Registro: {format(new Date(patient.created_at), "dd MMM yyyy", { locale: es })}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="space-y-1">
+                          {patient.email && (
+                            <div className="flex items-center text-sm text-gray-900">
+                              <Mail className="w-4 h-4 mr-2 text-gray-400" />
+                              {patient.email}
+                            </div>
+                          )}
+                          {patient.phone && (
+                            <div className="flex items-center text-sm text-gray-600">
+                              <Phone className="w-4 h-4 mr-2 text-gray-400" />
+                              {patient.phone}
+                            </div>
+                          )}
+                          {patient.city && (
+                            <div className="flex items-center text-sm text-gray-600">
+                              <MapPin className="w-4 h-4 mr-2 text-gray-400" />
+                              {patient.city}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="space-y-1 text-sm">
+                          <div className="text-gray-900">
+                            {getGenderText(patient.gender)}
+                          </div>
+                          {patient.date_of_birth && (
+                            <div className="text-gray-600">
+                              {calculateAge(patient.date_of_birth)} años
+                            </div>
+                          )}
+                          {(patient.medical_conditions || patient.allergies) && (
+                            <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">
+                              ⚕️ Info médica
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="space-y-1">
+                          <div className="flex items-center text-sm">
+                            <Calendar className="w-4 h-4 mr-2 text-gray-400" />
+                            <span className="font-medium">{patient.total_appointments}</span>
+                            <span className="text-gray-600 ml-1">citas</span>
+                          </div>
+                          {patient.last_appointment && (
+                            <div className="text-xs text-gray-600">
+                              Última: {format(new Date(patient.last_appointment + 'T00:00:00'), "dd MMM yyyy", { locale: es })}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                        <div className="flex justify-center space-x-2">
+                          <Link
+                            href={`/dashboard/patients/${patient.id}`}
+                            className="text-green-600 hover:text-green-800 hover:bg-green-50 p-1.5 rounded-lg transition-all duration-200"
+                            title="Ver detalles"
+                          >
+                            <Eye className="w-5 h-5" />
+                          </Link>
+                          <Link
+                            href={`/dashboard/patients/${patient.id}/edit`}
+                            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-1.5 rounded-lg transition-all duration-200"
+                            title="Editar"
+                          >
+                            <Edit className="w-5 h-5" />
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Paciente
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Contacto
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Información
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Historial
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Salud
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Acciones
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredPatients.map((patient) => (
-                <tr key={patient.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
-                        <span className="text-green-600 font-medium">
-                          {patient.full_name.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">
-                          {patient.full_name}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          Desde {formatDate(patient.created_at)}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="space-y-1">
-                      <div className="flex items-center text-sm text-gray-900">
-                        <Mail className="h-4 w-4 text-gray-400 mr-2" />
-                        {patient.email}
-                      </div>
-                      {patient.phone && (
-                        <div className="flex items-center text-sm text-gray-500">
-                          <Phone className="h-4 w-4 text-gray-400 mr-2" />
-                          {patient.phone}
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="space-y-1">
-                      {patient.date_of_birth && (
-                        <div className="text-sm text-gray-900">
-                          {calculateAge(patient.date_of_birth)} años
-                        </div>
-                      )}
-                      {patient.gender && (
-                        <div className="text-sm text-gray-500 capitalize">
-                          {patient.gender}
-                        </div>
-                      )}
-                      {patient.city && (
-                        <div className="flex items-center text-sm text-gray-500">
-                          <MapPin className="h-3 w-3 text-gray-400 mr-1" />
-                          {patient.city}
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="space-y-1">
-                      <div className="text-sm font-medium text-gray-900">
-                        {patient.total_appointments} citas
-                      </div>
-                      {patient.last_appointment && (
-                        <div className="text-sm text-gray-500">
-                          Última: {formatDate(patient.last_appointment)}
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="space-y-1">
-                      {patient.medical_conditions && (
-                        <div className="flex items-center text-xs text-orange-600">
-                          <Activity className="h-3 w-3 mr-1" />
-                          Condiciones médicas
-                        </div>
-                      )}
-                      {patient.allergies && (
-                        <div className="flex items-center text-xs text-red-600">
-                          <Activity className="h-3 w-3 mr-1" />
-                          Alergias
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <Link 
-                        href={`/dashboard/patients/${patient.id}`}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        <Eye className="h-5 w-5" />
-                      </Link>
-                      <Link
-                        href={`/dashboard/patients/${patient.id}/edit`}
-                        className="text-green-600 hover:text-green-900"
-                      >
-                        <Edit className="h-5 w-5" />
-                      </Link>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          )}
         </div>
       </div>
+
+      {/* Modal para nuevo paciente */}
+      <NewPatientModal 
+        isOpen={showNewModal}
+        onClose={() => setShowNewModal(false)}
+        onSuccess={() => {
+          setShowNewModal(false)
+          // La recarga se maneja con React Query invalidation
+        }}
+      />
     </div>
   )
 }

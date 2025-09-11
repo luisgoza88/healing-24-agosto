@@ -1,8 +1,6 @@
-import { createClient } from '@/src/lib/supabase';
+import { supabase } from '@/src/lib/supabase';
 
 export async function checkIsAdmin(userId: string): Promise<boolean> {
-  const supabase = createClient();
-  
   const { data, error } = await supabase
     .rpc('is_admin', { user_uuid: userId });
   
@@ -15,8 +13,6 @@ export async function checkIsAdmin(userId: string): Promise<boolean> {
 }
 
 export async function getUserRoles(userId: string): Promise<string[]> {
-  const supabase = createClient();
-  
   const { data, error } = await supabase
     .rpc('get_user_roles', { user_uuid: userId });
   

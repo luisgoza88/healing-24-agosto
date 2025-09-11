@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/src/lib/supabase";
+import { supabase } from "@/src/lib/supabase";
 import { checkIsAdmin } from "@/src/utils/auth";
 
 export function useAuth() {
@@ -10,7 +10,6 @@ export function useAuth() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-  const supabase = createClient();
 
   useEffect(() => {
     checkAuth();
@@ -31,9 +30,19 @@ export function useAuth() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const checkAuth = async () => {
+  const checkAuth = async (retryCount = 0) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error } = await supabase.auth.getUser();
+      
+      if (error) {
+        // Si es un error de red y no hemos excedido los intentos, reintentar
+        if (error.message === 'Failed to fetch' && retryCount < 3) {
+          console.log(`Retrying auth check... attempt ${retryCount + 1}`);
+          setTimeout(() => checkAuth(retryCount + 1), 1000 * (retryCount + 1));
+          return;
+        }
+        throw error;
+      }
       
       if (!user) {
         router.push('/');
@@ -50,10 +59,13 @@ export function useAuth() {
 
       setUser(user);
       setIsAdmin(adminStatus);
+      setLoading(false);
     } catch (error) {
       console.error('Error checking auth:', error);
-      router.push('/');
-    } finally {
+      // Solo redirigir si no es un error temporal de red
+      if (error.message !== 'Failed to fetch') {
+        router.push('/');
+      }
       setLoading(false);
     }
   };

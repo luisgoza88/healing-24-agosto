@@ -1,77 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createClient } from "@/src/lib/supabase";
-import { Calendar, Users, DollarSign, TrendingUp } from "lucide-react";
-
-interface DashboardStats {
-  todayAppointments: number;
-  totalPatients: number;
-  todayRevenue: number;
-  monthlyRevenue: number;
-}
+import { Calendar, Users, DollarSign, TrendingUp, Clock, Activity, Loader2 } from "lucide-react";
+import { useDashboardStats, useTodayAppointments, useRecentActivity } from "@/src/hooks/useDashboard";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<DashboardStats>({
-    todayAppointments: 0,
-    totalPatients: 0,
-    todayRevenue: 0,
-    monthlyRevenue: 0,
-  });
-  const [loading, setLoading] = useState(true);
-  const supabase = createClient();
-
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
-
-  const loadDashboardData = async () => {
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
-
-      // Citas de hoy
-      const { count: todayCount } = await supabase
-        .from('appointments')
-        .select('*', { count: 'exact', head: true })
-        .eq('appointment_date', today)
-        .neq('status', 'cancelled');
-
-      // Total de pacientes
-      const { count: patientsCount } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true });
-
-      // Ingresos del día
-      const { data: todayPayments } = await supabase
-        .from('payments')
-        .select('amount')
-        .eq('created_at::date', today)
-        .eq('status', 'completed');
-
-      const todayRevenue = todayPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-
-      // Ingresos del mes
-      const { data: monthPayments } = await supabase
-        .from('payments')
-        .select('amount')
-        .gte('created_at', firstDayOfMonth)
-        .eq('status', 'completed');
-
-      const monthlyRevenue = monthPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-
-      setStats({
-        todayAppointments: todayCount || 0,
-        totalPatients: patientsCount || 0,
-        todayRevenue,
-        monthlyRevenue,
-      });
-    } catch (error) {
-      console.error('Error loading dashboard data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: stats, isLoading: statsLoading } = useDashboardStats();
+  const { data: todayAppointments, isLoading: appointmentsLoading } = useTodayAppointments();
+  const { data: recentActivity, isLoading: activityLoading } = useRecentActivity();
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CO', {
@@ -81,73 +18,210 @@ export default function DashboardPage() {
     }).format(amount);
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
-          <p className="mt-4 text-gray-600">Cargando...</p>
-        </div>
-      </div>
-    );
-  }
+  const formatTime = (timeString: string) => {
+    // Si viene solo la hora (HH:mm:ss), extraer solo HH:mm
+    if (timeString && timeString.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
+      const [hours, minutes] = timeString.split(':');
+      return `${hours}:${minutes} hrs`;
+    }
+    
+    // Si viene con fecha completa, parsear normalmente
+    try {
+      return format(new Date(timeString), "HH:mm 'hrs'", { locale: es });
+    } catch {
+      return timeString; // Retornar el valor original si no se puede parsear
+    }
+  };
+
+  const formatRelativeTime = (timestamp: string) => {
+    const now = new Date();
+    const date = new Date(timestamp);
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'Hace un momento';
+    if (diffInMinutes < 60) return `Hace ${diffInMinutes} minutos`;
+    if (diffInMinutes < 1440) return `Hace ${Math.floor(diffInMinutes / 60)} horas`;
+    return format(date, "dd MMM", { locale: es });
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'confirmed': return 'bg-green-100 text-green-800';
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'completed': return 'bg-blue-100 text-blue-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'confirmed': return 'Confirmada';
+      case 'pending': return 'Pendiente';
+      case 'completed': return 'Completada';
+      default: return status;
+    }
+  };
 
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Dashboard</h1>
       
+      {/* Estadísticas principales */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow-md hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 p-6 border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Citas Hoy</p>
-              <p className="text-2xl font-bold text-gray-800">{stats.todayAppointments}</p>
+              <p className="text-sm text-gray-600 mb-1">Citas Hoy</p>
+              {statsLoading ? (
+                <div className="h-8 w-16 bg-gray-200 animate-pulse rounded mt-1"></div>
+              ) : (
+                <p className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent">{stats?.todayAppointments || 0}</p>
+              )}
             </div>
-            <Calendar className="w-8 h-8 text-blue-500" />
+            <div className="p-3 bg-blue-50 rounded-lg">
+              <Calendar className="w-8 h-8 text-blue-500" />
+            </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow-md hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 p-6 border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Total Pacientes</p>
-              <p className="text-2xl font-bold text-gray-800">{stats.totalPatients}</p>
+              <p className="text-sm text-gray-600 mb-1">Total Pacientes</p>
+              {statsLoading ? (
+                <div className="h-8 w-20 bg-gray-200 animate-pulse rounded mt-1"></div>
+              ) : (
+                <p className="text-3xl font-bold bg-gradient-to-r from-green-600 to-green-500 bg-clip-text text-transparent">{stats?.totalPatients || 0}</p>
+              )}
             </div>
-            <Users className="w-8 h-8 text-green-500" />
+            <div className="p-3 bg-green-50 rounded-lg">
+              <Users className="w-8 h-8 text-green-500" />
+            </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow-md hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 p-6 border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Ingresos Hoy</p>
-              <p className="text-2xl font-bold text-gray-800">{formatCurrency(stats.todayRevenue)}</p>
+              <p className="text-sm text-gray-600 mb-1">Ingresos Hoy</p>
+              {statsLoading ? (
+                <div className="h-8 w-32 bg-gray-200 animate-pulse rounded mt-1"></div>
+              ) : (
+                <p className="text-3xl font-bold bg-gradient-to-r from-yellow-600 to-yellow-500 bg-clip-text text-transparent">{formatCurrency(stats?.todayRevenue || 0)}</p>
+              )}
             </div>
-            <DollarSign className="w-8 h-8 text-yellow-500" />
+            <div className="p-3 bg-yellow-50 rounded-lg">
+              <DollarSign className="w-8 h-8 text-yellow-500" />
+            </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow-md hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 p-6 border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Ingresos del Mes</p>
-              <p className="text-2xl font-bold text-gray-800">{formatCurrency(stats.monthlyRevenue)}</p>
+              <p className="text-sm text-gray-600 mb-1">Ingresos del Mes</p>
+              {statsLoading ? (
+                <div className="h-8 w-36 bg-gray-200 animate-pulse rounded mt-1"></div>
+              ) : (
+                <p className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-purple-500 bg-clip-text text-transparent">{formatCurrency(stats?.monthlyRevenue || 0)}</p>
+              )}
             </div>
-            <TrendingUp className="w-8 h-8 text-purple-500" />
+            <div className="p-3 bg-purple-50 rounded-lg">
+              <TrendingUp className="w-8 h-8 text-purple-500" />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Aquí puedes agregar más secciones como gráficas, citas próximas, etc. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Citas de Hoy</h2>
-          <p className="text-gray-600">Lista de citas programadas para hoy...</p>
+        {/* Citas de Hoy */}
+        <div className="bg-white rounded-lg shadow-md hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 p-6 border border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+              Citas de Hoy
+            </h2>
+            <div className="p-2 bg-blue-50 rounded-lg">
+              <Clock className="w-5 h-5 text-blue-500" />
+            </div>
+          </div>
+          
+          {appointmentsLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="animate-pulse">
+                  <div className="h-16 bg-gray-100 rounded-lg"></div>
+                </div>
+              ))}
+            </div>
+          ) : todayAppointments && todayAppointments.length > 0 ? (
+            <div className="space-y-3">
+              {todayAppointments.map((appointment) => (
+                <div key={appointment.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-blue-200 transform hover:scale-[1.02] transition-all duration-200 cursor-pointer group">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-semibold text-gray-800 text-lg group-hover:text-blue-600 transition-colors">{formatTime(appointment.appointment_time)}</span>
+                    <span className={`text-xs px-3 py-1 rounded-full font-medium ${getStatusColor(appointment.status)}`}>
+                      {getStatusText(appointment.status)}
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-gray-700">
+                      <span className="font-medium text-gray-500">Paciente:</span> <span className="font-medium">{appointment.patient_name}</span>
+                    </p>
+                    <p className="text-sm text-gray-700">
+                      <span className="font-medium text-gray-500">Profesional:</span> <span className="font-medium">{appointment.professional_name}</span>
+                    </p>
+                    {appointment.service && (
+                      <p className="text-sm text-blue-600 mt-2 font-medium">{appointment.service}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-center py-8">No hay citas programadas para hoy</p>
+          )}
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Actividad Reciente</h2>
-          <p className="text-gray-600">Últimas actividades en el sistema...</p>
+        {/* Actividad Reciente */}
+        <div className="bg-white rounded-lg shadow-md hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 p-6 border border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <div className="w-3 h-3 bg-purple-500 rounded-full animate-pulse"></div>
+              Actividad Reciente
+            </h2>
+            <div className="p-2 bg-purple-50 rounded-lg">
+              <Activity className="w-5 h-5 text-purple-500" />
+            </div>
+          </div>
+          
+          {activityLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="animate-pulse">
+                  <div className="h-12 bg-gray-100 rounded"></div>
+                </div>
+              ))}
+            </div>
+          ) : recentActivity && recentActivity.length > 0 ? (
+            <div className="space-y-3">
+              {recentActivity.map((activity) => (
+                <div key={activity.id} className="flex items-start space-x-3 p-2 rounded-lg hover:bg-gray-50 transition-colors duration-200 group">
+                  <div className={`w-3 h-3 rounded-full mt-1 flex-shrink-0 group-hover:scale-125 transition-transform duration-200 ${
+                    activity.type === 'appointment' ? 'bg-blue-500 shadow-blue-200 shadow-md' :
+                    activity.type === 'payment' ? 'bg-green-500 shadow-green-200 shadow-md' :
+                    'bg-gray-500 shadow-gray-200 shadow-md'
+                  }`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-800 font-medium group-hover:text-gray-900 transition-colors">{activity.description}</p>
+                    <p className="text-xs text-gray-500 group-hover:text-gray-600 transition-colors">{formatRelativeTime(activity.timestamp)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-center py-8">No hay actividad reciente</p>
+          )}
         </div>
       </div>
     </div>

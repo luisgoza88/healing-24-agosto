@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/src/lib/supabase'
-import { X } from 'lucide-react'
+import { X, CreditCard, DollarSign } from 'lucide-react'
+import { usePatientCredits, useCredits } from '@/src/hooks/usePatientCredits'
 
 interface NewAppointmentModalProps {
   isOpen: boolean
@@ -60,6 +61,8 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewA
   const [professionals, setProfessionals] = useState<Professional[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const [loading, setLoading] = useState(false)
+  const [useCreditsEnabled, setUseCreditsEnabled] = useState(false)
+  const [creditsToUse, setCreditsToUse] = useState(0)
   const [formData, setFormData] = useState({
     patient_id: '',
     professional_id: '',
@@ -70,6 +73,8 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewA
   })
 
   const supabase = createClient()
+  const { data: patientCredits } = usePatientCredits(formData.patient_id)
+  const useCreditsHook = useCredits()
 
   useEffect(() => {
     if (isOpen) {
@@ -101,6 +106,28 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewA
     setPatients(data || [])
   }
 
+  // Reset credits when patient changes
+  useEffect(() => {
+    if (formData.patient_id) {
+      setUseCreditsEnabled(false)
+      setCreditsToUse(0)
+    }
+  }, [formData.patient_id])
+
+  // Calculate totals
+  const servicePrice = SERVICE_PRICES[formData.service] || 0
+  const availableCredits = patientCredits?.available_credits || 0
+  const maxCreditsUsable = Math.min(availableCredits, servicePrice)
+  const finalAmount = servicePrice - creditsToUse
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0
+    }).format(amount)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -123,16 +150,41 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewA
         duration: 60,
         notes: formData.notes,
         status: 'pending',
-        total_amount: SERVICE_PRICES[formData.service] || 0,
-        payment_status: 'pending'
+        total_amount: finalAmount, // Precio después de aplicar créditos
+        payment_status: creditsToUse > 0 ? (finalAmount === 0 ? 'paid' : 'partial_credit') : 'pending'
       }
 
-      const { error } = await supabase
+      // Create the appointment first
+      const { data: newAppointment, error: appointmentError } = await supabase
         .from('appointments')
         .insert([appointmentData])
+        .select()
+        .single()
 
-      if (error) throw error
+      if (appointmentError) throw appointmentError
 
+      // If using credits, process the credit transaction
+      if (useCreditsEnabled && creditsToUse > 0) {
+        await useCreditsHook.mutateAsync({
+          patientId: formData.patient_id,
+          appointmentId: newAppointment.id,
+          amount: creditsToUse,
+          description: `Pago parcial para cita - ${formData.service}`
+        })
+      }
+
+      // Show success message
+      let successMessage = 'Cita creada exitosamente'
+      if (creditsToUse > 0) {
+        successMessage += `\n\nCréditos utilizados: ${formatCurrency(creditsToUse)}`
+        if (finalAmount === 0) {
+          successMessage += '\nCita pagada completamente con créditos'
+        } else {
+          successMessage += `\nPendiente de pago: ${formatCurrency(finalAmount)}`
+        }
+      }
+      
+      alert(successMessage)
       onSuccess()
       handleClose()
     } catch (error: any) {
@@ -152,6 +204,8 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewA
       time: '',
       notes: ''
     })
+    setUseCreditsEnabled(false)
+    setCreditsToUse(0)
     onClose()
   }
 
@@ -277,6 +331,89 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewA
                 placeholder="Notas adicionales sobre la cita..."
               />
             </div>
+
+            {/* Sección de Créditos */}
+            {formData.patient_id && availableCredits > 0 && formData.service && (
+              <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                <div className="flex items-center mb-3">
+                  <CreditCard className="w-5 h-5 text-green-600 mr-2" />
+                  <h3 className="font-medium text-green-800">Créditos Disponibles</h3>
+                </div>
+                
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span>Créditos disponibles:</span>
+                    <span className="font-medium text-green-700">{formatCurrency(availableCredits)}</span>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="useCredits"
+                      checked={useCreditsEnabled}
+                      onChange={(e) => {
+                        setUseCreditsEnabled(e.target.checked)
+                        if (e.target.checked) {
+                          setCreditsToUse(maxCreditsUsable)
+                        } else {
+                          setCreditsToUse(0)
+                        }
+                      }}
+                      className="rounded border-green-300 text-green-600 focus:ring-green-500"
+                    />
+                    <label htmlFor="useCredits" className="text-sm font-medium text-gray-700">
+                      Usar créditos para esta cita
+                    </label>
+                  </div>
+                  
+                  {useCreditsEnabled && (
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <label className="text-xs text-gray-600 min-w-0">Créditos a usar:</label>
+                        <input
+                          type="range"
+                          min="0"
+                          max={maxCreditsUsable}
+                          step="5000"
+                          value={creditsToUse}
+                          onChange={(e) => setCreditsToUse(Number(e.target.value))}
+                          className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider-green"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          max={maxCreditsUsable}
+                          step="5000"
+                          value={creditsToUse}
+                          onChange={(e) => setCreditsToUse(Math.min(Number(e.target.value), maxCreditsUsable))}
+                          className="w-24 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-green-500"
+                        />
+                      </div>
+                      
+                      <div className="bg-white rounded-lg p-3 border border-green-200 text-xs space-y-1">
+                        <div className="flex justify-between">
+                          <span>Precio del servicio:</span>
+                          <span>{formatCurrency(servicePrice)}</span>
+                        </div>
+                        <div className="flex justify-between text-green-600">
+                          <span>Créditos aplicados:</span>
+                          <span>-{formatCurrency(creditsToUse)}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-gray-900 border-t border-gray-200 pt-1">
+                          <span>Total a pagar:</span>
+                          <span>{formatCurrency(finalAmount)}</span>
+                        </div>
+                        {finalAmount === 0 && (
+                          <div className="text-green-600 font-medium text-center bg-green-100 rounded px-2 py-1 mt-2">
+                            ¡Cita pagada completamente con créditos!
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-3 pt-4">
               <button
