@@ -18,7 +18,7 @@ import { format, addDays, startOfWeek, getDay, isToday } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { SEPTEMBER_2025_SCHEDULE } from '../../constants/breatheMoveSchedule';
 import { seedBreatheMoveClasses } from '../../utils/seedBreatheMoveClasses';
-import { cleanDuplicateClasses } from '../../utils/cleanDuplicateClasses';
+import { cleanSundayClasses } from '../../utils/cleanSundayClasses';
 
 const { width } = Dimensions.get('window');
 
@@ -72,16 +72,18 @@ export const ScheduleScreen = ({ navigation }: any) => {
   const next7Days = Array.from({ length: 7 }, (_, i) => addDays(today, i));
 
   useEffect(() => {
-    loadClasses();
+    // Clean Sunday classes when component mounts
+    cleanSundayClasses().then(result => {
+      console.log('Sunday cleanup result:', result);
+      // Then load classes
+      loadClasses();
+    });
   }, []);
 
   const loadClasses = async () => {
     try {
       setLoading(true);
       console.log('=== LOADING BREATHE & MOVE CLASSES ===');
-      
-      // First clean up any duplicates or Sunday classes
-      await cleanDuplicateClasses();
       
       // Solo cargar clases desde Supabase
       const startDate = today;
@@ -118,9 +120,21 @@ export const ScheduleScreen = ({ navigation }: any) => {
           .order('class_date', { ascending: true })
           .order('start_time', { ascending: true });
           
-        setClasses(newData || []);
+        // Filtrar clases de domingo
+        const filteredData = (newData || []).filter(cls => {
+          const date = new Date(cls.class_date);
+          return date.getDay() !== 0; // No domingos
+        });
+        
+        setClasses(filteredData);
       } else {
-        setClasses(data);
+        // Filtrar clases de domingo
+        const filteredData = data.filter(cls => {
+          const date = new Date(cls.class_date);
+          return date.getDay() !== 0; // No domingos
+        });
+        
+        setClasses(filteredData);
       }
     } catch (error) {
       console.error('Error loading classes:', error);
