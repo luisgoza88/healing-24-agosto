@@ -44,22 +44,35 @@ export default function CreditsPage() {
     queryFn: async (): Promise<PatientCredit[]> => {
       let query = supabase
         .from('patient_credits')
-        .select(`
-          *,
-          patient:profiles!patient_id (
-            full_name,
-            email
-          )
-        `)
+        .select('*')
 
       if (showOnlyWithCredits) {
         query = query.gt('available_credits', 0)
       }
 
-      const { data, error } = await query.order('available_credits', { ascending: false })
+      const { data: creditsData, error } = await query.order('available_credits', { ascending: false })
 
       if (error) throw error
-      return data || []
+
+      // Fetch patient info separately
+      if (creditsData && creditsData.length > 0) {
+        const patientIds = creditsData.map(c => c.patient_id)
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', patientIds)
+
+        if (profilesError) throw profilesError
+
+        // Combine the data
+        const profilesMap = new Map(profilesData?.map(p => [p.id, p]) || [])
+        return creditsData.map(credit => ({
+          ...credit,
+          patient: profilesMap.get(credit.patient_id) || { full_name: 'Usuario sin perfil', email: '' }
+        }))
+      }
+
+      return []
     },
     staleTime: 30 * 1000, // 30 seconds
   })

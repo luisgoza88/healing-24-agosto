@@ -251,20 +251,33 @@ export function useAllCreditTransactions() {
     queryKey: ['all-credit-transactions'],
     queryFn: async (): Promise<(CreditTransaction & { patient: { full_name: string; email: string } })[]> => {
       const supabase = createClient();
-      const { data, error } = await supabase
+      
+      // Fetch transactions first
+      const { data: transactionsData, error: transError } = await supabase
         .from('credit_transactions')
-        .select(`
-          *,
-          patient:profiles!patient_id (
-            full_name,
-            email
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: false })
-        .limit(100); // Limitar a últimas 100 transacciones
+        .limit(100);
 
-      if (error) throw error;
-      return data || [];
+      if (transError) throw transError;
+
+      if (!transactionsData || transactionsData.length === 0) return [];
+
+      // Fetch patient info separately
+      const patientIds = [...new Set(transactionsData.map(t => t.patient_id))];
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', patientIds);
+
+      if (profilesError) throw profilesError;
+
+      // Combine the data
+      const profilesMap = new Map(profilesData?.map(p => [p.id, p]) || []);
+      return transactionsData.map(transaction => ({
+        ...transaction,
+        patient: profilesMap.get(transaction.patient_id) || { full_name: 'Usuario sin perfil', email: '' }
+      }));
     },
     staleTime: 1 * 60 * 1000, // 1 minuto
   });
