@@ -39,32 +39,54 @@ export function useUserCredits() {
         return;
       }
 
-      // Cargar créditos del usuario
-      const { data: creditsData, error: creditsError } = await supabase
-        .from('patient_credits')
-        .select('*')
-        .eq('patient_id', user.id)
-        .maybeSingle();
+      // Cargar créditos del usuario - con manejo de error específico
+      try {
+        const { data: creditsData, error: creditsError } = await supabase
+          .from('patient_credits')
+          .select('*')
+          .eq('patient_id', user.id)
+          .maybeSingle();
 
-      if (creditsError && creditsError.code !== 'PGRST116') {
-        throw creditsError;
+        if (creditsError && creditsError.code !== 'PGRST116') {
+          // Si es error de recursión infinita, ignorar y continuar
+          if (creditsError.code === '42P17') {
+            console.warn('Error de políticas en patient_credits, continuando sin créditos');
+            setCredits(null);
+          } else {
+            throw creditsError;
+          }
+        } else {
+          setCredits(creditsData || null);
+        }
+      } catch (creditsErr) {
+        console.warn('Error cargando créditos:', creditsErr);
+        setCredits(null);
       }
 
-      setCredits(creditsData || null);
+      // Cargar transacciones - con manejo de error específico
+      try {
+        const { data: transactionsData, error: transactionsError } = await supabase
+          .from('credit_transactions')
+          .select('*')
+          .eq('patient_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(10);
 
-      // Cargar transacciones
-      const { data: transactionsData, error: transactionsError } = await supabase
-        .from('credit_transactions')
-        .select('*')
-        .eq('patient_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      if (transactionsError) {
-        throw transactionsError;
+        if (transactionsError) {
+          // Si es error de recursión infinita, ignorar y continuar
+          if (transactionsError.code === '42P17') {
+            console.warn('Error de políticas en credit_transactions, continuando sin transacciones');
+            setTransactions([]);
+          } else {
+            throw transactionsError;
+          }
+        } else {
+          setTransactions(transactionsData || []);
+        }
+      } catch (transErr) {
+        console.warn('Error cargando transacciones:', transErr);
+        setTransactions([]);
       }
-
-      setTransactions(transactionsData || []);
     } catch (err) {
       console.error('Error loading credits:', err);
       setError('Error al cargar los créditos');
