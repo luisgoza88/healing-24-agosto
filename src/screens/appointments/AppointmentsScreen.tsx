@@ -231,7 +231,7 @@ export const AppointmentsScreen = ({ navigation }: any) => {
       const allAppointments = [
         ...processedMedicalAppointments,
         ...processedHotStudioAppointments
-      ].sort((a, b) => new Date(b.appointment_date).getTime() - new Date(a.appointment_date).getTime());
+      ].sort((a, b) => new Date(a.appointment_date).getTime() - new Date(b.appointment_date).getTime());
 
       setAppointments(allAppointments);
     } catch (error) {
@@ -1090,15 +1090,17 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.ui.divider,
   },
   activeTab: {
-    borderBottomColor: Colors.primary.green,
+    borderBottomColor: Colors.primary.dark, // Cambiar a negro para mayor contraste
+    borderBottomWidth: 3, // Hacer la línea más gruesa
   },
   tabText: {
     fontSize: 16,
     fontWeight: '500',
-    color: Colors.text.secondary,
+    color: '#C0C0C0', // Gris más claro para mejor contraste
   },
   activeTabText: {
-    color: Colors.primary.green,
+    color: Colors.primary.dark, // Negro para la pestaña activa
+    fontWeight: '700', // Más bold para mejor distinción
   },
   content: {
     paddingHorizontal: 24,
