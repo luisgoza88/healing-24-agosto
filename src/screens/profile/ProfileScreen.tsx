@@ -25,6 +25,8 @@ import { Button } from '../../components/Button';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useUserCredits, formatCredits, getTransactionColor } from '../../hooks/useCredits';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 
 interface ProfileData {
   full_name: string;
@@ -83,6 +85,13 @@ export const ProfileScreen = ({ navigation }: any) => {
       appStateListener.remove();
     };
   }, []);
+
+  // Refresh credits when screen receives focus (e.g., returning from credits detail screen)
+  useFocusEffect(
+    useCallback(() => {
+      refreshCredits();
+    }, [])
+  );
 
   const loadProfile = async () => {
     try {
