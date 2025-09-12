@@ -10,7 +10,10 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Modal
+  Modal,
+  AppState,
+  RefreshControl,
+  AppStateStatus
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -46,6 +49,7 @@ export const ProfileScreen = ({ navigation }: any) => {
   const [devTapCount, setDevTapCount] = useState(0);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showGenderPicker, setShowGenderPicker] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [profile, setProfile] = useState<ProfileData>({
     full_name: '',
     phone: '',
@@ -63,10 +67,22 @@ export const ProfileScreen = ({ navigation }: any) => {
   });
   
   // Hook para obtener los créditos del usuario
-  const { credits, transactions, loading: creditsLoading } = useUserCredits();
+  const { credits, transactions, loading: creditsLoading, refresh: refreshCredits } = useUserCredits();
 
   useEffect(() => {
     loadProfile();
+
+    // Listen for app state changes to refresh credits when app comes to foreground
+    const appStateListener = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        console.log('App became active, refreshing credits...');
+        refreshCredits();
+      }
+    });
+
+    return () => {
+      appStateListener.remove();
+    };
   }, []);
 
   const loadProfile = async () => {
@@ -320,7 +336,25 @@ export const ProfileScreen = ({ navigation }: any) => {
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={async () => {
+                setRefreshing(true);
+                await Promise.all([
+                  loadProfile(),
+                  refreshCredits()
+                ]);
+                setRefreshing(false);
+              }}
+              tintColor={Colors.primary.green}
+              colors={[Colors.primary.green]}
+              progressBackgroundColor="#ffffff"
+            />
+          }
+        >
           <View style={styles.header}>
             <TouchableOpacity
               onPress={() => {
@@ -365,6 +399,15 @@ export const ProfileScreen = ({ navigation }: any) => {
               <View style={styles.creditsHeader}>
                 <MaterialCommunityIcons name="wallet" size={24} color={Colors.primary.green} />
                 <Text style={styles.creditsTitle}>Mis Créditos</Text>
+                <TouchableOpacity 
+                  onPress={() => {
+                    console.log('Manual credits refresh button pressed');
+                    refreshCredits();
+                  }}
+                  style={{ marginLeft: 'auto' }}
+                >
+                  <MaterialCommunityIcons name="refresh" size={20} color="#FFFFFF" />
+                </TouchableOpacity>
               </View>
               
               {creditsLoading ? (
@@ -374,8 +417,16 @@ export const ProfileScreen = ({ navigation }: any) => {
                   <View style={styles.creditsBalance}>
                     <Text style={styles.creditsLabel}>Saldo disponible</Text>
                     <Text style={styles.creditsAmount}>
-                      {credits ? formatCredits(credits.available_credits) : '$0.00'}
+                      {credits ? formatCredits(credits.available_credits) : '$0'}
                     </Text>
+                    {credits && credits.updated_at && (
+                      <Text style={styles.creditsUpdateTime}>
+                        Actualizado: {new Date(credits.updated_at).toLocaleTimeString('es-ES', { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}
+                      </Text>
+                    )}
                   </View>
                   
                   {credits && (
@@ -990,5 +1041,10 @@ const styles = StyleSheet.create({
   transactionAmount: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  creditsUpdateTime: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.6)',
+    marginTop: 4,
   },
 });

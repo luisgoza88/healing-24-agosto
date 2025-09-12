@@ -27,17 +27,20 @@ export function useUserCredits() {
   const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   const loadCredits = async () => {
     try {
       setLoading(true);
       setError(null);
+      console.log('[useCredits] Loading credits...');
       
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setError('Usuario no autenticado');
         return;
       }
+      console.log('[useCredits] User ID:', user.id);
 
       // Cargar créditos del usuario - con manejo de error específico
       try {
@@ -57,6 +60,8 @@ export function useUserCredits() {
           }
         } else {
           setCredits(creditsData || null);
+          console.log('[useCredits] Credits loaded:', creditsData);
+          setLastRefresh(new Date());
         }
       } catch (creditsErr) {
         console.warn('Error cargando créditos:', creditsErr);
@@ -99,12 +104,16 @@ export function useUserCredits() {
     loadCredits();
 
     // Configurar suscripción en tiempo real
+    let channel: any = null;
+    
     const setupSubscription = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const creditsChannel = supabase
-        .channel('credits-changes')
+      console.log('Setting up realtime subscription for user:', user.id);
+
+      channel = supabase
+        .channel(`credits-changes-${user.id}`)
         .on(
           'postgres_changes',
           {
@@ -113,30 +122,58 @@ export function useUserCredits() {
             table: 'patient_credits',
             filter: `patient_id=eq.${user.id}`
           },
-          () => {
+          (payload) => {
+            console.log('[useCredits] Credits changed:', payload);
+            console.log('[useCredits] Event type:', payload.eventType);
+            console.log('[useCredits] New data:', payload.new);
             loadCredits();
           }
         )
         .on(
           'postgres_changes',
           {
-            event: 'INSERT',
+            event: '*',
             schema: 'public',
             table: 'credit_transactions',
             filter: `patient_id=eq.${user.id}`
           },
-          () => {
+          (payload) => {
+            console.log('[useCredits] Transaction changed:', payload);
+            console.log('[useCredits] Event type:', payload.eventType);
+            console.log('[useCredits] New data:', payload.new);
             loadCredits();
           }
         )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(creditsChannel);
-      };
+        .subscribe((status) => {
+          console.log('[useCredits] Subscription status:', status);
+          if (status === 'SUBSCRIBED') {
+            console.log('[useCredits] Successfully subscribed to realtime updates');
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('[useCredits] Channel error in subscription');
+          } else if (status === 'TIMED_OUT') {
+            console.error('[useCredits] Subscription timed out');
+          } else if (status === 'CLOSED') {
+            console.log('[useCredits] Subscription closed');
+          }
+        });
     };
 
     setupSubscription();
+
+    // Set up periodic refresh every 30 seconds as a fallback
+    const refreshInterval = setInterval(() => {
+      console.log('[useCredits] Periodic refresh triggered');
+      loadCredits();
+    }, 30000);
+
+    // Cleanup
+    return () => {
+      clearInterval(refreshInterval);
+      if (channel) {
+        console.log('Removing subscription channel');
+        supabase.removeChannel(channel);
+      }
+    };
   }, []);
 
   return {
@@ -144,7 +181,11 @@ export function useUserCredits() {
     transactions,
     loading,
     error,
-    refresh: loadCredits
+    lastRefresh,
+    refresh: () => {
+      console.log('[useCredits] Manual refresh triggered');
+      return loadCredits();
+    }
   };
 }
 
