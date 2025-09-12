@@ -393,82 +393,34 @@ export const ProfileScreen = ({ navigation }: any) => {
             </TouchableOpacity>
           </View>
 
-          {/* Sección de Créditos */}
+          {/* Sección de Créditos - Versión Compacta */}
           <View style={styles.creditsSection}>
-            <View style={styles.creditsCard}>
-              <View style={styles.creditsHeader}>
-                <MaterialCommunityIcons name="wallet" size={24} color={Colors.primary.green} />
-                <Text style={styles.creditsTitle}>Mis Créditos</Text>
-                <TouchableOpacity 
-                  onPress={() => {
-                    console.log('Manual credits refresh button pressed');
-                    refreshCredits();
-                  }}
-                  style={{ marginLeft: 'auto' }}
-                >
-                  <MaterialCommunityIcons name="refresh" size={20} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
-              
-              {creditsLoading ? (
-                <ActivityIndicator size="small" color={Colors.primary.green} style={{ marginVertical: 20 }} />
-              ) : (
-                <>
-                  <View style={styles.creditsBalance}>
-                    <Text style={styles.creditsLabel}>Saldo disponible</Text>
-                    <Text style={styles.creditsAmount}>
-                      {credits ? formatCredits(credits.available_credits) : '$0'}
-                    </Text>
-                    {credits && credits.updated_at && (
-                      <Text style={styles.creditsUpdateTime}>
-                        Actualizado: {new Date(credits.updated_at).toLocaleTimeString('es-ES', { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })}
+            <TouchableOpacity 
+              style={styles.creditsCard}
+              onPress={() => navigation.navigate('CreditsDetail')}
+              activeOpacity={0.8}
+            >
+              <View style={styles.creditsCompactContent}>
+                <View style={styles.creditsLeft}>
+                  <MaterialCommunityIcons name="wallet" size={22} color={Colors.primary.green} />
+                  <Text style={styles.creditsCompactTitle}>Mis Créditos</Text>
+                </View>
+                
+                <View style={styles.creditsRight}>
+                  {creditsLoading ? (
+                    <ActivityIndicator size="small" color={Colors.primary.green} />
+                  ) : (
+                    <>
+                      <Text style={styles.creditsCompactLabel}>Saldo</Text>
+                      <Text style={styles.creditsCompactAmount}>
+                        {credits ? formatCredits(credits.available_credits) : '$0'}
                       </Text>
-                    )}
-                  </View>
-                  
-                  {credits && (
-                    <View style={styles.creditsStats}>
-                      <View style={styles.creditsStat}>
-                        <Text style={styles.creditsStatLabel}>Total ganado</Text>
-                        <Text style={styles.creditsStatValue}>{formatCredits(credits.total_earned)}</Text>
-                      </View>
-                      <View style={styles.creditsDivider} />
-                      <View style={styles.creditsStat}>
-                        <Text style={styles.creditsStatLabel}>Total usado</Text>
-                        <Text style={styles.creditsStatValue}>{formatCredits(credits.total_used)}</Text>
-                      </View>
-                    </View>
+                    </>
                   )}
-                  
-                  {transactions.length > 0 && (
-                    <View style={styles.transactionsPreview}>
-                      <Text style={styles.transactionsTitle}>Últimas transacciones</Text>
-                      {transactions.slice(0, 3).map((transaction) => (
-                        <View key={transaction.id} style={styles.transactionItem}>
-                          <View style={styles.transactionInfo}>
-                            <Text style={styles.transactionDescription}>{transaction.description}</Text>
-                            <Text style={styles.transactionDate}>
-                              {new Date(transaction.created_at).toLocaleDateString('es-ES')}
-                            </Text>
-                          </View>
-                          <Text 
-                            style={[
-                              styles.transactionAmount,
-                              { color: getTransactionColor(transaction.transaction_type) }
-                            ]}
-                          >
-                            {transaction.amount > 0 ? '+' : ''}{formatCredits(Math.abs(transaction.amount))}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                </>
-              )}
-            </View>
+                  <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.primary.green} style={{ marginLeft: 8 }} />
+                </View>
+              </View>
+            </TouchableOpacity>
           </View>
 
           {/* Información personal */}
@@ -944,107 +896,47 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   creditsCard: {
-    backgroundColor: Colors.primary.green,
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 2,
     },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOpacity: 0.08,
+    shadowRadius: 3.84,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: Colors.ui.border,
   },
-  creditsHeader: {
+  creditsCompactContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  creditsLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 16,
   },
-  creditsTitle: {
+  creditsRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  creditsCompactTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.text.primary,
+  },
+  creditsCompactLabel: {
+    fontSize: 13,
+    color: Colors.text.secondary,
+    marginRight: 6,
+  },
+  creditsCompactAmount: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  creditsBalance: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  creditsLabel: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 4,
-  },
-  creditsAmount: {
-    fontSize: 36,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  creditsStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  creditsStat: {
-    alignItems: 'center',
-  },
-  creditsStatLabel: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginBottom: 4,
-  },
-  creditsStatValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  creditsDivider: {
-    width: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  transactionsPreview: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 16,
-  },
-  transactionsTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 12,
-  },
-  transactionItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  transactionInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  transactionDescription: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    marginBottom: 2,
-  },
-  transactionDate: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.6)',
-  },
-  transactionAmount: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  creditsUpdateTime: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.6)',
-    marginTop: 4,
+    color: Colors.primary.green,
   },
 });

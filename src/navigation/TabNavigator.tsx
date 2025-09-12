@@ -7,6 +7,7 @@ import { Colors } from '../constants/colors';
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
 import { AppointmentsScreen } from '../screens/appointments/AppointmentsScreen';
+import { CreditsDetailScreen } from '../screens/credits/CreditsDetailScreen';
 
 // Importar pantallas de Breathe & Move
 import { BreatheAndMoveScreen } from '../screens/breatheandmove/BreatheAndMoveScreen';
@@ -36,6 +37,16 @@ const HomeStack = () => {
       <Stack.Screen name="ClassPayment" component={ClassPaymentScreen} />
       <Stack.Screen name="Schedule" component={ScheduleScreen} />
       <Stack.Screen name="BreatheAndMoveClassDetail" component={BreatheAndMoveClassDetailScreen} />
+    </Stack.Navigator>
+  );
+};
+
+// Stack para el perfil
+const ProfileStack = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="ProfileMain" component={ProfileScreen} />
+      <Stack.Screen name="CreditsDetail" component={CreditsDetailScreen} />
     </Stack.Navigator>
   );
 };
@@ -117,7 +128,7 @@ export const TabNavigator = () => {
       />
       <Tab.Screen
         name="Profile"
-        component={ProfileScreen}
+        component={ProfileStack}
         options={{
           tabBarLabel: 'Perfil',
           tabBarIcon: ({ color, focused }) => (
