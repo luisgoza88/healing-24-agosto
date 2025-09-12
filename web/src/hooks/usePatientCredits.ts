@@ -143,8 +143,8 @@ export function useGenerateCredit() {
         .from('appointments')
         .update({
           credits_generated: true,
-          credit_amount: amount,
-          payment_status: 'credited'
+          credit_amount: amount
+          // No cambiar payment_status, mantenerlo como 'paid'
         })
         .eq('id', appointmentId);
 

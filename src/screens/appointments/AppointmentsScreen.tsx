@@ -665,7 +665,7 @@ export const AppointmentsScreen = ({ navigation }: any) => {
         if (creditGenerated) {
           updateData.credits_generated = true;
           updateData.credit_amount = creditAmount;
-          updateData.payment_status = 'credited';
+          // No cambiar payment_status, mantenerlo como 'paid'
         }
         
         const { error } = await supabase
