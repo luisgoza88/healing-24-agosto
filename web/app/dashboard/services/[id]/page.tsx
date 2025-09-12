@@ -19,6 +19,7 @@ import {
 import { createClient } from '@/src/lib/supabase'
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { SERVICE_ITEMS } from '@/src/data/serviceItems'
 
 interface ServiceDetail {
   id: string
@@ -194,6 +195,10 @@ export default function ServiceDetailPage() {
     }).format(amount)
   }
 
+  const getServiceItems = (serviceName: string) => {
+    return SERVICE_ITEMS[serviceName] || []
+  }
+
   if (loading) {
     return (
       <div className="p-8">
@@ -304,6 +309,38 @@ export default function ServiceDetailPage() {
       {/* Content */}
       {activeTab === 'stats' && (
         <div>
+          {/* Sub-servicios del servicio principal */}
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold mb-4">Sub-servicios disponibles</h3>
+            <div className="grid gap-4">
+              {getServiceItems(service.name).map((item, index) => (
+                <div key={index} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-gray-800">{item.name}</h4>
+                      <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-4 h-4" />
+                          {item.duration} min
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <DollarSign className="w-4 h-4" />
+                          {formatCurrency(item.price)} {item.priceNote || ''}
+                        </span>
+                      </div>
+                    </div>
+                    <button className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">
+                      Agendar
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {getServiceItems(service.name).length === 0 && (
+                <p className="text-gray-500 text-center py-8">No hay sub-servicios configurados</p>
+              )}
+            </div>
+          </div>
+
           {/* KPI Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
@@ -361,12 +398,6 @@ export default function ServiceDetailPage() {
                 <Clock className="w-8 h-8 text-orange-600" />
               </div>
             </div>
-          </div>
-
-          {/* Gráficos y tablas adicionales */}
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-            <h3 className="text-lg font-semibold mb-4">Análisis detallado</h3>
-            <p className="text-gray-600">Próximamente: gráficos de tendencias, análisis por profesional, y más...</p>
           </div>
         </div>
       )}
