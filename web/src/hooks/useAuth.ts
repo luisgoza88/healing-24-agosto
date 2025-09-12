@@ -9,19 +9,11 @@ export function useAuth() {
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     checkAuth();
-
-    // Timeout para evitar que se quede cargando indefinidamente
-    const timeout = setTimeout(() => {
-      if (loading) {
-        console.error('[useAuth] Auth check timeout after 10 seconds');
-        setLoading(false);
-        router.push('/');
-      }
-    }, 10000); // 10 segundos
 
     // Escuchar cambios de autenticación
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -36,10 +28,7 @@ export function useAuth() {
       }
     );
 
-    return () => {
-      clearTimeout(timeout);
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   const checkAuth = async (retryCount = 0) => {
@@ -59,6 +48,8 @@ export function useAuth() {
       }
       
       if (!user) {
+        setLoading(false);
+        setIsInitialized(true);
         router.push('/');
         return;
       }
@@ -70,6 +61,7 @@ export function useAuth() {
       if (!adminStatus) {
         console.log('[useAuth] User is not admin, signing out...');
         setLoading(false);
+        setIsInitialized(true);
         await supabase.auth.signOut();
         router.push('/');
         return;
@@ -79,14 +71,18 @@ export function useAuth() {
       setUser(user);
       setIsAdmin(adminStatus);
       setLoading(false);
+      setIsInitialized(true);
       console.log('[useAuth] Auth check complete');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error checking auth:', error);
-      // Solo redirigir si no es un error temporal de red
-      if (error.message !== 'Failed to fetch') {
+      setLoading(false);
+      setIsInitialized(true);
+      
+      // Solo redirigir si es un error de autenticación real
+      if (error.status === 401 || error.status === 403) {
         router.push('/');
       }
-      setLoading(false);
+      // Para otros errores, mantener al usuario en la página actual
     }
   };
 
