@@ -15,7 +15,7 @@ import {
   TrendingUp,
   Clock
 } from 'lucide-react'
-import { supabase } from '@/src/lib/supabase'
+import { createClient } from '@/src/lib/supabase'
 
 interface Service {
   id: string
@@ -56,13 +56,23 @@ export default function ServicesPage() {
 
   const loadServices = async () => {
     try {
+      setLoading(true)
+      console.log('[Services] Loading services...')
+      
+      const supabase = createClient()
+      
       // Cargar servicios de la base de datos
       const { data: servicesData, error } = await supabase
         .from('services')
         .select('*')
         .order('name')
 
-      if (error) throw error
+      if (error) {
+        console.error('[Services] Error loading services:', error)
+        throw error
+      }
+
+      console.log('[Services] Services loaded:', servicesData?.length || 0)
 
       // Mapear servicios con iconos y colores
       const mappedServices = servicesData?.map(service => ({
@@ -71,55 +81,59 @@ export default function ServicesPage() {
         color: SERVICE_COLORS[service.name] || 'bg-gray-500'
       })) || []
 
-      // Cargar estadísticas para cada servicio
+      // Por ahora, mostrar los servicios sin estadísticas para que cargue rápido
+      setServices(mappedServices)
+      setLoading(false)
+
+      // Cargar estadísticas en segundo plano
+      loadStatisticsInBackground(mappedServices)
+    } catch (error) {
+      console.error('[Services] Fatal error:', error)
+      setLoading(false)
+    }
+  }
+
+  const loadStatisticsInBackground = async (services: Service[]) => {
+    try {
+      const supabase = createClient()
       const serviceStats: Record<string, any> = {}
+      const today = new Date().toISOString().split('T')[0]
       
-      for (const service of mappedServices) {
-        // Contar citas totales
-        const { count: totalAppointments } = await supabase
-          .from('appointments')
-          .select('*', { count: 'exact', head: true })
-          .eq('service_id', service.id)
+      // Cargar estadísticas básicas para todos los servicios de una vez
+      const { data: allAppointments } = await supabase
+        .from('appointments')
+        .select('service_id, status, total_amount, payment_status, appointment_date, user_id')
+        .in('service_id', services.map(s => s.id))
 
-        // Contar citas próximas
-        const { count: upcomingAppointments } = await supabase
-          .from('appointments')
-          .select('*', { count: 'exact', head: true })
-          .eq('service_id', service.id)
-          .gte('appointment_date', new Date().toISOString().split('T')[0])
-          .in('status', ['confirmed', 'pending'])
+      if (allAppointments) {
+        // Procesar estadísticas por servicio
+        for (const service of services) {
+          const serviceAppointments = allAppointments.filter(apt => apt.service_id === service.id)
+          
+          const totalAppointments = serviceAppointments.length
+          const upcomingAppointments = serviceAppointments.filter(apt => 
+            apt.appointment_date >= today && 
+            ['confirmed', 'pending'].includes(apt.status)
+          ).length
+          
+          const totalRevenue = serviceAppointments
+            .filter(apt => apt.payment_status === 'paid')
+            .reduce((sum, apt) => sum + (apt.total_amount || 0), 0)
+          
+          const uniquePatients = new Set(serviceAppointments.map(apt => apt.user_id)).size
 
-        // Calcular ingresos totales
-        const { data: revenueData } = await supabase
-          .from('appointments')
-          .select('total_amount')
-          .eq('service_id', service.id)
-          .eq('payment_status', 'paid')
-
-        const totalRevenue = revenueData?.reduce((sum, apt) => sum + (apt.total_amount || 0), 0) || 0
-
-        // Contar pacientes únicos
-        const { data: patientsData } = await supabase
-          .from('appointments')
-          .select('user_id')
-          .eq('service_id', service.id)
-
-        const uniquePatients = new Set(patientsData?.map(apt => apt.user_id) || []).size
-
-        serviceStats[service.id] = {
-          totalAppointments: totalAppointments || 0,
-          upcomingAppointments: upcomingAppointments || 0,
-          totalRevenue,
-          totalPatients: uniquePatients
+          serviceStats[service.id] = {
+            totalAppointments,
+            upcomingAppointments,
+            totalRevenue,
+            totalPatients: uniquePatients
+          }
         }
       }
 
-      setServices(mappedServices)
       setStats(serviceStats)
     } catch (error) {
-      console.error('Error loading services:', error)
-    } finally {
-      setLoading(false)
+      console.error('[Services] Error loading statistics:', error)
     }
   }
 
@@ -149,8 +163,15 @@ export default function ServicesPage() {
         <p className="text-gray-600">Gestiona los calendarios, personal y estadísticas de cada servicio</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {services.map((service) => {
+      {services.length === 0 ? (
+        <div className="bg-white rounded-lg shadow-md p-8 text-center">
+          <Briefcase className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-600 text-lg mb-2">No hay servicios disponibles</p>
+          <p className="text-gray-500">Los servicios aparecerán aquí una vez que estén configurados en la base de datos.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {services.map((service) => {
           const Icon = service.icon
           const serviceStats = stats[service.id] || {}
           const isBreathMove = service.name === 'Breathe & Move'
@@ -224,7 +245,8 @@ export default function ServicesPage() {
             </Link>
           )
         })}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

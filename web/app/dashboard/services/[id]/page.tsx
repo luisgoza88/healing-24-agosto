@@ -16,7 +16,7 @@ import {
   Filter,
   Download
 } from 'lucide-react'
-import { supabase } from '@/src/lib/supabase'
+import { createClient } from '@/src/lib/supabase'
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -61,6 +61,8 @@ export default function ServiceDetailPage() {
 
   const loadServiceData = async () => {
     try {
+      const supabase = createClient()
+      
       // Cargar información del servicio
       const { data: serviceData, error: serviceError } = await supabase
         .from('services')
@@ -90,6 +92,7 @@ export default function ServiceDetailPage() {
 
   const loadStats = async () => {
     try {
+      const supabase = createClient()
       const startDate = subMonths(new Date(), 1).toISOString().split('T')[0]
       
       // Estadísticas generales
