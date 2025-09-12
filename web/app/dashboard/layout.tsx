@@ -14,7 +14,8 @@ import {
   LogOut,
   Menu,
   X,
-  Activity
+  Activity,
+  CreditCard
 } from "lucide-react";
 
 const menuItems = [
@@ -23,6 +24,7 @@ const menuItems = [
   { href: "/dashboard/breathe-move", label: "Breathe & Move", icon: Activity },
   { href: "/dashboard/patients", label: "Pacientes", icon: Users },
   { href: "/dashboard/professionals", label: "Profesionales", icon: UserCog },
+  { href: "/dashboard/credits", label: "Créditos", icon: CreditCard },
   { href: "/dashboard/reports", label: "Reportes", icon: FileBarChart },
 ];
 
