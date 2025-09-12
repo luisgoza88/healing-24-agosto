@@ -269,6 +269,15 @@ export const AppointmentsScreen = ({ navigation }: any) => {
     
     return isUpcomingResult;
   };
+  
+  const formatCurrency = (amount: number): string => {
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
 
   const filteredAppointments = appointments.filter(apt => {
     // Excluir citas canceladas completamente
@@ -537,17 +546,150 @@ export const AppointmentsScreen = ({ navigation }: any) => {
           Alert.alert('Error', `No se pudo cancelar la clase: ${error.message}`);
         }
       } else {
-        // Cancelar cita médica
+        // Cancelar cita médica y generar créditos si aplica
+        console.log('=== MEDICAL APPOINTMENT CANCELLATION ===');
+        console.log('Checking if appointment was paid:', appointment?.payment_status);
+        
+        // Verificar si la cita fue pagada para generar crédito
+        const wasPaid = appointment?.payment_status === 'paid';
+        let creditGenerated = false;
+        let creditAmount = 0;
+        
+        if (wasPaid && appointment?.total_amount > 0) {
+          console.log('Appointment was paid, generating credit...');
+          console.log('Total amount:', appointment.total_amount);
+          
+          // Calcular el monto del crédito basado en política de cancelación
+          const appointmentDateTime = new Date(`${appointment.appointment_date}T${appointment.appointment_time || '00:00:00'}`);
+          const now = new Date();
+          const hoursUntilAppointment = (appointmentDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+          
+          console.log('Hours until appointment:', hoursUntilAppointment);
+          
+          // Política de reembolso
+          let refundPercentage = 0;
+          if (hoursUntilAppointment >= 48) {
+            refundPercentage = 100; // Reembolso completo
+          } else if (hoursUntilAppointment >= 24) {
+            refundPercentage = 80;
+          } else if (hoursUntilAppointment >= 12) {
+            refundPercentage = 50;
+          } else if (hoursUntilAppointment >= 2) {
+            refundPercentage = 25;
+          } else {
+            refundPercentage = 0;
+          }
+          
+          creditAmount = Math.round((appointment.total_amount * refundPercentage) / 100);
+          console.log('Refund percentage:', refundPercentage, '% - Credit amount:', creditAmount);
+          
+          if (creditAmount > 0) {
+            try {
+              // 1. Verificar si ya existe registro de créditos
+              const { data: existingCredits } = await supabase
+                .from('patient_credits')
+                .select('*')
+                .eq('patient_id', user.id)
+                .maybeSingle();
+              
+              console.log('Existing credits:', existingCredits);
+              
+              if (!existingCredits) {
+                // Crear nuevo registro
+                console.log('Creating new credit record...');
+                const { error: createError } = await supabase
+                  .from('patient_credits')
+                  .insert({
+                    patient_id: user.id,
+                    available_credits: creditAmount,
+                    total_earned: creditAmount,
+                    total_used: 0
+                  });
+                
+                if (createError) {
+                  console.error('Error creating credit record:', createError);
+                  throw createError;
+                }
+              } else {
+                // Actualizar registro existente
+                console.log('Updating existing credit record...');
+                const { error: updateError } = await supabase
+                  .from('patient_credits')
+                  .update({
+                    available_credits: existingCredits.available_credits + creditAmount,
+                    total_earned: existingCredits.total_earned + creditAmount,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('patient_id', user.id);
+                
+                if (updateError) {
+                  console.error('Error updating credit record:', updateError);
+                  throw updateError;
+                }
+              }
+              
+              // 2. Crear transacción de crédito
+              console.log('Creating credit transaction...');
+              const { error: transactionError } = await supabase
+                .from('credit_transactions')
+                .insert({
+                  patient_id: user.id,
+                  appointment_id: appointmentId,
+                  amount: creditAmount,
+                  transaction_type: 'earned',
+                  source: 'cancelled_appointment',
+                  description: `Cancelación de cita - Reembolso ${refundPercentage}%`
+                });
+              
+              if (transactionError) {
+                console.error('Error creating credit transaction:', transactionError);
+                throw transactionError;
+              }
+              
+              creditGenerated = true;
+              console.log('Credit generated successfully!');
+              
+            } catch (creditError) {
+              console.error('Error generating credit:', creditError);
+              // Continue with cancellation even if credit fails
+            }
+          }
+        }
+        
+        // Actualizar el estado de la cita
+        const updateData: any = {
+          status: 'cancelled',
+          cancelled_at: new Date().toISOString()
+        };
+        
+        if (creditGenerated) {
+          updateData.credits_generated = true;
+          updateData.credit_amount = creditAmount;
+          updateData.payment_status = 'credited';
+        }
+        
         const { error } = await supabase
           .from('appointments')
-          .update({ 
-            status: 'cancelled',
-            cancelled_at: new Date().toISOString()
-          })
+          .update(updateData)
           .eq('id', appointmentId);
 
         if (error) throw error;
-        Alert.alert('Éxito', 'La cita ha sido cancelada');
+        
+        if (creditGenerated) {
+          Alert.alert(
+            'Cita cancelada', 
+            `La cita ha sido cancelada exitosamente.\n\n💰 Se ha generado un crédito de ${formatCurrency(creditAmount)} que podrás usar en futuras citas.`,
+            [{ text: 'OK' }]
+          );
+        } else if (wasPaid && creditAmount === 0) {
+          Alert.alert(
+            'Cita cancelada', 
+            'La cita ha sido cancelada. No se generó crédito debido a la política de cancelación (menos de 2 horas antes de la cita).',
+            [{ text: 'OK' }]
+          );
+        } else {
+          Alert.alert('Éxito', 'La cita ha sido cancelada');
+        }
       }
 
       console.log('=== FINAL RELOAD OF APPOINTMENTS ===');
