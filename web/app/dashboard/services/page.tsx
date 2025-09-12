@@ -4,16 +4,11 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { 
   Briefcase, 
-  Calendar, 
-  Users, 
-  DollarSign, 
   ChevronRight,
   Activity,
   Heart,
   Brain,
-  Sparkles,
-  TrendingUp,
-  Clock
+  Sparkles
 } from 'lucide-react'
 import { createClient } from '@/src/lib/supabase'
 
@@ -170,10 +165,9 @@ export default function ServicesPage() {
           <p className="text-gray-500">Los servicios aparecerán aquí una vez que estén configurados en la base de datos.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {services.map((service) => {
           const Icon = service.icon
-          const serviceStats = stats[service.id] || {}
           const isBreathMove = service.name === 'Breathe & Move'
           const href = isBreathMove 
             ? '/dashboard/services/breathe-move' 
@@ -183,64 +177,33 @@ export default function ServicesPage() {
             <Link
               key={service.id}
               href={href}
-              className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow overflow-hidden"
+              className="group relative bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden"
             >
-              <div className={`h-2 ${service.color}`} />
+              <div className="p-8 text-center">
+                <div className={`inline-flex p-4 rounded-full ${service.color} bg-opacity-10 mb-4 group-hover:scale-110 transition-transform duration-200`}>
+                  <Icon className={`w-12 h-12 ${service.color.replace('bg-', 'text-')}`} />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">{service.name}</h3>
+                <p className="text-sm text-gray-500 line-clamp-2">{service.description}</p>
+              </div>
               
-              <div className="p-6">
-                <div className="flex items-center mb-4">
-                  <div className={`p-3 rounded-lg ${service.color} bg-opacity-10 mr-4`}>
-                    <Icon className={`w-8 h-8 ${service.color.replace('bg-', 'text-')}`} />
+              {/* Hover overlay con estadísticas rápidas */}
+              <div className="absolute inset-0 bg-gradient-to-t from-gray-900/90 to-gray-900/70 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end">
+                <div className="p-6 w-full text-white">
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="text-sm">Citas próximas</span>
+                    <span className="font-semibold">{stats[service.id]?.upcomingAppointments || 0}</span>
                   </div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-semibold text-gray-800">{service.name}</h3>
-                    <p className="text-sm text-gray-600 mt-1">{service.description}</p>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-gray-400" />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 mt-6">
-                  <div className="text-center p-3 bg-gray-50 rounded-lg">
-                    <Calendar className="w-5 h-5 text-gray-600 mx-auto mb-1" />
-                    <p className="text-2xl font-bold text-gray-800">
-                      {serviceStats.totalAppointments || 0}
-                    </p>
-                    <p className="text-xs text-gray-600">Citas totales</p>
-                  </div>
-
-                  <div className="text-center p-3 bg-gray-50 rounded-lg">
-                    <Clock className="w-5 h-5 text-green-600 mx-auto mb-1" />
-                    <p className="text-2xl font-bold text-green-600">
-                      {serviceStats.upcomingAppointments || 0}
-                    </p>
-                    <p className="text-xs text-gray-600">Próximas</p>
-                  </div>
-
-                  <div className="text-center p-3 bg-gray-50 rounded-lg">
-                    <Users className="w-5 h-5 text-blue-600 mx-auto mb-1" />
-                    <p className="text-2xl font-bold text-blue-600">
-                      {serviceStats.totalPatients || 0}
-                    </p>
-                    <p className="text-xs text-gray-600">Pacientes</p>
-                  </div>
-
-                  <div className="text-center p-3 bg-gray-50 rounded-lg">
-                    <DollarSign className="w-5 h-5 text-purple-600 mx-auto mb-1" />
-                    <p className="text-lg font-bold text-purple-600">
-                      {formatCurrency(serviceStats.totalRevenue || 0)}
-                    </p>
-                    <p className="text-xs text-gray-600">Ingresos</p>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">Este mes</span>
+                    <span className="font-semibold">{formatCurrency(stats[service.id]?.totalRevenue || 0)}</span>
                   </div>
                 </div>
-
-                {isBreathMove && (
-                  <div className="mt-4 pt-4 border-t border-gray-100">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Gestión especial de clases</span>
-                      <TrendingUp className="w-4 h-4 text-green-600" />
-                    </div>
-                  </div>
-                )}
+              </div>
+              
+              {/* Indicador de hover */}
+              <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <ChevronRight className="w-5 h-5 text-white" />
               </div>
             </Link>
           )
