@@ -91,6 +91,8 @@ export default function AppointmentsPage() {
   }
 
   const handleCancelAppointment = async (appointment: Appointment) => {
+    console.log('[handleCancelAppointment] Starting cancellation for appointment:', appointment)
+    
     if (appointment.status === 'cancelled') {
       alert('Esta cita ya está cancelada')
       return
@@ -100,12 +102,15 @@ export default function AppointmentsPage() {
     const wasPaid = appointment.payment_status === 'paid'
     let creditInfo = null
 
+    console.log('[handleCancelAppointment] Payment status:', appointment.payment_status, 'Was paid:', wasPaid)
+
     if (wasPaid) {
       creditInfo = calculateCreditAmount(
         appointment.total_amount,
         appointment.appointment_date,
         appointment.appointment_time
       )
+      console.log('[handleCancelAppointment] Credit info calculated:', creditInfo)
     }
 
     // Mostrar confirmación con información de crédito
@@ -121,6 +126,9 @@ export default function AppointmentsPage() {
       try {
         // Usar transacción para asegurar consistencia
         if (wasPaid && creditInfo!.creditAmount > 0) {
+          console.log('[handleCancelAppointment] Generating credit for user:', appointment.user_id)
+          console.log('[handleCancelAppointment] Credit amount:', creditInfo!.creditAmount)
+          
           // Si hay crédito, usar el hook que maneja todo en una transacción
           await generateCredit.mutateAsync({
             patientId: appointment.user_id,
@@ -129,6 +137,8 @@ export default function AppointmentsPage() {
             reason: `Cancelación de cita - Reembolso ${creditInfo!.refundPercentage}%`
           })
           
+          console.log('[handleCancelAppointment] Credit generated successfully')
+          
           // Luego actualizar el estado de la cita
           const { error } = await supabase
             .from('appointments')
@@ -136,8 +146,11 @@ export default function AppointmentsPage() {
             .eq('id', appointment.id)
 
           if (error) {
+            console.error('[handleCancelAppointment] Error updating appointment status:', error)
             throw error
           }
+          
+          console.log('[handleCancelAppointment] Appointment status updated to cancelled')
           
           alert(
             `✅ Cita cancelada exitosamente\n\n` +
@@ -166,7 +179,7 @@ export default function AppointmentsPage() {
         queryClient.invalidateQueries({ queryKey: ['appointment-stats'] })
         queryClient.invalidateQueries({ queryKey: ['patient-credits'] })
       } catch (error: any) {
-        console.error('Error:', error)
+        console.error('[handleCancelAppointment] Error:', error)
         alert('Error al cancelar la cita: ' + (error.message || 'Error inesperado'))
       }
     }
