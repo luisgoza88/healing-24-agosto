@@ -52,7 +52,10 @@ export default function CreditsPage() {
 
       const { data: creditsData, error } = await query.order('available_credits', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error('Error fetching credits:', error)
+        return []
+      }
 
       // Fetch patient info separately
       if (creditsData && creditsData.length > 0) {
