@@ -28,14 +28,21 @@ export function usePatientCredits(patientId: string) {
     queryKey: ['patient-credits', patientId],
     queryFn: async (): Promise<PatientCredit | null> => {
       const supabase = createClient();
+      
+      if (!patientId) return null;
+      
       const { data, error } = await supabase
         .from('patient_credits')
         .select('*')
         .eq('patient_id', patientId)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows
-      return data || null;
+      if (error) {
+        console.error('Error fetching patient credits:', error);
+        return null;
+      }
+      
+      return data;
     },
     enabled: !!patientId,
     staleTime: 30 * 1000, // 30 segundos
@@ -84,9 +91,9 @@ export function useGenerateCredit() {
         .from('patient_credits')
         .select('*')
         .eq('patient_id', patientId)
-        .single();
+        .maybeSingle();
 
-      if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+      if (fetchError) throw fetchError;
 
       // 2. Crear o actualizar registro de créditos
       if (!existingCredits) {
@@ -171,9 +178,10 @@ export function useCredits() {
         .from('patient_credits')
         .select('*')
         .eq('patient_id', patientId)
-        .single();
+        .maybeSingle();
 
-      if (fetchError || !credits) throw new Error('No se encontraron créditos para este paciente');
+      if (fetchError) throw fetchError;
+      if (!credits) throw new Error('No se encontraron créditos para este paciente');
 
       if (credits.available_credits < amount) {
         throw new Error(`Créditos insuficientes. Disponible: $${credits.available_credits}, Requerido: $${amount}`);
@@ -305,9 +313,9 @@ export function useCreateManualCredit() {
         .from('patient_credits')
         .select('*')
         .eq('patient_id', patientId)
-        .single();
+        .maybeSingle();
 
-      if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+      if (fetchError) throw fetchError;
 
       // 2. Crear o actualizar registro de créditos
       if (!existingCredits) {
