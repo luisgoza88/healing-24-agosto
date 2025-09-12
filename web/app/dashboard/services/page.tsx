@@ -7,8 +7,12 @@ import {
   ChevronRight,
   Activity,
   Heart,
-  Brain,
-  Sparkles
+  Sparkles,
+  Dna,
+  Droplet,
+  Smile,
+  HandHeart,
+  HeartPulse
 } from 'lucide-react'
 import { createClient } from '@/src/lib/supabase'
 
@@ -27,17 +31,25 @@ interface Service {
 }
 
 const SERVICE_ICONS: Record<string, any> = {
-  'Breathe & Move': Activity,
   'Medicina Funcional': Heart,
   'Medicina Estética': Sparkles,
-  'Terapias Alternativas': Brain,
+  'Medicina Regenerativa & Longevidad': Dna,
+  'DRIPS - Sueroterapia': Droplet,
+  'Faciales': Smile,
+  'Masajes': HandHeart,
+  'Wellness Integral': HeartPulse,
+  'Breathe & Move': Activity,
 }
 
 const SERVICE_COLORS: Record<string, string> = {
-  'Breathe & Move': 'bg-green-500',
-  'Medicina Funcional': 'bg-blue-500',
-  'Medicina Estética': 'bg-purple-500',
-  'Terapias Alternativas': 'bg-pink-500',
+  'Medicina Funcional': 'bg-[#3E5444]',
+  'Medicina Estética': 'bg-[#B8604D]',
+  'Medicina Regenerativa & Longevidad': 'bg-[#5E3532]',
+  'DRIPS - Sueroterapia': 'bg-[#4A6C9B]',
+  'Faciales': 'bg-[#879794]',
+  'Masajes': 'bg-[#61473B]',
+  'Wellness Integral': 'bg-[#879794]',
+  'Breathe & Move': 'bg-green-600',
 }
 
 export default function ServicesPage() {
