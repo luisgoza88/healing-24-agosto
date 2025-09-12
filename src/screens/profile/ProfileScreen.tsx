@@ -21,6 +21,7 @@ import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useUserCredits, formatCredits, getTransactionColor } from '../../hooks/useCredits';
 
 interface ProfileData {
   full_name: string;
@@ -60,6 +61,9 @@ export const ProfileScreen = ({ navigation }: any) => {
     allergies: '',
     avatar_url: ''
   });
+  
+  // Hook para obtener los créditos del usuario
+  const { credits, transactions, loading: creditsLoading } = useUserCredits();
 
   useEffect(() => {
     loadProfile();
@@ -353,6 +357,67 @@ export const ProfileScreen = ({ navigation }: any) => {
                 <MaterialCommunityIcons name="camera" size={16} color="#FFFFFF" />
               </View>
             </TouchableOpacity>
+          </View>
+
+          {/* Sección de Créditos */}
+          <View style={styles.creditsSection}>
+            <View style={styles.creditsCard}>
+              <View style={styles.creditsHeader}>
+                <MaterialCommunityIcons name="wallet" size={24} color={Colors.primary.green} />
+                <Text style={styles.creditsTitle}>Mis Créditos</Text>
+              </View>
+              
+              {creditsLoading ? (
+                <ActivityIndicator size="small" color={Colors.primary.green} style={{ marginVertical: 20 }} />
+              ) : (
+                <>
+                  <View style={styles.creditsBalance}>
+                    <Text style={styles.creditsLabel}>Saldo disponible</Text>
+                    <Text style={styles.creditsAmount}>
+                      {credits ? formatCredits(credits.available_credits) : '$0.00'}
+                    </Text>
+                  </View>
+                  
+                  {credits && (
+                    <View style={styles.creditsStats}>
+                      <View style={styles.creditsStat}>
+                        <Text style={styles.creditsStatLabel}>Total ganado</Text>
+                        <Text style={styles.creditsStatValue}>{formatCredits(credits.total_earned)}</Text>
+                      </View>
+                      <View style={styles.creditsDivider} />
+                      <View style={styles.creditsStat}>
+                        <Text style={styles.creditsStatLabel}>Total usado</Text>
+                        <Text style={styles.creditsStatValue}>{formatCredits(credits.total_used)}</Text>
+                      </View>
+                    </View>
+                  )}
+                  
+                  {transactions.length > 0 && (
+                    <View style={styles.transactionsPreview}>
+                      <Text style={styles.transactionsTitle}>Últimas transacciones</Text>
+                      {transactions.slice(0, 3).map((transaction) => (
+                        <View key={transaction.id} style={styles.transactionItem}>
+                          <View style={styles.transactionInfo}>
+                            <Text style={styles.transactionDescription}>{transaction.description}</Text>
+                            <Text style={styles.transactionDate}>
+                              {new Date(transaction.created_at).toLocaleDateString('es-ES')}
+                            </Text>
+                          </View>
+                          <Text 
+                            style={[
+                              styles.transactionAmount,
+                              { color: getTransactionColor(transaction.transaction_type) }
+                            ]}
+                          >
+                            {transaction.amount > 0 ? '+' : ''}{formatCredits(Math.abs(transaction.amount))}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </>
+              )}
+            </View>
           </View>
 
           {/* Información personal */}
@@ -821,5 +886,109 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: Colors.text.primary,
+  },
+  // Estilos para la sección de créditos
+  creditsSection: {
+    paddingHorizontal: 24,
+    marginBottom: 16,
+  },
+  creditsCard: {
+    backgroundColor: Colors.primary.green,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  creditsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  creditsTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  creditsBalance: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  creditsLabel: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginBottom: 4,
+  },
+  creditsAmount: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  creditsStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  creditsStat: {
+    alignItems: 'center',
+  },
+  creditsStatLabel: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginBottom: 4,
+  },
+  creditsStatValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  creditsDivider: {
+    width: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  transactionsPreview: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+  },
+  transactionsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 12,
+  },
+  transactionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  transactionInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  transactionDescription: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  transactionDate: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  transactionAmount: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

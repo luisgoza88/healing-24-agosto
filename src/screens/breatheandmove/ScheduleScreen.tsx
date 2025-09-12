@@ -257,12 +257,7 @@ export const ScheduleScreen = ({ navigation }: any) => {
         <Text style={styles.headerTitle}>Horarios</Text>
         <TouchableOpacity 
           style={styles.refreshButton}
-          onPress={async () => {
-            const result = await resetBreatheMoveClasses();
-            console.log('Reset result:', result);
-            onRefresh();
-          }}
-          onLongPress={onRefresh}
+          onPress={onRefresh}
         >
           <Ionicons name="refresh" size={24} color={Colors.primary.dark} />
         </TouchableOpacity>
