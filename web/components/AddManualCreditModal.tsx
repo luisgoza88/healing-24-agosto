@@ -143,20 +143,35 @@ export default function AddManualCreditModal({ isOpen, onClose, onSuccess }: Add
                 Monto del Crédito
               </label>
               <input
-                type="number"
+                type="text"
                 required
-                min="1"
-                step="1000"
                 value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                onChange={(e) => {
+                  // Solo permitir números
+                  const value = e.target.value.replace(/[^\d]/g, '')
+                  setFormData({ ...formData, amount: value })
+                }}
+                onBlur={(e) => {
+                  // Redondear a múltiplos de 1000 al salir del campo
+                  const value = parseFloat(e.target.value) || 0
+                  const rounded = Math.round(value / 1000) * 1000
+                  if (rounded > 0) {
+                    setFormData({ ...formData, amount: rounded.toString() })
+                  }
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 placeholder="Ej: 50000"
+                inputMode="numeric"
+                pattern="[0-9]*"
               />
               {previewAmount > 0 && (
                 <p className="text-sm text-green-600 mt-1">
                   Crédito: {formatCurrency(previewAmount)}
                 </p>
               )}
+              <p className="text-xs text-gray-500 mt-1">
+                El monto se redondeará al millar más cercano
+              </p>
             </div>
 
             <div>
