@@ -13,7 +13,15 @@ export default function Providers({ children }: { children: React.ReactNode }) {
             staleTime: 5 * 60 * 1000, // 5 minutos
             gcTime: 10 * 60 * 1000, // 10 minutos (antes cacheTime)
             retry: 1,
-            refetchOnWindowFocus: false,
+            refetchOnWindowFocus: true, // Activar actualización al enfocar
+            refetchOnMount: true, // Actualizar al montar
+            refetchOnReconnect: true, // Actualizar al reconectar
+          },
+          mutations: {
+            retry: 0, // No reintentar mutaciones fallidas
+            onError: (error) => {
+              console.error('Mutation error:', error);
+            },
           },
         },
       })

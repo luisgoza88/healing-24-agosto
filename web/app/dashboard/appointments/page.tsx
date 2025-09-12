@@ -119,53 +119,55 @@ export default function AppointmentsPage() {
 
     if (confirm(confirmMessage)) {
       try {
-        // 1. Actualizar estado de la cita
-        const { error } = await supabase
-          .from('appointments')
-          .update({ status: 'cancelled' })
-          .eq('id', appointment.id)
-
-        if (error) {
-          console.error('Error cancelling appointment:', error)
-          alert('Error al cancelar la cita: ' + error.message)
-          return
-        }
-
-        // 2. Generar crédito si la cita fue pagada
+        // Usar transacción para asegurar consistencia
         if (wasPaid && creditInfo!.creditAmount > 0) {
-          try {
-            await generateCredit.mutateAsync({
-              patientId: appointment.user_id,
-              appointmentId: appointment.id,
-              amount: creditInfo!.creditAmount,
-              reason: `Cancelación de cita - Reembolso ${creditInfo!.refundPercentage}%`
-            })
-            
-            alert(
-              `✅ Cita cancelada exitosamente\n\n` +
-              `🎫 Crédito generado: ${formatCurrency(creditInfo!.creditAmount)}\n` +
-              `El paciente podrá usar este crédito en futuras citas.`
-            )
-          } catch (creditError) {
-            console.error('Error generating credit:', creditError)
-            alert(
-              `⚠️ Cita cancelada pero hubo un error al generar el crédito.\n` +
-              `Por favor, crea el crédito manualmente para el paciente.`
-            )
+          // Si hay crédito, usar el hook que maneja todo en una transacción
+          await generateCredit.mutateAsync({
+            patientId: appointment.user_id,
+            appointmentId: appointment.id,
+            amount: creditInfo!.creditAmount,
+            reason: `Cancelación de cita - Reembolso ${creditInfo!.refundPercentage}%`
+          })
+          
+          // Luego actualizar el estado de la cita
+          const { error } = await supabase
+            .from('appointments')
+            .update({ status: 'cancelled' })
+            .eq('id', appointment.id)
+
+          if (error) {
+            throw error
           }
+          
+          alert(
+            `✅ Cita cancelada exitosamente\n\n` +
+            `🎫 Crédito generado: ${formatCurrency(creditInfo!.creditAmount)}\n` +
+            `El paciente podrá usar este crédito en futuras citas.`
+          )
         } else {
+          // Si no hay crédito, solo cancelar la cita
+          const { error } = await supabase
+            .from('appointments')
+            .update({ status: 'cancelled' })
+            .eq('id', appointment.id)
+
+          if (error) {
+            throw error
+          }
+          
           const message = wasPaid && creditInfo!.creditAmount === 0
             ? `Cita cancelada. No se generó crédito debido a la política de cancelación (cancelado muy cerca de la fecha).`
             : `Cita cancelada exitosamente.`
           alert(message)
         }
 
-        // 3. Invalidar cache para actualizar la lista
+        // Invalidar cache para actualizar la lista
         queryClient.invalidateQueries({ queryKey: ['appointments'] })
         queryClient.invalidateQueries({ queryKey: ['appointment-stats'] })
-      } catch (error) {
+        queryClient.invalidateQueries({ queryKey: ['patient-credits'] })
+      } catch (error: any) {
         console.error('Error:', error)
-        alert('Error inesperado al cancelar la cita')
+        alert('Error al cancelar la cita: ' + (error.message || 'Error inesperado'))
       }
     }
   }
@@ -603,7 +605,9 @@ export default function AppointmentsPage() {
           onClose={() => setShowNewModal(false)} 
           onSuccess={() => {
             setShowNewModal(false);
-            window.location.reload(); // Recargar para ver la nueva cita
+            // Invalidar queries en lugar de recargar la página
+            queryClient.invalidateQueries({ queryKey: ['appointments'] });
+            queryClient.invalidateQueries({ queryKey: ['appointment-stats'] });
           }}
         />
       )}
