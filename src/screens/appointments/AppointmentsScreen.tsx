@@ -260,13 +260,6 @@ export const AppointmentsScreen = ({ navigation }: any) => {
     
     const isUpcomingResult = appointmentDateOnly >= nowDateOnly;
     
-    console.log('isUpcoming check:', {
-      original: dateStr,
-      appointmentDate: appointmentDateOnly.toLocaleDateString(),
-      now: nowDateOnly.toLocaleDateString(),
-      isUpcoming: isUpcomingResult
-    });
-    
     return isUpcomingResult;
   };
   
@@ -827,14 +820,6 @@ export const AppointmentsScreen = ({ navigation }: any) => {
                       appointment.status !== 'completed' &&
                       isUpcoming(appointment.appointment_date);
     
-    console.log('Rendering appointment:', {
-      id: appointment.id,
-      status: appointment.status,
-      date: appointment.appointment_date,
-      isUpcoming: isUpcoming(appointment.appointment_date),
-      canCancel: canCancel,
-      notes: appointment.notes
-    });
 
     // Si es una clase de Hot Studio
     if (appointment.isHotStudioClass && appointment.class) {
@@ -970,7 +955,7 @@ export const AppointmentsScreen = ({ navigation }: any) => {
         </View>
 
         {canCancel ? (
-          console.log('Rendering cancel/reschedule buttons for appointment:', appointment.id) || (
+          (
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={[styles.actionButton, styles.rescheduleButton]}
@@ -994,7 +979,7 @@ export const AppointmentsScreen = ({ navigation }: any) => {
               <Text style={styles.cancelButtonText}>Cancelar</Text>
             </TouchableOpacity>
           </View>
-        )) : console.log('NOT rendering buttons for appointment:', appointment.id, 'canCancel:', canCancel)}
+        )) : null}
       </View>
     );
   };

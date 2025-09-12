@@ -85,7 +85,6 @@ export function useGenerateCredit() {
       amount: number;
       reason: string;
     }) => {
-      console.log('[useGenerateCredit] Starting credit generation:', { patientId, appointmentId, amount, reason });
       
       const supabase = createClient();
       // 1. Verificar si ya existe registro de créditos para el paciente

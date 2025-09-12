@@ -75,7 +75,6 @@ export const ProfileScreen = ({ navigation }: any) => {
     // Listen for app state changes to refresh credits when app comes to foreground
     const appStateListener = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active') {
-        console.log('App became active, refreshing credits...');
         refreshCredits();
       }
     });

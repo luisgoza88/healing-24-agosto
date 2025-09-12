@@ -33,14 +33,12 @@ export function useUserCredits() {
     try {
       setLoading(true);
       setError(null);
-      console.log('[useCredits] Loading credits...');
       
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setError('Usuario no autenticado');
         return;
       }
-      console.log('[useCredits] User ID:', user.id);
 
       // Cargar créditos del usuario - con manejo de error específico
       try {
@@ -60,7 +58,6 @@ export function useUserCredits() {
           }
         } else {
           setCredits(creditsData || null);
-          console.log('[useCredits] Credits loaded:', creditsData);
           setLastRefresh(new Date());
         }
       } catch (creditsErr) {
@@ -110,8 +107,6 @@ export function useUserCredits() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      console.log('Setting up realtime subscription for user:', user.id);
-
       channel = supabase
         .channel(`credits-changes-${user.id}`)
         .on(
@@ -123,9 +118,6 @@ export function useUserCredits() {
             filter: `patient_id=eq.${user.id}`
           },
           (payload) => {
-            console.log('[useCredits] Credits changed:', payload);
-            console.log('[useCredits] Event type:', payload.eventType);
-            console.log('[useCredits] New data:', payload.new);
             loadCredits();
           }
         )
@@ -138,39 +130,17 @@ export function useUserCredits() {
             filter: `patient_id=eq.${user.id}`
           },
           (payload) => {
-            console.log('[useCredits] Transaction changed:', payload);
-            console.log('[useCredits] Event type:', payload.eventType);
-            console.log('[useCredits] New data:', payload.new);
             loadCredits();
           }
         )
-        .subscribe((status) => {
-          console.log('[useCredits] Subscription status:', status);
-          if (status === 'SUBSCRIBED') {
-            console.log('[useCredits] Successfully subscribed to realtime updates');
-          } else if (status === 'CHANNEL_ERROR') {
-            console.error('[useCredits] Channel error in subscription');
-          } else if (status === 'TIMED_OUT') {
-            console.error('[useCredits] Subscription timed out');
-          } else if (status === 'CLOSED') {
-            console.log('[useCredits] Subscription closed');
-          }
-        });
+        .subscribe();
     };
 
     setupSubscription();
 
-    // Set up periodic refresh every 30 seconds as a fallback
-    const refreshInterval = setInterval(() => {
-      console.log('[useCredits] Periodic refresh triggered');
-      loadCredits();
-    }, 30000);
-
     // Cleanup
     return () => {
-      clearInterval(refreshInterval);
       if (channel) {
-        console.log('Removing subscription channel');
         supabase.removeChannel(channel);
       }
     };
@@ -183,7 +153,6 @@ export function useUserCredits() {
     error,
     lastRefresh,
     refresh: () => {
-      console.log('[useCredits] Manual refresh triggered');
       return loadCredits();
     }
   };
