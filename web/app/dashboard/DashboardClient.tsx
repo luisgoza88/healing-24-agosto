@@ -16,13 +16,14 @@ import {
   Menu,
   X,
   Activity,
-  CreditCard
+  CreditCard,
+  Briefcase
 } from "lucide-react";
 
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/appointments", label: "Citas", icon: Calendar },
-  { href: "/dashboard/breathe-move", label: "Breathe & Move", icon: Activity },
+  { href: "/dashboard/services", label: "Servicios", icon: Briefcase },
   { href: "/dashboard/patients", label: "Pacientes", icon: Users },
   { href: "/dashboard/professionals", label: "Profesionales", icon: UserCog },
   { href: "/dashboard/credits", label: "Créditos", icon: CreditCard },
