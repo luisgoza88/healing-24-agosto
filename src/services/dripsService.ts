@@ -121,6 +121,14 @@ export class DripsService {
         throw new Error('No hay estaciones disponibles para este horario');
       }
 
+      // Calculate end time
+      const [hours, minutes] = time.split(':').map(Number);
+      const startMinutes = hours * 60 + minutes;
+      const endMinutes = startMinutes + durationMinutes;
+      const endHours = Math.floor(endMinutes / 60);
+      const endMins = endMinutes % 60;
+      const endTime = `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
+
       // Create the appointment
       const { data, error } = await supabase
         .from('appointments')
@@ -130,8 +138,10 @@ export class DripsService {
           sub_service_id: subServiceId,
           appointment_date: format(date, 'yyyy-MM-dd'),
           appointment_time: time,
+          end_time: endTime,
           professional_id: professionalId,
           duration_minutes: durationMinutes,
+          duration: durationMinutes, // Also set the duration field
           status: 'pending',
           drips_station_id: availableStation.stationId
         })
