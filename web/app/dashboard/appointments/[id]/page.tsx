@@ -55,8 +55,8 @@ interface AppointmentDetail {
     id: string
     name: string
     description?: string
-    duration: number
-    price: number
+    duration_minutes: number
+    base_price: number
   }
 }
 
@@ -119,8 +119,8 @@ export default function AppointmentDetailPage({ params }: { params: { id: string
         service: serviceRes?.data || {
           id: apt.service_id,
           name: 'Servicio general',
-          duration: 60,
-          price: 0
+          duration_minutes: 60,
+          base_price: 0
         }
       })
     } catch (error) {
@@ -365,7 +365,7 @@ export default function AppointmentDetailPage({ params }: { params: { id: string
               {appointment.service.description && (
                 <p className="text-sm text-gray-600 mt-1">{appointment.service.description}</p>
               )}
-              <p className="text-sm text-gray-500 mt-1">Duración: {appointment.service.duration} minutos</p>
+              <p className="text-sm text-gray-500 mt-1">Duración: {appointment.service.duration_minutes} minutos</p>
             </div>
             <div className="text-right">
               <p className="text-2xl font-bold text-gray-900">{formatCurrency(appointment.total_amount)}</p>

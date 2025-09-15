@@ -13,14 +13,20 @@ import {
   Settings,
   LogOut,
   Menu,
-  X
+  X,
+  Wind,
+  Wallet,
+  Stethoscope
 } from "lucide-react";
 
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/appointments", label: "Citas", icon: Calendar },
+  { href: "/dashboard/services", label: "Servicios", icon: Stethoscope },
+  { href: "/dashboard/breathe-move", label: "Breathe & Move", icon: Wind },
   { href: "/dashboard/patients", label: "Pacientes", icon: Users },
   { href: "/dashboard/professionals", label: "Profesionales", icon: UserCog },
+  { href: "/dashboard/credits", label: "Créditos", icon: Wallet },
   { href: "/dashboard/reports", label: "Reportes", icon: FileBarChart },
 ];
 

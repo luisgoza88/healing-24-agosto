@@ -7,13 +7,20 @@ interface ProfessionalFilters {
   page?: number
 }
 
+interface ProfessionalResult {
+  professionals: any[]
+  totalPages: number
+  currentPage: number
+  totalCount: number
+}
+
 export function useProfessionals(filters: ProfessionalFilters = {}) {
   const supabase = createClient()
   const itemsPerPage = 50
   
-  return useQuery({
+  return useQuery<ProfessionalResult>({
     queryKey: ['professionals', filters],
-    queryFn: async () => {
+    queryFn: async (): Promise<ProfessionalResult> => {
       let query = supabase
         .from('professionals')
         .select('*', { count: 'exact' })
@@ -48,7 +55,7 @@ export function useProfessionals(filters: ProfessionalFilters = {}) {
     },
     // Caché de 30 minutos para profesionales
     staleTime: 30 * 60 * 1000,
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   })
 }
 
@@ -155,8 +162,8 @@ export function useCreateProfessional() {
       if (error) throw error
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['professionals'])
-      queryClient.invalidateQueries(['professionalStats'])
+      queryClient.invalidateQueries({ queryKey: ['professionals'] })
+      queryClient.invalidateQueries({ queryKey: ['professionalStats'] })
     },
   })
 }
@@ -175,8 +182,8 @@ export function useUpdateProfessional() {
       if (error) throw error
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['professionals'])
-      queryClient.invalidateQueries(['professional'])
+      queryClient.invalidateQueries({ queryKey: ['professionals'] })
+      queryClient.invalidateQueries({ queryKey: ['professional'] })
     },
   })
 }

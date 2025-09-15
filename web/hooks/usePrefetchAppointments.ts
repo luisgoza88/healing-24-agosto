@@ -17,8 +17,8 @@ export function usePrefetchNextPage(currentFilters: any, currentPage: number) {
     await queryClient.prefetchQuery({
       queryKey: ['appointments', { ...currentFilters, page: nextPage }],
       queryFn: async () => {
-        const thirtyDaysAgo = new Date()
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+        const ninetyDaysAgo = new Date()
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
 
         let query = supabase
           .from('appointments')
@@ -35,7 +35,7 @@ export function usePrefetchNextPage(currentFilters: any, currentPage: number) {
             notes,
             created_at
           `, { count: 'exact' })
-          .gte('appointment_date', thirtyDaysAgo.toISOString().split('T')[0])
+          .gte('appointment_date', ninetyDaysAgo.toISOString().split('T')[0])
           .order('appointment_date', { ascending: false })
           .order('appointment_time', { ascending: false })
 
@@ -92,11 +92,21 @@ export function usePrefetchNextPage(currentFilters: any, currentPage: number) {
           const profile = profilesMap.get(apt.user_id)
           const service = servicesMap.get(apt.service_id)
           
+          // Extraer el nombre de la clase de Breathe & Move de las notas
+          let serviceName = service?.name || 'Servicio general'
+          if (serviceName === 'Breathe & Move' && apt.notes) {
+            const match = apt.notes.match(/Breathe & Move\s*-\s*([^-]+)/i)
+            if (match && match[1]) {
+              const className = match[1].trim()
+              serviceName = `B&M: ${className}`
+            }
+          }
+          
           return {
             id: apt.id,
             appointment_date: apt.appointment_date,
             appointment_time: apt.appointment_time,
-            service: service?.name || 'Servicio general',
+            service: serviceName,
             professional_id: apt.professional_id,
             professional_name: professional?.full_name || 'No asignado',
             user_id: apt.user_id,

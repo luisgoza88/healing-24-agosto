@@ -33,7 +33,7 @@ export function useServices() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('services')
-        .select('id, name, price, duration, active')
+        .select('id, name, base_price, duration_minutes, active')
         .eq('active', true)
         .order('name')
       

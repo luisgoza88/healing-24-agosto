@@ -17,6 +17,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { ServiceIcon } from '../../components/ServiceIcon';
 import { getServiceConstantId } from '../../utils/serviceMapping';
+import { processCancellationWithCredits } from '../../utils/creditsManager';
 
 const getClassColor = (className: string) => {
   const colors: { [key: string]: string } = {
@@ -270,15 +271,28 @@ export const AppointmentsScreen = ({ navigation }: any) => {
     return isUpcomingResult;
   };
 
-  const filteredAppointments = appointments.filter(apt => {
-    // Excluir citas canceladas completamente
-    if (apt.status === 'cancelled') {
-      return false;
-    }
-    
-    const upcoming = isUpcoming(apt.appointment_date);
-    return activeTab === 'upcoming' ? upcoming : !upcoming;
-  });
+  const filteredAppointments = appointments
+    .filter(apt => {
+      // Excluir citas canceladas completamente
+      if (apt.status === 'cancelled') {
+        return false;
+      }
+      
+      const upcoming = isUpcoming(apt.appointment_date);
+      return activeTab === 'upcoming' ? upcoming : !upcoming;
+    })
+    .sort((a, b) => {
+      // Para citas próximas: ordenar de la más cercana a la más lejana
+      // Para citas pasadas: ordenar de la más reciente a la más antigua
+      const dateA = new Date(a.appointment_date).getTime();
+      const dateB = new Date(b.appointment_date).getTime();
+      
+      if (activeTab === 'upcoming') {
+        return dateA - dateB; // Ascendente (más próxima primero)
+      } else {
+        return dateB - dateA; // Descendente (más reciente primero)
+      }
+    });
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -537,17 +551,49 @@ export const AppointmentsScreen = ({ navigation }: any) => {
           Alert.alert('Error', `No se pudo cancelar la clase: ${error.message}`);
         }
       } else {
-        // Cancelar cita médica
-        const { error } = await supabase
+        // Cancelar cita médica regular
+        console.log('=== CANCELLING MEDICAL APPOINTMENT ===');
+        
+        // Primero cancelar la cita
+        const { error: cancelError } = await supabase
           .from('appointments')
           .update({ 
             status: 'cancelled',
-            cancelled_at: new Date().toISOString()
+            cancelled_at: new Date().toISOString(),
+            cancelled_by: user.id
           })
           .eq('id', appointmentId);
 
-        if (error) throw error;
-        Alert.alert('Éxito', 'La cita ha sido cancelada');
+        if (cancelError) throw cancelError;
+
+        // Procesar créditos automáticamente
+        const serviceName = appointment?.notes || 'Servicio médico';
+        const appointmentAmount = appointment?.total_amount || 0;
+        
+        console.log('Processing credits for medical appointment:', {
+          appointmentId,
+          serviceName,
+          appointmentAmount,
+          appointmentDate: appointment?.appointment_date
+        });
+
+        const creditResult = await processCancellationWithCredits(
+          user.id,
+          appointmentId,
+          appointment?.appointment_date || '',
+          appointmentAmount,
+          serviceName
+        );
+
+        if (creditResult.success && creditResult.creditAmount && creditResult.creditAmount > 0) {
+          Alert.alert(
+            'Cita cancelada',
+            `Tu cita ha sido cancelada y has recibido un crédito de $${creditResult.creditAmount.toLocaleString('es-CO')} COP que puedes usar en futuras reservas.`,
+            [{ text: 'OK' }]
+          );
+        } else {
+          Alert.alert('Éxito', 'La cita ha sido cancelada');
+        }
       }
 
       console.log('=== FINAL RELOAD OF APPOINTMENTS ===');
@@ -672,12 +718,24 @@ export const AppointmentsScreen = ({ navigation }: any) => {
   };
 
   const formatTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const hours = date.getHours();
-    const minutes = date.getMinutes();
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const displayHour = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-    return `${displayHour}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+    if (!dateStr) return '';
+    
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return '';
+      
+      const hours = date.getHours();
+      const minutes = date.getMinutes();
+      
+      if (isNaN(hours) || isNaN(minutes)) return '';
+      
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const displayHour = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+      return `${displayHour}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+    } catch (error) {
+      console.error('Error formatting time:', error);
+      return '';
+    }
   };
 
   const renderAppointmentCard = (appointment: Appointment) => {
@@ -814,7 +872,7 @@ export const AppointmentsScreen = ({ navigation }: any) => {
           {appointment.professional && (
             <View style={styles.detailRow}>
               <MaterialCommunityIcons name="doctor" size={16} color={Colors.text.secondary} style={styles.detailIcon} />
-              <Text style={styles.detailText}>{appointment.professional.name}</Text>
+              <Text style={styles.detailText}>{appointment.professional.full_name || appointment.professional.name}</Text>
             </View>
           )}
           <View style={styles.detailRow}>
@@ -861,7 +919,7 @@ export const AppointmentsScreen = ({ navigation }: any) => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary.green} />
+          <ActivityIndicator size="large" color={Colors.primary.dark} />
         </View>
       </SafeAreaView>
     );
@@ -899,7 +957,7 @@ export const AppointmentsScreen = ({ navigation }: any) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[Colors.primary.green]}
+            colors={[Colors.primary.dark]}
           />
         }
       >
@@ -963,7 +1021,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.ui.divider,
   },
   activeTab: {
-    borderBottomColor: Colors.primary.green,
+    borderBottomColor: Colors.primary.dark,
   },
   tabText: {
     fontSize: 16,
@@ -971,7 +1029,7 @@ const styles = StyleSheet.create({
     color: Colors.text.secondary,
   },
   activeTabText: {
-    color: Colors.primary.green,
+    color: Colors.primary.dark,
   },
   content: {
     paddingHorizontal: 24,

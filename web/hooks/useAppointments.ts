@@ -5,19 +5,27 @@ interface AppointmentFilters {
   searchTerm?: string
   statusFilter?: string
   dateFilter?: string
+  serviceFilter?: string
   page?: number
+}
+
+interface AppointmentResult {
+  appointments: any[]
+  totalPages: number
+  currentPage: number
+  totalCount: number
 }
 
 export function useAppointments(filters: AppointmentFilters = {}) {
   const supabase = createClient()
   const itemsPerPage = 50
   
-  return useQuery({
+  return useQuery<AppointmentResult>({
     queryKey: ['appointments', filters],
-    queryFn: async () => {
-      // Fecha límite: últimos 30 días
-      const thirtyDaysAgo = new Date()
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    queryFn: async (): Promise<AppointmentResult> => {
+      // Mostrar citas de los últimos 90 días y todas las futuras
+      const ninetyDaysAgo = new Date()
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
 
       // Query base
       let query = supabase
@@ -35,7 +43,7 @@ export function useAppointments(filters: AppointmentFilters = {}) {
           notes,
           created_at
         `, { count: 'exact' })
-        .gte('appointment_date', thirtyDaysAgo.toISOString().split('T')[0])
+        .gte('appointment_date', ninetyDaysAgo.toISOString().split('T')[0])
         .order('appointment_date', { ascending: false })
         .order('appointment_time', { ascending: false })
 
@@ -63,7 +71,8 @@ export function useAppointments(filters: AppointmentFilters = {}) {
         return {
           appointments: [],
           totalPages: 0,
-          currentPage: page
+          currentPage: page,
+          totalCount: 0
         }
       }
 
@@ -96,11 +105,24 @@ export function useAppointments(filters: AppointmentFilters = {}) {
         const profile = profilesMap.get(apt.user_id)
         const service = servicesMap.get(apt.service_id)
         
+        // Extraer el nombre de la clase de Breathe & Move de las notas
+        let serviceName = service?.name || 'Servicio general'
+        if (serviceName === 'Breathe & Move' && apt.notes) {
+          // Buscar el nombre de la clase en las notas
+          // Formato esperado: "Breathe & Move - NombreClase - ..."
+          const match = apt.notes.match(/Breathe & Move\s*-\s*([^-]+)/i)
+          if (match && match[1]) {
+            const className = match[1].trim()
+            // Mostrar como "B&M: NombreClase"
+            serviceName = `B&M: ${className}`
+          }
+        }
+        
         return {
           id: apt.id,
           appointment_date: apt.appointment_date,
           appointment_time: apt.appointment_time,
-          service: service?.name || 'Servicio general',
+          service: serviceName,
           professional_id: apt.professional_id,
           professional_name: professional?.full_name || 'No asignado',
           user_id: apt.user_id,
@@ -122,18 +144,54 @@ export function useAppointments(filters: AppointmentFilters = {}) {
           apt.patient_name.toLowerCase().includes(term) ||
           apt.patient_email.toLowerCase().includes(term) ||
           apt.professional_name.toLowerCase().includes(term) ||
-          apt.service.toLowerCase().includes(term)
+          apt.service.toLowerCase().includes(term) ||
+          (apt.notes && apt.notes.toLowerCase().includes(term))
         )
+      }
+
+      // Aplicar filtro de servicio
+      if (filters.serviceFilter && filters.serviceFilter !== 'todos') {
+        filteredAppointments = filteredAppointments.filter(apt => {
+          const serviceNameLower = apt.service.toLowerCase()
+          
+          switch (filters.serviceFilter) {
+            case 'breathe-move':
+              // Incluir todas las clases de Breathe & Move
+              return serviceNameLower.includes('breathe') || serviceNameLower.includes('b&m:')
+            case 'medicina-funcional':
+              return serviceNameLower.includes('medicina funcional')
+            case 'medicina-estetica':
+              return serviceNameLower.includes('medicina estética')
+            case 'wellness-integral':
+              return serviceNameLower.includes('wellness')
+            case 'masajes':
+              return serviceNameLower.includes('masaje')
+            case 'faciales':
+              return serviceNameLower.includes('facial')
+            case 'otros':
+              // Otros servicios que no están en las categorías anteriores
+              return !serviceNameLower.includes('breathe') && 
+                     !serviceNameLower.includes('b&m:') &&
+                     !serviceNameLower.includes('medicina funcional') &&
+                     !serviceNameLower.includes('medicina estética') &&
+                     !serviceNameLower.includes('wellness') &&
+                     !serviceNameLower.includes('masaje') &&
+                     !serviceNameLower.includes('facial')
+            default:
+              return true
+          }
+        })
       }
 
       return {
         appointments: filteredAppointments,
         totalPages: Math.ceil((count || 0) / itemsPerPage),
-        currentPage: page
+        currentPage: page,
+        totalCount: count || 0
       }
     },
     // Mantener datos previos mientras se cargan nuevos
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   })
 }
 
@@ -152,7 +210,7 @@ export function useUpdateAppointmentStatus() {
     },
     onSuccess: () => {
       // Invalidar todas las consultas de appointments
-      queryClient.invalidateQueries(['appointments'])
+      queryClient.invalidateQueries({ queryKey: ['appointments'] })
     },
   })
 }

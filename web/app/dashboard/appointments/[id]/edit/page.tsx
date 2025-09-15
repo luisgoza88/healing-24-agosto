@@ -24,8 +24,8 @@ interface Professional {
 interface Service {
   id: string
   name: string
-  price: number
-  duration: number
+  base_price: number
+  duration_minutes: number
 }
 
 interface Patient {

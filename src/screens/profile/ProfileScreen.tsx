@@ -21,6 +21,7 @@ import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { getUserCreditBalance } from '../../utils/creditsManager';
 
 interface ProfileData {
   full_name: string;
@@ -45,6 +46,7 @@ export const ProfileScreen = ({ navigation }: any) => {
   const [devTapCount, setDevTapCount] = useState(0);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showGenderPicker, setShowGenderPicker] = useState(false);
+  const [creditBalance, setCreditBalance] = useState(0);
   const [profile, setProfile] = useState<ProfileData>({
     full_name: '',
     phone: '',
@@ -63,6 +65,7 @@ export const ProfileScreen = ({ navigation }: any) => {
 
   useEffect(() => {
     loadProfile();
+    loadCreditBalance();
   }, []);
 
   const loadProfile = async () => {
@@ -138,6 +141,23 @@ export const ProfileScreen = ({ navigation }: any) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadCreditBalance = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const balance = await getUserCreditBalance(user.id);
+      setCreditBalance(balance);
+    } catch (error) {
+      console.error('Error loading credit balance:', error);
+      setCreditBalance(0);
+    }
+  };
+
+  const formatCurrency = (amount: number) => {
+    return `$${amount.toLocaleString('es-CO')} COP`;
   };
 
   const pickImage = async () => {
@@ -304,7 +324,7 @@ export const ProfileScreen = ({ navigation }: any) => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary.green} />
+          <ActivityIndicator size="large" color={Colors.primary.dark} />
         </View>
       </SafeAreaView>
     );
@@ -351,6 +371,39 @@ export const ProfileScreen = ({ navigation }: any) => {
               )}
               <View style={styles.cameraIcon}>
                 <MaterialCommunityIcons name="camera" size={16} color="#FFFFFF" />
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Sección de Créditos - PRIMERA SECCIÓN */}
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <MaterialCommunityIcons name="wallet" size={20} color={Colors.primary.dark} />
+              <Text style={styles.sectionTitle}>Mi Billetera</Text>
+            </View>
+            
+            {/* Balance de créditos visible */}
+            <View style={styles.balanceDisplayContainer}>
+              <View style={styles.balanceDisplay}>
+                <MaterialCommunityIcons name="cash-multiple" size={28} color={Colors.primary.dark} />
+                <View style={styles.balanceInfo}>
+                  <Text style={styles.balanceLabel}>Balance</Text>
+                  <Text style={styles.balanceAmount}>{formatCurrency(creditBalance)}</Text>
+                </View>
+              </View>
+            </View>
+            
+            <TouchableOpacity
+              style={styles.creditsNavigationButton}
+              onPress={() => navigation.navigate('MyCredits')}
+            >
+              <View style={styles.creditsButtonContent}>
+                <MaterialCommunityIcons name="wallet-outline" size={20} color={Colors.primary.dark} />
+                <View style={styles.creditsButtonText}>
+                  <Text style={styles.creditsButtonTitle}>Ver detalles</Text>
+                  <Text style={styles.creditsButtonSubtitle}>Historial completo</Text>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.text.secondary} />
               </View>
             </TouchableOpacity>
           </View>
@@ -571,10 +624,10 @@ export const ProfileScreen = ({ navigation }: any) => {
                 setShowGenderPicker(false);
               }}
             >
-              <MaterialCommunityIcons name="gender-male" size={24} color={Colors.primary.green} />
+              <MaterialCommunityIcons name="gender-male" size={24} color={Colors.primary.dark} />
               <Text style={styles.genderOptionText}>Masculino</Text>
               {profile.gender === 'Masculino' && (
-                <Ionicons name="checkmark-circle" size={24} color={Colors.primary.green} />
+                <Ionicons name="checkmark-circle" size={24} color={Colors.primary.dark} />
               )}
             </TouchableOpacity>
             
@@ -588,7 +641,7 @@ export const ProfileScreen = ({ navigation }: any) => {
               <MaterialCommunityIcons name="gender-female" size={24} color="#FF69B4" />
               <Text style={styles.genderOptionText}>Femenino</Text>
               {profile.gender === 'Femenino' && (
-                <Ionicons name="checkmark-circle" size={24} color={Colors.primary.green} />
+                <Ionicons name="checkmark-circle" size={24} color={Colors.primary.dark} />
               )}
             </TouchableOpacity>
             
@@ -602,7 +655,7 @@ export const ProfileScreen = ({ navigation }: any) => {
               <MaterialCommunityIcons name="gender-transgender" size={24} color="#9B59B6" />
               <Text style={styles.genderOptionText}>Otro</Text>
               {profile.gender === 'Otro' && (
-                <Ionicons name="checkmark-circle" size={24} color={Colors.primary.green} />
+                <Ionicons name="checkmark-circle" size={24} color={Colors.primary.dark} />
               )}
             </TouchableOpacity>
           </View>
@@ -821,5 +874,50 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: Colors.text.primary,
+  },
+  creditsNavigationButton: {
+    backgroundColor: 'transparent',
+    borderRadius: 8,
+    paddingVertical: 4,
+  },
+  creditsButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  creditsButtonText: {
+    flex: 1,
+  },
+  creditsButtonTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.primary.dark,
+    marginBottom: 2,
+  },
+  creditsButtonSubtitle: {
+    fontSize: 14,
+    color: Colors.text.secondary,
+  },
+  balanceDisplayContainer: {
+    marginBottom: 16,
+  },
+  balanceDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  balanceInfo: {
+    marginLeft: 16,
+    flex: 1,
+  },
+  balanceLabel: {
+    fontSize: 14,
+    color: Colors.text.secondary,
+    marginBottom: 4,
+  },
+  balanceAmount: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: Colors.primary.dark,
   },
 });

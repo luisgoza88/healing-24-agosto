@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import { supabase } from '../../lib/supabase';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { processMockPayment } from '../../utils/mockPayment';
+import { getUserCreditBalance, useCreditsForAppointment } from '../../utils/creditsManager';
 
 interface PaymentMethodScreenProps {
   service: any;
@@ -37,7 +38,14 @@ interface PaymentMethod {
   description: string;
 }
 
-const PAYMENT_METHODS: PaymentMethod[] = [
+const getPaymentMethods = (creditBalance: number, totalAmount: number): PaymentMethod[] => [
+  ...(creditBalance >= totalAmount ? [{
+    id: 'credits',
+    name: 'Mis Créditos',
+    icon: 'wallet',
+    iconFamily: 'MaterialCommunityIcons',
+    description: `Usar créditos disponibles ($${creditBalance.toLocaleString('es-CO')} COP)`
+  }] : []),
   {
     id: 'test_payment',
     name: '🧪 Pago de Prueba',
@@ -89,6 +97,27 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
 }) => {
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [creditBalance, setCreditBalance] = useState(0);
+  const [loadingBalance, setLoadingBalance] = useState(true);
+
+  useEffect(() => {
+    loadCreditBalance();
+  }, []);
+
+  const loadCreditBalance = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const balance = await getUserCreditBalance(user.id);
+      setCreditBalance(balance);
+    } catch (error) {
+      console.error('Error loading credit balance:', error);
+      setCreditBalance(0);
+    } finally {
+      setLoadingBalance(false);
+    }
+  };
 
   const formatPrice = (price: number) => {
     return `$${price.toLocaleString('es-CO')}`;
@@ -131,8 +160,20 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
         userPhone: user?.phone
       };
 
+      // Si es pago con créditos
+      if (selectedMethod === 'credits') {
+        const creditUsed = await useCreditsForAppointment(user.id, appointmentId, subService.price);
+        
+        if (!creditUsed) {
+          throw new Error('No se pudieron usar los créditos. Verifica tu saldo.');
+        }
+        
+        // Marcar como pagado con créditos
+        paymentData.transactionId = `CREDITS_${Date.now()}`;
+        paymentData.paymentMethod = 'credits';
+      }
       // Si es pago de prueba, usar el sistema mock
-      if (selectedMethod === 'test_payment') {
+      else if (selectedMethod === 'test_payment') {
         const mockResult = await processMockPayment(subService.price, selectedMethod);
         
         if (!mockResult.success) {
@@ -188,13 +229,18 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
         console.error('Error recording payment:', paymentError);
       }
 
-      Alert.alert(
-        selectedMethod === 'test_payment' ? '¡Pago de prueba exitoso!' : '¡Pago exitoso!',
-        selectedMethod === 'test_payment' 
-          ? 'Tu cita ha sido confirmada en modo prueba. Este es solo para testing.'
-          : 'Tu cita ha sido confirmada. Recibirás un correo con los detalles.',
-        [{ text: 'OK', onPress: onSuccess }]
-      );
+      let alertTitle = '¡Pago exitoso!';
+      let alertMessage = 'Tu cita ha sido confirmada. Recibirás un correo con los detalles.';
+      
+      if (selectedMethod === 'test_payment') {
+        alertTitle = '¡Pago de prueba exitoso!';
+        alertMessage = 'Tu cita ha sido confirmada en modo prueba. Este es solo para testing.';
+      } else if (selectedMethod === 'credits') {
+        alertTitle = '¡Pago con créditos exitoso!';
+        alertMessage = 'Tu cita ha sido confirmada. Los créditos se descontaron de tu balance.';
+      }
+      
+      Alert.alert(alertTitle, alertMessage, [{ text: 'OK', onPress: onSuccess }]);
     } catch (error) {
       console.error('Error processing payment:', error);
       Alert.alert('Error', 'No se pudo procesar el pago. Por favor intenta nuevamente.');
@@ -293,7 +339,14 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
 
         <View style={styles.paymentSection}>
           <Text style={styles.sectionTitle}>Selecciona método de pago</Text>
-          {PAYMENT_METHODS.map(renderPaymentMethod)}
+          {loadingBalance ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color={Colors.primary.dark} />
+              <Text style={styles.loadingText}>Cargando métodos de pago...</Text>
+            </View>
+          ) : (
+            getPaymentMethods(creditBalance, subService.price).map(renderPaymentMethod)
+          )}
         </View>
 
         <View style={styles.termsSection}>
@@ -524,5 +577,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.text.light,
     textAlign: 'center',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: Colors.text.secondary,
   },
 });

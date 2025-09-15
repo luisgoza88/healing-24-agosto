@@ -54,8 +54,8 @@ export default function ProfessionalsPage() {
   const { data: stats } = useProfessionalStats()
   const { data: topProfessionals } = useProfessionalRevenue()
   
-  const professionals = data?.professionals || []
-  const totalPages = data?.totalPages || 1
+  const professionals = (data as any)?.professionals || []
+  const totalPages = (data as any)?.totalPages || 1
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CO', {
@@ -228,7 +228,7 @@ export default function ProfessionalsPage() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {professionals.map((professional) => (
+                      {professionals.map((professional: any) => (
                         <tr key={professional.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
@@ -251,7 +251,7 @@ export default function ProfessionalsPage() {
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex flex-wrap gap-1">
-                              {(professional.specialties || []).map((specialty, index) => (
+                              {(professional.specialties || []).map((specialty: string, index: number) => (
                                 <span 
                                   key={index}
                                   className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"

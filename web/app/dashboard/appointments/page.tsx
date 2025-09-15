@@ -7,11 +7,13 @@ import NewAppointmentModal from '@/components/NewAppointmentModal'
 import { useAppointments, useUpdateAppointmentStatus } from '@/hooks/useAppointments'
 import { useDebounce } from '@/hooks/useDebounce'
 import { usePrefetchNextPage } from '@/hooks/usePrefetchAppointments'
+import { formatDateString } from '@/src/lib/dateUtils'
 
 export default function AppointmentsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('todos')
   const [dateFilter, setDateFilter] = useState('')
+  const [serviceFilter, setServiceFilter] = useState('todos')
   const [showNewModal, setShowNewModal] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   
@@ -23,17 +25,18 @@ export default function AppointmentsPage() {
     searchTerm: debouncedSearchTerm,
     statusFilter,
     dateFilter,
+    serviceFilter,
     page: currentPage
   })
   
   const updateStatusMutation = useUpdateAppointmentStatus()
 
-  const appointments = data?.appointments || []
-  const totalPages = data?.totalPages || 1
+  const appointments = (data as any)?.appointments || []
+  const totalPages = (data as any)?.totalPages || 1
   
   // Prefetch siguiente página
   const prefetchNextPage = usePrefetchNextPage(
-    { searchTerm: debouncedSearchTerm, statusFilter, dateFilter },
+    { searchTerm: debouncedSearchTerm, statusFilter, dateFilter, serviceFilter },
     currentPage
   )
   
@@ -76,16 +79,6 @@ export default function AppointmentsPage() {
     }
   }
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const options: Intl.DateTimeFormatOptions = { 
-      weekday: 'short', 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
-    }
-    return date.toLocaleDateString('es-ES', options)
-  }
 
   const handleStatusChange = async (appointmentId: string, newStatus: string) => {
     updateStatusMutation.mutate({ appointmentId, status: newStatus })
@@ -95,6 +88,7 @@ export default function AppointmentsPage() {
     setSearchTerm('')
     setStatusFilter('todos')
     setDateFilter('')
+    setServiceFilter('todos')
     setCurrentPage(1)
   }
 
@@ -176,6 +170,24 @@ export default function AppointmentsPage() {
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
           />
 
+          <select
+            value={serviceFilter}
+            onChange={(e) => {
+              setServiceFilter(e.target.value)
+              setCurrentPage(1) // Reset to first page on filter change
+            }}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+          >
+            <option value="todos">Todos los servicios</option>
+            <option value="breathe-move">Breathe & Move</option>
+            <option value="medicina-funcional">Medicina Funcional</option>
+            <option value="medicina-estetica">Medicina Estética</option>
+            <option value="wellness-integral">Wellness Integral</option>
+            <option value="masajes">Masajes</option>
+            <option value="faciales">Faciales</option>
+            <option value="otros">Otros servicios</option>
+          </select>
+
           <button
             onClick={handleClearFilters}
             className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
@@ -189,19 +201,19 @@ export default function AppointmentsPage() {
           <div className="bg-blue-50 p-4 rounded-lg">
             <div className="text-sm text-blue-600">Citas de Hoy</div>
             <div className="text-2xl font-bold text-blue-700">
-              {appointments.filter(apt => apt.appointment_date === new Date().toISOString().split('T')[0]).length}
+              {appointments.filter((apt: any) => apt.appointment_date === new Date().toISOString().split('T')[0]).length}
             </div>
           </div>
           <div className="bg-green-50 p-4 rounded-lg">
             <div className="text-sm text-green-600">Confirmadas</div>
             <div className="text-2xl font-bold text-green-700">
-              {appointments.filter(apt => apt.status === 'confirmed').length}
+              {appointments.filter((apt: any) => apt.status === 'confirmed').length}
             </div>
           </div>
           <div className="bg-yellow-50 p-4 rounded-lg">
             <div className="text-sm text-yellow-600">Pendientes</div>
             <div className="text-2xl font-bold text-yellow-700">
-              {appointments.filter(apt => apt.status === 'pending').length}
+              {appointments.filter((apt: any) => apt.status === 'pending').length}
             </div>
           </div>
         </div>
@@ -252,14 +264,14 @@ export default function AppointmentsPage() {
                   </td>
                 </tr>
               ) : (
-                appointments.map((appointment) => (
+                appointments.map((appointment: any) => (
                   <tr key={appointment.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <Calendar className="h-5 w-5 text-gray-400 mr-2" />
                         <div>
                           <div className="text-sm font-medium text-gray-900">
-                            {formatDate(appointment.appointment_date)}
+                            {formatDateString(appointment.appointment_date)}
                           </div>
                           <div className="text-sm text-gray-500">{appointment.appointment_time}</div>
                         </div>
@@ -286,7 +298,7 @@ export default function AppointmentsPage() {
                       <select
                         value={appointment.status}
                         onChange={(e) => handleStatusChange(appointment.id, e.target.value)}
-                        disabled={updateStatusMutation.isLoading}
+                        disabled={updateStatusMutation.isPending}
                         className={`text-xs font-medium px-2 py-1 rounded-full ${getStatusColor(appointment.status)}`}
                       >
                         <option value="pending">Pendiente</option>

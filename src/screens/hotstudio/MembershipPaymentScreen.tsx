@@ -32,10 +32,44 @@ interface MembershipPaymentScreenProps {
 
 export const MembershipPaymentScreen: React.FC<MembershipPaymentScreenProps> = ({ route, navigation }) => {
   const { membership, userMembershipId } = route.params;
-  const [selectedMethod, setSelectedMethod] = useState<'test_payment' | 'credit_card' | 'pse' | null>(null);
+  const [selectedMethod, setSelectedMethod] = useState<'test_payment' | 'credit_card' | 'pse' | 'credits' | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [creditBalance, setCreditBalance] = useState(0);
+  const [loadingBalance, setLoadingBalance] = useState(true);
 
-  const paymentMethods = [
+  useEffect(() => {
+    loadCreditBalance();
+  }, []);
+
+  const loadCreditBalance = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const balance = await getUserCreditBalance(user.id);
+        setCreditBalance(balance);
+      }
+    } catch (error) {
+      console.error('Error loading credit balance:', error);
+    } finally {
+      setLoadingBalance(false);
+    }
+  };
+
+  const getPaymentMethods = (creditBalance: number, totalAmount: number) => {
+    const methods = [];
+    
+    // Solo mostrar créditos si hay balance suficiente
+    if (creditBalance >= totalAmount) {
+      methods.push({
+        id: 'credits',
+        name: 'Pagar con créditos',
+        description: `Usar tus créditos ($${creditBalance.toLocaleString('es-CO')} disponibles)`,
+        icon: '🎁',
+        brands: [`Balance disponible: $${creditBalance.toLocaleString('es-CO')}`]
+      });
+    }
+    
+    methods.push(
     {
       id: 'test_payment',
       name: 'Pago de Prueba',
@@ -56,8 +90,12 @@ export const MembershipPaymentScreen: React.FC<MembershipPaymentScreenProps> = (
       description: 'Transfiere directamente desde tu banco',
       icon: '🏦',
       brands: ['Todos los bancos colombianos']
-    }
-  ];
+    });
+    
+    return methods;
+  };
+
+  const paymentMethods = getPaymentMethods(creditBalance, membership.price);
 
   const handlePayment = async () => {
     if (!selectedMethod) {
@@ -68,10 +106,31 @@ export const MembershipPaymentScreen: React.FC<MembershipPaymentScreenProps> = (
     setProcessing(true);
 
     try {
-      // Simular procesamiento de pago
-      if (selectedMethod === 'test_payment') {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        Alert.alert('Error', 'Debes iniciar sesión para continuar');
+        return;
+      }
+
+      // Procesar según el método de pago
+      if (selectedMethod === 'credits') {
+        // Usar créditos para el pago
+        const creditsUsed = await useCreditsForAppointment(
+          user.id,
+          userMembershipId,
+          membership.price
+        );
+        
+        if (!creditsUsed) {
+          Alert.alert('Error', 'No se pudieron aplicar los créditos');
+          return;
+        }
+      } else if (selectedMethod === 'test_payment') {
+        // Simular procesamiento de pago de prueba
         await new Promise(resolve => setTimeout(resolve, 1000));
       } else {
+        // Simular procesamiento de otros métodos de pago
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
 
@@ -79,7 +138,7 @@ export const MembershipPaymentScreen: React.FC<MembershipPaymentScreenProps> = (
       const { error } = await supabase
         .from('user_memberships')
         .update({ 
-          payment_status: selectedMethod === 'test_payment' ? 'test_paid' : 'paid',
+          payment_status: selectedMethod === 'test_payment' ? 'test_paid' : selectedMethod === 'credits' ? 'paid_with_credits' : 'paid',
           payment_method: selectedMethod
         })
         .eq('id', userMembershipId);
@@ -87,9 +146,12 @@ export const MembershipPaymentScreen: React.FC<MembershipPaymentScreenProps> = (
       if (error) throw error;
 
       Alert.alert(
-        selectedMethod === 'test_payment' ? '¡Pago de prueba exitoso!' : '¡Pago exitoso!',
+        selectedMethod === 'test_payment' ? '¡Pago de prueba exitoso!' : 
+        selectedMethod === 'credits' ? '¡Pago con créditos exitoso!' : '¡Pago exitoso!',
         selectedMethod === 'test_payment' 
           ? `Tu membresía ${membership.name} ha sido activada en modo prueba.`
+          : selectedMethod === 'credits'
+          ? `Has usado $${membership.price.toLocaleString('es-CO')} en créditos para activar tu membresía ${membership.name}.`
           : `Tu membresía ${membership.name} ha sido activada.`,
         [
           {
@@ -151,14 +213,20 @@ export const MembershipPaymentScreen: React.FC<MembershipPaymentScreenProps> = (
           {/* Métodos de pago */}
           <Text style={styles.sectionTitle}>Método de pago</Text>
           <View style={styles.methodsContainer}>
-            {paymentMethods.map((method) => (
+            {loadingBalance ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color={Colors.primary.green} />
+                <Text style={styles.loadingText}>Cargando métodos de pago...</Text>
+              </View>
+            ) : (
+              paymentMethods.map((method) => (
               <TouchableOpacity
                 key={method.id}
                 style={[
                   styles.methodCard,
                   selectedMethod === method.id && styles.methodCardSelected
                 ]}
-                onPress={() => setSelectedMethod(method.id as 'test_payment' | 'credit_card' | 'pse')}
+                onPress={() => setSelectedMethod(method.id as 'test_payment' | 'credit_card' | 'pse' | 'credits')}
                 activeOpacity={0.7}
               >
                 <View style={styles.methodHeader}>
@@ -183,7 +251,8 @@ export const MembershipPaymentScreen: React.FC<MembershipPaymentScreenProps> = (
                   ))}
                 </View>
               </TouchableOpacity>
-            ))}
+              ))
+            )}
           </View>
 
           {/* Información de seguridad */}
@@ -405,5 +474,14 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
+  },
+  loadingContainer: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: Colors.text.secondary,
   },
 });

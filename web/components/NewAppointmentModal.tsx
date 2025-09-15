@@ -50,11 +50,11 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewA
         service_id: formData.service_id,
         appointment_date: formData.date,
         appointment_time: formData.time,
-        end_time: calculateEndTime(formData.time, selectedService?.duration || 60),
-        duration: selectedService?.duration || 60,
+        end_time: calculateEndTime(formData.time, selectedService?.duration_minutes || 60),
+        duration: selectedService?.duration_minutes || 60,
         notes: formData.notes,
         status: 'pending',
-        total_amount: selectedService?.price || 0,
+        total_amount: selectedService?.base_price || 0,
         payment_status: 'pending'
       }
 

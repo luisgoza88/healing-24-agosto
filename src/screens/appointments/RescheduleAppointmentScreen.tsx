@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
 
@@ -29,19 +30,14 @@ export const RescheduleAppointmentScreen: React.FC<RescheduleAppointmentScreenPr
   route,
   navigation
 }) => {
-  const { appointment } = route.params;
-  const [selectedDate, setSelectedDate] = useState('');
-  const [selectedTime, setSelectedTime] = useState('');
-  const [loading, setLoading] = useState(false);
+  const { appointment } = route.params || {};
   
-  // Obtener fecha actual para establecer el mínimo
-  const today = new Date();
-  const minDate = today.toISOString().split('T')[0];
-  
-  // Calcular fecha máxima (3 meses adelante)
-  const maxDate = new Date();
-  maxDate.setMonth(maxDate.getMonth() + 3);
-  const maxDateString = maxDate.toISOString().split('T')[0];
+  // Validar que appointment existe
+  if (!appointment) {
+    Alert.alert('Error', 'No se pudo cargar la información de la cita');
+    navigation.goBack();
+    return null;
+  }
 
   // Generar horarios disponibles (cada 30 minutos)
   const generateTimeSlots = () => {
@@ -56,8 +52,124 @@ export const RescheduleAppointmentScreen: React.FC<RescheduleAppointmentScreenPr
     
     return slots;
   };
+  
+  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedTime, setSelectedTime] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [availableSlots, setAvailableSlots] = useState<string[]>(generateTimeSlots());
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  
+  // Obtener fecha actual para establecer el mínimo
+  const today = new Date();
+  const minDate = today.toISOString().split('T')[0];
+  
+  // Calcular fecha máxima (3 meses adelante)
+  const maxDate = new Date();
+  maxDate.setMonth(maxDate.getMonth() + 3);
+  const maxDateString = maxDate.toISOString().split('T')[0];
 
   const timeSlots = generateTimeSlots();
+
+  // Función para verificar disponibilidad de horarios
+  const checkAvailability = async (date: string) => {
+    setLoadingSlots(true);
+    try {
+      // Si no hay profesional asignado, todos los horarios están disponibles
+      if (!appointment.professional_id) {
+        setAvailableSlots(timeSlots);
+        return;
+      }
+
+      const dayOfWeek = new Date(date + 'T12:00:00').getDay();
+      
+      // Obtener disponibilidad del profesional para ese día
+      const { data: availability, error: availError } = await supabase
+        .from('professional_availability')
+        .select('start_time, end_time')
+        .eq('professional_id', appointment.professional_id)
+        .eq('day_of_week', dayOfWeek)
+        .eq('active', true);
+
+      if (availError) {
+        console.error('Error al obtener disponibilidad:', availError);
+        // En caso de error, mostrar todos los slots
+        setAvailableSlots(timeSlots);
+        return;
+      }
+
+      // Si el profesional no tiene horario configurado para ese día, no hay disponibilidad
+      if (!availability || availability.length === 0) {
+        // Para servicios generales sin horario específico, todos están disponibles
+        setAvailableSlots(timeSlots);
+        return;
+      }
+
+      // Obtener citas existentes para ese día
+      const { data: existingAppointments, error: apptError } = await supabase
+        .from('appointments')
+        .select('appointment_time, duration_minutes')
+        .eq('professional_id', appointment.professional_id)
+        .eq('appointment_date', date)
+        .in('status', ['confirmed', 'pending'])
+        .neq('id', appointment.id); // Excluir la cita actual
+
+      if (apptError) {
+        console.error('Error al obtener citas:', apptError);
+        setAvailableSlots(timeSlots);
+        return;
+      }
+
+      // Filtrar slots disponibles
+      const available = timeSlots.filter(slot => {
+        // Verificar si está dentro del horario del profesional
+        const isInSchedule = availability.some(schedule => {
+          const slotTime = slot;
+          const startTime = schedule.start_time ? schedule.start_time.substring(0, 5) : '09:00';
+          const endTime = schedule.end_time ? schedule.end_time.substring(0, 5) : '19:00';
+          
+          return slotTime >= startTime && slotTime < endTime;
+        });
+
+        if (!isInSchedule) return false;
+
+        // Verificar si no hay conflicto con otras citas
+        const hasConflict = existingAppointments && existingAppointments.length > 0 && 
+          existingAppointments.some(appt => {
+            if (!appt.appointment_time) return false;
+            
+            const apptTime = appt.appointment_time.substring(0, 5);
+            const duration = appt.duration_minutes || 60;
+            
+            // Convertir todo a minutos para facilitar la comparación
+            const [slotHour, slotMin] = slot.split(':').map(Number);
+            const slotMinutes = slotHour * 60 + slotMin;
+            
+            const [apptHour, apptMin] = apptTime.split(':').map(Number);
+            const apptStartMinutes = apptHour * 60 + apptMin;
+            const apptEndMinutes = apptStartMinutes + duration;
+            
+            // El slot tiene conflicto si comienza durante otra cita
+            return slotMinutes >= apptStartMinutes && slotMinutes < apptEndMinutes;
+          });
+
+        return !hasConflict;
+      });
+
+      setAvailableSlots(available);
+    } catch (error) {
+      console.error('Error verificando disponibilidad:', error);
+      // En caso de error general, mostrar todos los slots como disponibles
+      setAvailableSlots(timeSlots);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedDate) {
+      checkAvailability(selectedDate);
+    }
+  }, [selectedDate]);
 
   const handleDateSelect = (date: any) => {
     setSelectedDate(date.dateString);
@@ -147,21 +259,40 @@ export const RescheduleAppointmentScreen: React.FC<RescheduleAppointmentScreenPr
   };
 
   const formatTime = (input: string) => {
+    if (!input) return '';
+    
     let hours, minutes;
     
-    // Si es una fecha ISO, extraer la hora
-    if (input.includes('T')) {
-      const date = new Date(input);
-      hours = date.getHours();
-      minutes = date.getMinutes();
-    } else {
-      // Si es solo hora "HH:MM"
-      [hours, minutes] = input.split(':').map(Number);
+    try {
+      // Si es una fecha ISO, extraer la hora
+      if (input.includes('T')) {
+        const date = new Date(input);
+        if (isNaN(date.getTime())) return '';
+        hours = date.getHours();
+        minutes = date.getMinutes();
+      } else if (input.includes(':')) {
+        // Si es solo hora "HH:MM"
+        const parts = input.split(':');
+        if (parts.length !== 2) return '';
+        hours = parseInt(parts[0], 10);
+        minutes = parseInt(parts[1], 10);
+        if (isNaN(hours) || isNaN(minutes)) return '';
+      } else {
+        return '';
+      }
+      
+      // Validar que hours y minutes sean números válidos
+      if (hours === undefined || minutes === undefined || isNaN(hours) || isNaN(minutes)) {
+        return '';
+      }
+      
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const displayHour = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+      return `${displayHour}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+    } catch (error) {
+      console.error('Error formatting time:', error);
+      return '';
     }
-    
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const displayHour = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-    return `${displayHour}:${minutes.toString().padStart(2, '0')} ${ampm}`;
   };
 
   return (
@@ -181,19 +312,19 @@ export const RescheduleAppointmentScreen: React.FC<RescheduleAppointmentScreenPr
           <View style={styles.appointmentInfo}>
             <Text style={styles.serviceName}>{appointment.notes}</Text>
             <View style={styles.detailRow}>
-              <Text style={styles.detailIcon}>📅</Text>
+              <MaterialCommunityIcons name="calendar" size={16} color={Colors.text.secondary} style={styles.detailIcon} />
               <Text style={styles.detailText}>{formatDate(appointment.appointment_date)}</Text>
             </View>
             <View style={styles.detailRow}>
-              <Text style={styles.detailIcon}>⏰</Text>
+              <MaterialCommunityIcons name="clock-outline" size={16} color={Colors.text.secondary} style={styles.detailIcon} />
               <Text style={styles.detailText}>
-                {formatTime(appointment.appointment_date)}
+                {formatTime(appointment.appointment_time || appointment.appointment_date)}
               </Text>
             </View>
             {appointment.professional && (
               <View style={styles.detailRow}>
-                <Text style={styles.detailIcon}>👨‍⚕️</Text>
-                <Text style={styles.detailText}>{appointment.professional.name}</Text>
+                <MaterialCommunityIcons name="doctor" size={16} color={Colors.text.secondary} style={styles.detailIcon} />
+                <Text style={styles.detailText}>{appointment.professional.full_name || appointment.professional.name}</Text>
               </View>
             )}
           </View>
@@ -210,30 +341,30 @@ export const RescheduleAppointmentScreen: React.FC<RescheduleAppointmentScreenPr
             markedDates={{
               [selectedDate]: {
                 selected: true,
-                selectedColor: Colors.primary.green,
+                selectedColor: Colors.primary.dark,
               },
               [appointment.appointment_date]: {
                 marked: true,
-                dotColor: Colors.ui.error,
+                dotColor: Colors.secondary.terracotta,
               }
             }}
             theme={{
               backgroundColor: Colors.ui.background,
-              calendarBackground: Colors.ui.background,
+              calendarBackground: Colors.ui.surface,
               textSectionTitleColor: Colors.text.secondary,
-              selectedDayBackgroundColor: Colors.primary.green,
+              selectedDayBackgroundColor: Colors.primary.dark,
               selectedDayTextColor: '#FFFFFF',
-              todayTextColor: Colors.primary.green,
+              todayTextColor: Colors.primary.dark,
               dayTextColor: Colors.text.primary,
               textDisabledColor: Colors.text.light,
-              dotColor: Colors.primary.green,
+              dotColor: Colors.primary.dark,
               selectedDotColor: '#FFFFFF',
-              arrowColor: Colors.primary.green,
+              arrowColor: Colors.primary.dark,
               monthTextColor: Colors.primary.dark,
               textDayFontFamily: 'System',
               textMonthFontFamily: 'System',
               textDayHeaderFontFamily: 'System',
-              textDayFontWeight: '400',
+              textDayFontWeight: '500',
               textMonthFontWeight: 'bold',
               textDayHeaderFontWeight: '600',
               textDayFontSize: 16,
@@ -250,50 +381,65 @@ export const RescheduleAppointmentScreen: React.FC<RescheduleAppointmentScreenPr
             <Text style={styles.dateSelected}>
               {formatDate(selectedDate)}
             </Text>
-            <View style={styles.timeGrid}>
-              {timeSlots.map((time) => (
-                <TouchableOpacity
-                  key={time}
-                  style={[
-                    styles.timeSlot,
-                    selectedTime === time && styles.timeSlotSelected,
-                    (selectedDate === appointment.appointment_date && 
-                     time === appointment.appointment_time) && styles.timeSlotDisabled
-                  ]}
-                  onPress={() => handleTimeSelect(time)}
-                  disabled={false}
-                >
-                  <Text
-                    style={[
-                      styles.timeText,
-                      selectedTime === time && styles.timeTextSelected,
-                      (selectedDate === appointment.appointment_date && 
-                       time === appointment.appointment_time) && styles.timeTextDisabled
-                    ]}
-                  >
-                    {time}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            {loadingSlots ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={Colors.primary.dark} />
+              </View>
+            ) : (
+              <View style={styles.timeGrid}>
+                {timeSlots.map((time) => {
+                  const isAvailable = availableSlots.includes(time);
+                  const isCurrentTime = selectedDate === appointment.appointment_date && 
+                                       time === appointment.appointment_time;
+                  const isDisabled = !isAvailable || isCurrentTime;
+                  
+                  return (
+                    <TouchableOpacity
+                      key={time}
+                      style={[
+                        styles.timeSlot,
+                        selectedTime === time && styles.timeSlotSelected,
+                        isDisabled && styles.timeSlotDisabled
+                      ]}
+                      onPress={() => handleTimeSelect(time)}
+                      disabled={isDisabled}
+                    >
+                      <Text
+                        style={[
+                          styles.timeText,
+                          selectedTime === time && styles.timeTextSelected,
+                          isDisabled && styles.timeTextDisabled
+                        ]}
+                      >
+                        {time}
+                      </Text>
+                      {isCurrentTime && (
+                        <Text style={styles.currentTimeLabel}>Actual</Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
           </View>
         )}
 
         {/* Botón de confirmación */}
         {selectedDate && selectedTime && (
-          <View style={styles.confirmSection}>
-            <TouchableOpacity
-              style={[styles.confirmButton, loading && styles.confirmButtonDisabled]}
-              onPress={handleReschedule}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
+          <TouchableOpacity
+            style={[styles.confirmButton, loading && styles.confirmButtonDisabled]}
+            onPress={handleReschedule}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
                 <Text style={styles.confirmButtonText}>Confirmar reprogramación</Text>
-              )}
-            </TouchableOpacity>
-          </View>
+                <MaterialCommunityIcons name="check" size={20} color="#FFFFFF" style={styles.confirmIcon} />
+              </>
+            )}
+          </TouchableOpacity>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -318,12 +464,12 @@ const styles = StyleSheet.create({
   },
   backIcon: {
     fontSize: 28,
-    color: Colors.primary.green,
+    color: Colors.primary.dark,
     marginRight: 4,
   },
   backText: {
     fontSize: 16,
-    color: Colors.primary.green,
+    color: Colors.primary.dark,
     fontWeight: '500',
   },
   title: {
@@ -357,7 +503,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   detailIcon: {
-    fontSize: 16,
     marginRight: 8,
     width: 24,
   },
@@ -382,44 +527,72 @@ const styles = StyleSheet.create({
   timeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    marginHorizontal: -4,
   },
   timeSlot: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
+    width: '31%',
+    marginHorizontal: '1.16%',
+    marginBottom: 12,
+    paddingVertical: 14,
+    borderRadius: 12,
     backgroundColor: Colors.ui.surface,
-    borderWidth: 1,
-    borderColor: Colors.ui.surface,
+    borderWidth: 1.5,
+    borderColor: Colors.ui.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
   },
   timeSlotSelected: {
-    backgroundColor: Colors.primary.green,
-    borderColor: Colors.primary.green,
+    backgroundColor: Colors.primary.dark,
+    borderColor: Colors.primary.dark,
   },
   timeSlotDisabled: {
-    backgroundColor: Colors.ui.disabled,
-    opacity: 0.5,
+    backgroundColor: '#F3F4F6',
+    borderColor: '#E5E7EB',
+    opacity: 0.6,
   },
   timeText: {
-    fontSize: 16,
+    fontSize: 15,
     color: Colors.text.primary,
+    fontWeight: '500',
   },
   timeTextSelected: {
     color: '#FFFFFF',
     fontWeight: '600',
   },
   timeTextDisabled: {
-    color: Colors.text.light,
+    color: '#9CA3AF',
   },
-  confirmSection: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
+  currentTimeLabel: {
+    position: 'absolute',
+    bottom: 2,
+    fontSize: 10,
+    color: Colors.secondary.terracotta,
+    fontWeight: '600',
+  },
+  loadingContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
   },
   confirmButton: {
-    backgroundColor: Colors.primary.green,
-    paddingVertical: 16,
-    borderRadius: 50,
+    backgroundColor: Colors.primary.dark,
+    paddingVertical: 18,
+    paddingHorizontal: 32,
+    borderRadius: 30,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 24,
+    marginBottom: 40,
+    marginTop: 20,
+    shadowColor: Colors.primary.dark,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   confirmButtonDisabled: {
     opacity: 0.5,
@@ -428,5 +601,9 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
+    marginRight: 8,
+  },
+  confirmIcon: {
+    marginLeft: 4,
   },
 });

@@ -12,7 +12,8 @@ import {
   Calendar,
   MapPin,
   Download,
-  Activity
+  Activity,
+  RefreshCw
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePatients, usePatientStats } from '@/hooks/usePatients'
@@ -36,8 +37,8 @@ export default function PatientsPage() {
   
   const { data: stats } = usePatientStats()
   
-  const patients = data?.patients || []
-  const totalPages = data?.totalPages || 1
+  const patients = (data as any)?.patients || []
+  const totalPages = (data as any)?.totalPages || 1
 
   const calculateAge = (birthDate: string) => {
     if (!birthDate) return 'N/A'
@@ -78,6 +79,13 @@ export default function PatientsPage() {
           <p className="text-sm text-gray-600 mt-1">Panel administrativo - Gestión integral de pacientes</p>
         </div>
         <div className="flex gap-2">
+          <button 
+            onClick={() => refetch()}
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+            title="Refrescar datos"
+          >
+            <RefreshCw className="h-5 w-5" />
+          </button>
           <Link 
             href="/dashboard/patients/new"
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
@@ -198,7 +206,7 @@ export default function PatientsPage() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {patients.map((patient) => (
+                      {patients.map((patient: any) => (
                         <tr key={patient.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">

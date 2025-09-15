@@ -6,6 +6,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { Colors } from '../constants/colors';
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
+import { MyCreditsScreen } from '../screens/profile/MyCreditsScreen';
 import { AppointmentsScreen } from '../screens/appointments/AppointmentsScreen';
 
 // Importar pantallas de Breathe & Move
@@ -53,6 +54,16 @@ const BreatheAndMoveStack = () => {
       <Stack.Screen name="PackagePayment" component={PackagePaymentScreen} />
       <Stack.Screen name="ClassPayment" component={ClassPaymentScreen} />
       <Stack.Screen name="BreatheAndMoveClassDetail" component={BreatheAndMoveClassDetailScreen} />
+    </Stack.Navigator>
+  );
+};
+
+// Stack para Profile
+const ProfileStack = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="ProfileMain" component={ProfileScreen} />
+      <Stack.Screen name="MyCredits" component={MyCreditsScreen} />
     </Stack.Navigator>
   );
 };
@@ -117,7 +128,7 @@ export const TabNavigator = () => {
       />
       <Tab.Screen
         name="Profile"
-        component={ProfileScreen}
+        component={ProfileStack}
         options={{
           tabBarLabel: 'Perfil',
           tabBarIcon: ({ color, focused }) => (

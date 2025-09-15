@@ -6,13 +6,22 @@ interface PatientFilters {
   page?: number
 }
 
+interface PatientResult {
+  patients: any[]
+  totalPages: number
+  currentPage: number
+  totalCount: number
+}
+
 export function usePatients(filters: PatientFilters = {}) {
   const supabase = createClient()
   const itemsPerPage = 50
   
-  return useQuery({
+  return useQuery<PatientResult>({
     queryKey: ['patients', filters],
-    queryFn: async () => {
+    queryFn: async (): Promise<PatientResult> => {
+      console.log('Fetching patients with filters:', filters)
+      
       let query = supabase
         .from('profiles')
         .select('*', { count: 'exact' })
@@ -31,6 +40,13 @@ export function usePatients(filters: PatientFilters = {}) {
 
       const { data, error, count } = await query
 
+      console.log('Query result:', { 
+        dataLength: data?.length, 
+        count, 
+        error,
+        firstItems: data?.slice(0, 3).map(p => ({ id: p.id, email: p.email, name: p.full_name }))
+      })
+
       if (error) throw error
 
       return {
@@ -42,7 +58,7 @@ export function usePatients(filters: PatientFilters = {}) {
     },
     // Caché de 10 minutos para pacientes
     staleTime: 10 * 60 * 1000,
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   })
 }
 
@@ -96,45 +112,100 @@ export function useCreatePatient() {
 
   return useMutation({
     mutationFn: async (patientData: any) => {
-      // Primero crear el usuario en auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: patientData.email,
-        password: patientData.phone, // Usar teléfono como contraseña temporal
-        options: {
-          data: {
+      // Primero intentar con la función SQL que no envía emails
+      if (patientData.email) {
+        const { data: sqlResult, error: sqlError } = await supabase.rpc(
+          'create_user_without_email_confirmation',
+          {
+            user_email: patientData.email,
+            user_password: patientData.password || 'salud',
+            user_metadata: {
+              full_name: patientData.full_name,
+              phone: patientData.phone,
+              created_by_admin: true
+            }
+          }
+        )
+
+        if (sqlError) {
+          console.error('SQL function error:', sqlError)
+          // Si falla, intentar con la API route
+          const response = await fetch('/api/admin/create-patient', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(patientData)
+          })
+
+          const data = await response.json()
+
+          if (!response.ok) {
+            throw new Error(data.error || 'Error al crear paciente')
+          }
+
+          return data.user
+        }
+
+        if (!sqlResult.success) {
+          throw new Error(sqlResult.error || 'Error al crear usuario')
+        }
+
+        // Actualizar el perfil con los datos adicionales
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({
             full_name: patientData.full_name,
             phone: patientData.phone,
-          }
+            date_of_birth: patientData.date_of_birth || null,
+            gender: patientData.gender || null,
+            address: patientData.address || null,
+            city: patientData.city || null,
+            emergency_contact_name: patientData.emergency_contact_name || null,
+            emergency_contact_phone: patientData.emergency_contact_phone || null,
+            medical_conditions: patientData.medical_conditions || null,
+            allergies: patientData.allergies || null,
+            bio: patientData.bio || null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', sqlResult.user_id)
+
+        if (updateError) {
+          console.error('Error updating profile:', updateError)
         }
-      })
 
-      if (authError) throw authError
+        return { id: sqlResult.user_id, email: sqlResult.email }
+      }
 
-      // Luego actualizar el perfil
-      const { error: profileError } = await supabase
+      // Si no hay email, crear solo el perfil
+      const { data, error } = await supabase
         .from('profiles')
-        .update({
+        .insert([{
           full_name: patientData.full_name,
-          phone: patientData.phone,
-          date_of_birth: patientData.date_of_birth,
-          gender: patientData.gender,
-          address: patientData.address,
-          emergency_contact_name: patientData.emergency_contact_name,
-          emergency_contact_phone: patientData.emergency_contact_phone,
-          medical_history: patientData.medical_history,
-          allergies: patientData.allergies,
-          current_medications: patientData.current_medications,
-        })
-        .eq('id', authData.user?.id)
+          email: patientData.email,
+          phone: patientData.phone || null,
+          date_of_birth: patientData.date_of_birth || null,
+          gender: patientData.gender || null,
+          address: patientData.address || null,
+          city: patientData.city || null,
+          emergency_contact_name: patientData.emergency_contact_name || null,
+          emergency_contact_phone: patientData.emergency_contact_phone || null,
+          medical_conditions: patientData.medical_conditions || null,
+          allergies: patientData.allergies || null,
+          bio: patientData.bio || null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }])
+        .select()
+        .single()
 
-      if (profileError) throw profileError
-
-      return authData.user
+      if (error) throw error
+      return data
     },
     onSuccess: () => {
       // Invalidar queries relacionadas
-      queryClient.invalidateQueries(['patients'])
-      queryClient.invalidateQueries(['patientStats'])
+      queryClient.invalidateQueries({ queryKey: ['patients'] })
+      queryClient.invalidateQueries({ queryKey: ['patientStats'] })
     },
   })
 }
@@ -153,8 +224,8 @@ export function useUpdatePatient() {
       if (error) throw error
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['patients'])
-      queryClient.invalidateQueries(['patient']) // Detalle individual
+      queryClient.invalidateQueries({ queryKey: ['patients'] })
+      queryClient.invalidateQueries({ queryKey: ['patient'] }) // Detalle individual
     },
   })
 }

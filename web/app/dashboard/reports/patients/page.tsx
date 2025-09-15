@@ -512,7 +512,7 @@ export default function PatientsReportPage() {
                 cx="50%"
                 cy="50%"
                 labelLine={false}
-                label={({ gender, percentage }) => `${gender}: ${percentage.toFixed(1)}%`}
+                label={(entry: any) => `${entry.gender}: ${entry.percentage.toFixed(1)}%`}
                 outerRadius={100}
                 fill="#8884d8"
                 dataKey="count"

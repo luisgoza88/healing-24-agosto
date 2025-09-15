@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import {
   getValidityText,
   getClassesText 
 } from '../../constants/breatheMovePricing';
+import { getUserCreditBalance, useCreditsForAppointment } from '../../utils/creditsManager';
 
 interface PaymentMethod {
   id: string;
@@ -29,49 +30,67 @@ interface PaymentMethod {
   description: string;
 }
 
-const PAYMENT_METHODS: PaymentMethod[] = [
-  {
-    id: 'test_payment',
-    name: 'Pago de Prueba',
-    icon: 'flask-empty',
-    description: 'Simula el pago para pruebas (temporal)'
-  },
-  {
-    id: 'nequi',
-    name: 'Nequi',
-    icon: 'phone-portrait',
-    description: 'Paga con tu cuenta Nequi'
-  },
-  {
-    id: 'daviplata',
-    name: 'Daviplata',
-    icon: 'phone-portrait',
-    description: 'Paga con tu cuenta Daviplata'
-  },
-  {
-    id: 'credit_card',
-    name: 'Tarjeta de crédito',
-    icon: 'card',
-    description: 'Visa, Mastercard, American Express'
-  },
-  {
-    id: 'debit_card',
-    name: 'Tarjeta débito',
-    icon: 'card-outline',
-    description: 'PSE - Débito desde tu banco'
-  },
-  {
-    id: 'cash',
-    name: 'Efectivo',
-    icon: 'cash',
-    description: 'Paga en efectivo en recepción'
+const getPaymentMethods = (creditBalance: number, totalAmount: number): PaymentMethod[] => {
+  const methods: PaymentMethod[] = [];
+  
+  // Solo mostrar créditos si hay balance suficiente
+  if (creditBalance >= totalAmount) {
+    methods.push({
+      id: 'credits',
+      name: 'Pagar con créditos',
+      icon: 'gift',
+      description: `Usar tus créditos (${formatPrice(creditBalance)} disponibles)`
+    });
   }
-];
+  
+  methods.push(
+    {
+      id: 'test_payment',
+      name: 'Pago de Prueba',
+      icon: 'flask-empty',
+      description: 'Simula el pago para pruebas (temporal)'
+    },
+    {
+      id: 'nequi',
+      name: 'Nequi',
+      icon: 'phone-portrait',
+      description: 'Paga con tu cuenta Nequi'
+    },
+    {
+      id: 'daviplata',
+      name: 'Daviplata',
+      icon: 'phone-portrait',
+      description: 'Paga con tu cuenta Daviplata'
+    },
+    {
+      id: 'credit_card',
+      name: 'Tarjeta de crédito',
+      icon: 'card',
+      description: 'Visa, Mastercard, American Express'
+    },
+    {
+      id: 'debit_card',
+      name: 'Tarjeta débito',
+      icon: 'card-outline',
+      description: 'PSE - Débito desde tu banco'
+    },
+    {
+      id: 'cash',
+      name: 'Efectivo',
+      icon: 'cash',
+      description: 'Paga en efectivo en recepción'
+    }
+  );
+  
+  return methods;
+};
 
 export const PackagePaymentScreen = ({ navigation, route }: any) => {
   const { packageId } = route.params;
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [creditBalance, setCreditBalance] = useState(0);
+  const [loadingBalance, setLoadingBalance] = useState(true);
 
   const selectedPackage = BREATHE_MOVE_PRICING.find(pkg => pkg.id === packageId);
 
@@ -80,6 +99,24 @@ export const PackagePaymentScreen = ({ navigation, route }: any) => {
     navigation.goBack();
     return null;
   }
+
+  useEffect(() => {
+    loadCreditBalance();
+  }, []);
+
+  const loadCreditBalance = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const balance = await getUserCreditBalance(user.id);
+        setCreditBalance(balance);
+      }
+    } catch (error) {
+      console.error('Error loading credit balance:', error);
+    } finally {
+      setLoadingBalance(false);
+    }
+  };
 
   const calculateExpiryDate = () => {
     const now = new Date();
@@ -114,10 +151,24 @@ export const PackagePaymentScreen = ({ navigation, route }: any) => {
         return;
       }
 
-      // Simular procesamiento de pago
-      if (selectedMethod === 'test_payment') {
+      // Procesar según el método de pago
+      if (selectedMethod === 'credits') {
+        // Usar créditos para el pago
+        const creditsUsed = await useCreditsForAppointment(
+          user.id,
+          '', // Se actualizará con el ID del paquete creado
+          selectedPackage.price
+        );
+        
+        if (!creditsUsed) {
+          Alert.alert('Error', 'No se pudieron aplicar los créditos');
+          return;
+        }
+      } else if (selectedMethod === 'test_payment') {
+        // Simular procesamiento de pago de prueba
         await new Promise(resolve => setTimeout(resolve, 1000));
       } else {
+        // Simular procesamiento de otros métodos de pago
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
 
@@ -146,8 +197,8 @@ export const PackagePaymentScreen = ({ navigation, route }: any) => {
           user_id: user.id,
           amount: selectedPackage.price,
           payment_method: selectedMethod,
-          status: selectedMethod === 'test_payment' ? 'test_completed' : 'completed',
-          payment_status: selectedMethod === 'test_payment' ? 'test_paid' : 'paid',
+          status: selectedMethod === 'test_payment' ? 'test_completed' : selectedMethod === 'credits' ? 'completed' : 'completed',
+          payment_status: selectedMethod === 'test_payment' ? 'test_paid' : selectedMethod === 'credits' ? 'paid_with_credits' : 'paid',
           description: `Paquete ${selectedPackage.name} - Breathe & Move`,
           metadata: {
             type: 'breathe_move_package',
@@ -161,9 +212,12 @@ export const PackagePaymentScreen = ({ navigation, route }: any) => {
 
       // Enviar notificación o email de confirmación
       Alert.alert(
-        selectedMethod === 'test_payment' ? '¡Compra de prueba exitosa!' : '¡Compra exitosa!',
+        selectedMethod === 'test_payment' ? '¡Compra de prueba exitosa!' : 
+        selectedMethod === 'credits' ? '¡Pago con créditos exitoso!' : '¡Compra exitosa!',
         selectedMethod === 'test_payment' 
           ? `Has adquirido el paquete "${selectedPackage.name}" con ${getClassesText(selectedPackage.classes)} en modo prueba.`
+          : selectedMethod === 'credits'
+          ? `Has usado ${formatPrice(selectedPackage.price)} en créditos para adquirir el paquete "${selectedPackage.name}" con ${getClassesText(selectedPackage.classes)}.`
           : `Has adquirido el paquete "${selectedPackage.name}" con ${getClassesText(selectedPackage.classes)}.`,
         [
           {
@@ -298,7 +352,14 @@ export const PackagePaymentScreen = ({ navigation, route }: any) => {
 
         <View style={styles.paymentSection}>
           <Text style={styles.sectionTitle}>Selecciona método de pago</Text>
-          {PAYMENT_METHODS.map(renderPaymentMethod)}
+          {loadingBalance ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color={Colors.primary.dark} />
+              <Text style={styles.loadingText}>Cargando métodos de pago...</Text>
+            </View>
+          ) : (
+            getPaymentMethods(creditBalance, selectedPackage.price).map(renderPaymentMethod)
+          )}
         </View>
 
         <View style={styles.termsSection}>
@@ -574,5 +635,14 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
+  },
+  loadingContainer: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: Colors.text.secondary,
   },
 });

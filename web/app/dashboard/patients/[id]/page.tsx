@@ -19,6 +19,7 @@ import {
   TrendingUp
 } from 'lucide-react'
 import Link from 'next/link'
+import { formatDateString } from '@/src/lib/dateUtils'
 
 interface PatientDetail {
   id: string
@@ -173,8 +174,7 @@ export default function PatientDetailPage() {
   }
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('es-ES', { 
+    return formatDateString(dateString, { 
       weekday: 'long',
       year: 'numeric', 
       month: 'long', 

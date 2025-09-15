@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,15 +17,24 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { formatPrice } from '../../constants/breatheMovePricing';
 import { processMockPayment } from '../../utils/mockPayment';
+import { getUserCreditBalance, useCreditsForAppointment } from '../../utils/creditsManager';
 
 interface PaymentMethod {
   id: string;
   name: string;
   icon: string;
+  iconFamily?: string;
   description: string;
 }
 
-const PAYMENT_METHODS: PaymentMethod[] = [
+const getPaymentMethods = (creditBalance: number, totalAmount: number): PaymentMethod[] => [
+  ...(creditBalance >= totalAmount ? [{
+    id: 'credits',
+    name: 'Mis Créditos',
+    icon: 'wallet',
+    iconFamily: 'MaterialCommunityIcons',
+    description: `Usar créditos disponibles ($${creditBalance.toLocaleString('es-CO')} COP)`
+  }] : []),
   {
     id: 'test_payment',
     name: '🧪 Pago de Prueba',
@@ -68,6 +77,27 @@ export const ClassPaymentScreen = ({ navigation, route }: any) => {
   const { classDetails, paymentType, packageId } = route.params;
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [creditBalance, setCreditBalance] = useState(0);
+  const [loadingBalance, setLoadingBalance] = useState(true);
+
+  useEffect(() => {
+    loadCreditBalance();
+  }, []);
+
+  const loadCreditBalance = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const balance = await getUserCreditBalance(user.id);
+      setCreditBalance(balance);
+    } catch (error) {
+      console.error('Error loading credit balance:', error);
+      setCreditBalance(0);
+    } finally {
+      setLoadingBalance(false);
+    }
+  };
 
   const getPrice = () => {
     if (paymentType === 'single') {

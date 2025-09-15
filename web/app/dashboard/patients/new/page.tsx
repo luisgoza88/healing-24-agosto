@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/src/lib/supabase'
 import { 
   ArrowLeft, 
   Save, 
@@ -12,16 +11,18 @@ import {
   Calendar,
   MapPin,
   AlertCircle,
-  FileText
+  FileText,
+  Activity
 } from 'lucide-react'
 import Link from 'next/link'
+import { useCreatePatient } from '@/hooks/usePatients'
+import { useQueryClient } from '@tanstack/react-query'
 
 export default function NewPatientPage() {
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [formData, setFormData] = useState({
     email: '',
-    password: '',
+    password: 'salud', // Contraseña por defecto
     full_name: '',
     phone: '',
     date_of_birth: '',
@@ -35,56 +36,44 @@ export default function NewPatientPage() {
     bio: ''
   })
   const router = useRouter()
-  const supabase = createClient()
+  const queryClient = useQueryClient()
+  const createPatientMutation = useCreatePatient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
     setError('')
 
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: {
-            full_name: formData.full_name
-          }
-        }
-      })
-
-      if (authError) throw authError
-
-      if (authData.user) {
-        const profileData = {
-          id: authData.user.id,
-          email: formData.email,
-          full_name: formData.full_name,
-          phone: formData.phone || null,
-          date_of_birth: formData.date_of_birth || null,
-          gender: formData.gender || null,
-          address: formData.address || null,
-          city: formData.city || null,
-          emergency_contact_name: formData.emergency_contact_name || null,
-          emergency_contact_phone: formData.emergency_contact_phone || null,
-          medical_conditions: formData.medical_conditions || null,
-          allergies: formData.allergies || null,
-          bio: formData.bio || null
-        }
-
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert([profileData])
-
-        if (profileError) throw profileError
-
-        router.push(`/dashboard/patients/${authData.user.id}`)
-      }
+      await createPatientMutation.mutateAsync(formData)
+      // Forzar invalidación de caché
+      queryClient.invalidateQueries({ queryKey: ['patients'] })
+      queryClient.invalidateQueries({ queryKey: ['patientStats'] })
+      // Pequeña espera antes de navegar
+      setTimeout(() => {
+        router.push('/dashboard/patients')
+      }, 500)
     } catch (error: any) {
       console.error('Error creating patient:', error)
-      setError(error.message || 'Error al crear el paciente')
-    } finally {
-      setLoading(false)
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        error
+      })
+      
+      // Manejar diferentes tipos de errores
+      if (error.code === '23505' || error.message?.includes('already registered')) {
+        setError('Este email ya está registrado en el sistema')
+      } else if (error.message?.includes('Invalid login') || error.message?.includes('password')) {
+        setError('La contraseña debe tener al menos 6 caracteres')
+      } else if (error.message?.includes('Email rate limit')) {
+        setError('Demasiados intentos. Por favor espere unos minutos antes de intentar de nuevo')
+      } else if (error.message?.includes('User already registered')) {
+        setError('Este usuario ya existe. Por favor use otro email')
+      } else {
+        setError(error.message || 'Error al crear el paciente. Por favor intente de nuevo.')
+      }
     }
   }
 
@@ -110,12 +99,14 @@ export default function NewPatientPage() {
       <div className="bg-white rounded-lg shadow-sm">
         <div className="px-6 py-4 border-b border-gray-200">
           <h1 className="text-2xl font-bold text-gray-900">Nuevo Paciente</h1>
+          <p className="text-sm text-gray-600 mt-1">Complete la información para registrar un nuevo paciente</p>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6">
           {error && (
-            <div className="mb-6 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
-              {error}
+            <div className="mb-6 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg flex items-start">
+              <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
+              <span>{error}</span>
             </div>
           )}
 
@@ -143,20 +134,13 @@ export default function NewPatientPage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Contraseña temporal <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="password"
-                  name="password"
-                  required
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  placeholder="Mínimo 6 caracteres"
-                  minLength={6}
-                />
+              <div className="col-span-2">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm text-blue-800">
+                    <strong>Nota:</strong> Se creará el usuario con la contraseña temporal <strong>"salud"</strong>. 
+                    El paciente deberá cambiar esta contraseña en su primer acceso.
+                  </p>
+                </div>
               </div>
 
               <div className="col-span-2">
@@ -354,11 +338,11 @@ export default function NewPatientPage() {
               </Link>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={createPatientMutation.isPending}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 <Save className="h-4 w-4" />
-                {loading ? 'Guardando...' : 'Guardar Paciente'}
+                {createPatientMutation.isPending ? 'Guardando...' : 'Guardar Paciente'}
               </button>
             </div>
           </div>
