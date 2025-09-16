@@ -10,7 +10,10 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Modal
+  Modal,
+  AppState,
+  RefreshControl,
+  AppStateStatus
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -22,6 +25,8 @@ import { Button } from '../../components/Button';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { getUserCreditBalance } from '../../utils/creditsManager';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 
 interface ProfileData {
   full_name: string;
@@ -47,6 +52,7 @@ export const ProfileScreen = ({ navigation }: any) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showGenderPicker, setShowGenderPicker] = useState(false);
   const [creditBalance, setCreditBalance] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
   const [profile, setProfile] = useState<ProfileData>({
     full_name: '',
     phone: '',
@@ -66,7 +72,25 @@ export const ProfileScreen = ({ navigation }: any) => {
   useEffect(() => {
     loadProfile();
     loadCreditBalance();
+
+    // Listen for app state changes to refresh credits when app comes to foreground
+    const appStateListener = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        loadCreditBalance();
+      }
+    });
+
+    return () => {
+      appStateListener.remove();
+    };
   }, []);
+
+  // Refresh credits when screen receives focus (e.g., returning from credits detail screen)
+  useFocusEffect(
+    useCallback(() => {
+      loadCreditBalance();
+    }, [])
+  );
 
   const loadProfile = async () => {
     try {
@@ -336,7 +360,25 @@ export const ProfileScreen = ({ navigation }: any) => {
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={async () => {
+                setRefreshing(true);
+                await Promise.all([
+                  loadProfile(),
+                  loadCreditBalance()
+                ]);
+                setRefreshing(false);
+              }}
+              tintColor={Colors.primary.green}
+              colors={[Colors.primary.green]}
+              progressBackgroundColor="#ffffff"
+            />
+          }
+        >
           <View style={styles.header}>
             <TouchableOpacity
               onPress={() => {

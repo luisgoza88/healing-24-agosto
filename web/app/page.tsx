@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/src/lib/supabase";
+import { checkIsAdmin } from "@/src/utils/auth";
 import { Lock, Mail, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
@@ -26,7 +27,13 @@ export default function LoginPage() {
 
       if (error) throw error;
 
-      // TODO: Verificar que el usuario tenga rol de admin
+      // Verificar que el usuario tenga rol de admin
+      const isAdmin = await checkIsAdmin(data.user.id);
+      
+      if (!isAdmin) {
+        throw new Error("No tienes permisos de administrador");
+      }
+
       router.push("/dashboard");
     } catch (error: any) {
       setError(error.message || "Error al iniciar sesión");

@@ -118,21 +118,38 @@ export default function ProfessionalDetailPage() {
       // Fetch appointments and calculate stats
       const { data: appointmentsData, error: appointmentsError } = await supabase
         .from('appointments')
-        .select(`
-          *,
-          patient:profiles(full_name),
-          service:services(name)
-        `)
+        .select('*')
         .eq('professional_id', id)
         .order('appointment_date', { ascending: false })
 
+      // Fetch related data
+      let enrichedAppointments = appointmentsData || []
+      if (appointmentsData && appointmentsData.length > 0) {
+        const userIds = [...new Set(appointmentsData.map(a => a.user_id).filter(Boolean))]
+        const serviceIds = [...new Set(appointmentsData.map(a => a.service_id).filter(Boolean))]
+
+        const [profilesResult, servicesResult] = await Promise.all([
+          userIds.length > 0 ? supabase.from('profiles').select('id,full_name').in('id', userIds) : null,
+          serviceIds.length > 0 ? supabase.from('services').select('id,name').in('id', serviceIds) : null
+        ])
+
+        const profilesMap = new Map((profilesResult?.data || []).map(p => [p.id, p]))
+        const servicesMap = new Map((servicesResult?.data || []).map(s => [s.id, s]))
+
+        enrichedAppointments = appointmentsData.map(apt => ({
+          ...apt,
+          patient: profilesMap.get(apt.user_id),
+          service: servicesMap.get(apt.service_id)
+        }))
+      }
+
       if (appointmentsError) console.error('Error fetching appointments:', appointmentsError)
 
-      if (appointmentsData) {
-        calculateStats(appointmentsData)
+      if (enrichedAppointments) {
+        calculateStats(enrichedAppointments)
         
         // Set recent appointments
-        const recent = appointmentsData.slice(0, 5).map(apt => ({
+        const recent = enrichedAppointments.slice(0, 5).map(apt => ({
           id: apt.id,
           appointment_date: apt.appointment_date,
           appointment_time: apt.appointment_time,

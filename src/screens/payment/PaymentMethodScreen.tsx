@@ -38,14 +38,14 @@ interface PaymentMethod {
   description: string;
 }
 
-const getPaymentMethods = (creditBalance: number, totalAmount: number): PaymentMethod[] => [
-  ...(creditBalance >= totalAmount ? [{
+const PAYMENT_METHODS: PaymentMethod[] = [
+  {
     id: 'credits',
     name: 'Mis Créditos',
     icon: 'wallet',
     iconFamily: 'MaterialCommunityIcons',
-    description: `Usar créditos disponibles ($${creditBalance.toLocaleString('es-CO')} COP)`
-  }] : []),
+    description: 'Paga con tus créditos disponibles'
+  },
   {
     id: 'test_payment',
     name: '🧪 Pago de Prueba',
@@ -99,6 +99,7 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
   const [processing, setProcessing] = useState(false);
   const [creditBalance, setCreditBalance] = useState(0);
   const [loadingBalance, setLoadingBalance] = useState(true);
+  const [useCreditsAmount, setUseCreditsAmount] = useState(0);
 
   useEffect(() => {
     loadCreditBalance();
@@ -140,6 +141,11 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
         setProcessing(false);
         return;
       }
+      
+      // Calcular montos
+      const totalAmount = subService.price;
+      const creditsToPay = selectedMethod === 'credits' ? Math.min(useCreditsAmount, totalAmount) : 0;
+      const cashToPay = totalAmount - creditsToPay;
 
       // Verificar que el appointmentId sea válido
       if (!appointmentId || appointmentId === '1' || appointmentId.length < 10) {
@@ -160,9 +166,9 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
         userPhone: user?.phone
       };
 
-      // Si es pago con créditos
-      if (selectedMethod === 'credits') {
-        const creditUsed = await useCreditsForAppointment(user.id, appointmentId, subService.price);
+      // Si es pago con créditos completo
+      if (selectedMethod === 'credits' && creditsToPay >= totalAmount) {
+        const creditUsed = await useCreditsForAppointment(user.id, appointmentId, totalAmount);
         
         if (!creditUsed) {
           throw new Error('No se pudieron usar los créditos. Verifica tu saldo.');
@@ -172,18 +178,47 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
         paymentData.transactionId = `CREDITS_${Date.now()}`;
         paymentData.paymentMethod = 'credits';
       }
+      // Si se usan créditos parciales
+      else if (selectedMethod.startsWith('credits_plus_')) {
+        // Usar créditos parciales
+        const creditUsed = await useCreditsForAppointment(user.id, appointmentId, creditsToPay);
+        
+        if (!creditUsed) {
+          throw new Error('No se pudieron usar los créditos parciales.');
+        }
+        
+        // Procesar el pago restante
+        const actualPaymentMethod = selectedMethod.replace('credits_plus_', '');
+        
+        if (actualPaymentMethod === 'test_payment') {
+          const mockResult = await processMockPayment(cashToPay, actualPaymentMethod);
+          
+          if (!mockResult.success) {
+            throw new Error(mockResult.error || 'Error en el pago de prueba');
+          }
+          
+          paymentData.transactionId = mockResult.transactionId;
+        } else {
+          // Para otros métodos, simular por ahora
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          paymentData.transactionId = `SIM_${Date.now()}`;
+        }
+        
+        paymentData.paymentMethod = actualPaymentMethod;
+      }
       // Si es pago de prueba, usar el sistema mock
       else if (selectedMethod === 'test_payment') {
-        const mockResult = await processMockPayment(subService.price, selectedMethod);
+        const mockResult = await processMockPayment(totalAmount, selectedMethod);
         
         if (!mockResult.success) {
           throw new Error(mockResult.error || 'Error en el pago de prueba');
         }
         
-        // Guardar el ID de transacción mock
         paymentData.transactionId = mockResult.transactionId;
-      } else {
-        // Para otros métodos, simular por ahora
+      }
+      // Para otros métodos de pago
+      else {
+        // Simular procesamiento de pago
         await new Promise(resolve => setTimeout(resolve, 2000));
         paymentData.transactionId = `SIM_${Date.now()}`;
       }
@@ -206,22 +241,25 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
       }
 
       // Registrar el pago
+      const paymentMethod = creditsToPay > 0 && cashToPay === 0 ? 'credits' : selectedMethod;
       const { error: paymentError } = await supabase
         .from('payments')
         .insert({
           user_id: user.id,
           appointment_id: appointmentId,
-          amount: subService.price,
-          payment_method: selectedMethod,
+          amount: totalAmount,
+          payment_method: paymentMethod,
           status: 'completed',
-          transaction_id: paymentData.transactionId,
+          transaction_id: paymentData.transactionId || `PAYMENT_${Date.now()}`,
           description: `${service.name} - ${subService.name} - ${format(parseISO(date), 'd MMMM yyyy', { locale: es })}`,
           metadata: {
             type: 'appointment',
             appointment_id: appointmentId,
             service_name: service.name,
             subservice_name: subService.name,
-            professional_name: professional.name
+            professional_name: professional.name,
+            credits_used: creditsToPay,
+            cash_paid: cashToPay
           }
         });
 
@@ -229,18 +267,22 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
         console.error('Error recording payment:', paymentError);
       }
 
-      let alertTitle = '¡Pago exitoso!';
-      let alertMessage = 'Tu cita ha sido confirmada. Recibirás un correo con los detalles.';
-      
-      if (selectedMethod === 'test_payment') {
-        alertTitle = '¡Pago de prueba exitoso!';
-        alertMessage = 'Tu cita ha sido confirmada en modo prueba. Este es solo para testing.';
-      } else if (selectedMethod === 'credits') {
-        alertTitle = '¡Pago con créditos exitoso!';
-        alertMessage = 'Tu cita ha sido confirmada. Los créditos se descontaron de tu balance.';
+      let successMessage = '';
+      if (creditsToPay > 0 && cashToPay === 0) {
+        successMessage = `Tu cita ha sido confirmada. Se usaron ${formatPrice(creditsToPay)} de tus créditos.`;
+      } else if (creditsToPay > 0 && cashToPay > 0) {
+        successMessage = `Tu cita ha sido confirmada. Se usaron ${formatPrice(creditsToPay)} de créditos y se pagaron ${formatPrice(cashToPay)} en ${selectedMethod}.`;
+      } else if (selectedMethod === 'test_payment') {
+        successMessage = 'Tu cita ha sido confirmada en modo prueba. Este es solo para testing.';
+      } else {
+        successMessage = 'Tu cita ha sido confirmada. Recibirás un correo con los detalles.';
       }
       
-      Alert.alert(alertTitle, alertMessage, [{ text: 'OK', onPress: onSuccess }]);
+      Alert.alert(
+        selectedMethod === 'test_payment' ? '¡Pago de prueba exitoso!' : '¡Pago exitoso!',
+        successMessage,
+        [{ text: 'OK', onPress: onSuccess }]
+      );
     } catch (error) {
       console.error('Error processing payment:', error);
       Alert.alert('Error', 'No se pudo procesar el pago. Por favor intenta nuevamente.');
@@ -251,13 +293,28 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
 
   const renderPaymentMethod = (method: PaymentMethod) => {
     const isSelected = selectedMethod === method.id;
+    const isCreditsMethod = method.id === 'credits';
+    const hasEnoughCredits = creditBalance >= subService.price;
+    const isDisabled = isCreditsMethod && creditBalance === 0;
     
     return (
       <TouchableOpacity
         key={method.id}
-        style={[styles.paymentMethod, isSelected && styles.paymentMethodSelected]}
-        onPress={() => setSelectedMethod(method.id)}
-        activeOpacity={0.8}
+        style={[
+          styles.paymentMethod, 
+          isSelected && styles.paymentMethodSelected,
+          isDisabled && styles.paymentMethodDisabled
+        ]}
+        onPress={() => {
+          if (!isDisabled) {
+            setSelectedMethod(method.id);
+            if (isCreditsMethod) {
+              setUseCreditsAmount(Math.min(creditBalance, subService.price));
+            }
+          }
+        }}
+        activeOpacity={isDisabled ? 1 : 0.8}
+        disabled={isDisabled}
       >
         <View style={styles.paymentMethodIcon}>
           {method.iconFamily === 'MaterialCommunityIcons' ? (
@@ -275,12 +332,26 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
           )}
         </View>
         <View style={styles.paymentMethodInfo}>
-          <Text style={[styles.paymentMethodName, isSelected && styles.textSelected]}>
+          <Text style={[styles.paymentMethodName, isSelected && styles.textSelected, isDisabled && styles.textDisabled]}>
             {method.name}
           </Text>
-          <Text style={styles.paymentMethodDescription}>
-            {method.description}
+          <Text style={[styles.paymentMethodDescription, isDisabled && styles.textDisabled]}>
+            {isCreditsMethod ? (
+              creditBalance > 0 ? (
+                `Tienes ${formatPrice(creditBalance)} disponibles`
+              ) : (
+                'No tienes créditos disponibles'
+              )
+            ) : (
+              method.description
+            )}
           </Text>
+          {isCreditsMethod && isSelected && creditBalance > 0 && creditBalance < subService.price && (
+            <Text style={styles.creditsWarning}>
+              Se usarán {formatPrice(creditBalance)} de créditos.
+              Faltante: {formatPrice(subService.price - creditBalance)} a pagar con otro método.
+            </Text>
+          )}
         </View>
         <View style={styles.radioButton}>
           {isSelected && <View style={styles.radioButtonInner} />}
@@ -345,7 +416,56 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
               <Text style={styles.loadingText}>Cargando métodos de pago...</Text>
             </View>
           ) : (
-            getPaymentMethods(creditBalance, subService.price).map(renderPaymentMethod)
+            <>
+              {PAYMENT_METHODS.map(renderPaymentMethod)}
+              
+              {/* Si se seleccionaron créditos pero no alcanzan, mostrar métodos de pago adicionales */}
+              {selectedMethod === 'credits' && creditBalance > 0 && creditBalance < subService.price && (
+                <View style={styles.additionalPaymentSection}>
+                  <Text style={styles.additionalPaymentTitle}>
+                    Selecciona cómo pagar los {formatPrice(subService.price - creditBalance)} restantes:
+                  </Text>
+                  {PAYMENT_METHODS.filter(m => m.id !== 'credits').map(method => {
+                    const isAdditionalSelected = selectedMethod === 'credits_plus_' + method.id;
+                    return (
+                      <TouchableOpacity
+                        key={'additional_' + method.id}
+                        style={[styles.paymentMethod, isAdditionalSelected && styles.paymentMethodSelected]}
+                        onPress={() => setSelectedMethod('credits_plus_' + method.id)}
+                        activeOpacity={0.8}
+                      >
+                        <View style={styles.paymentMethodIcon}>
+                          {method.iconFamily === 'MaterialCommunityIcons' ? (
+                            <MaterialCommunityIcons 
+                              name={method.icon as any} 
+                              size={24} 
+                              color={isAdditionalSelected ? Colors.primary.dark : Colors.text.secondary} 
+                            />
+                          ) : (
+                            <Ionicons 
+                              name={method.icon as any} 
+                              size={24} 
+                              color={isAdditionalSelected ? Colors.primary.dark : Colors.text.secondary} 
+                            />
+                          )}
+                        </View>
+                        <View style={styles.paymentMethodInfo}>
+                          <Text style={[styles.paymentMethodName, isAdditionalSelected && styles.textSelected]}>
+                            {method.name}
+                          </Text>
+                          <Text style={styles.paymentMethodDescription}>
+                            {method.description}
+                          </Text>
+                        </View>
+                        <View style={styles.radioButton}>
+                          {isAdditionalSelected && <View style={styles.radioButtonInner} />}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </>
           )}
         </View>
 
@@ -372,7 +492,14 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
             ) : (
               <>
                 <Text style={styles.payButtonText}>
-                  Pagar {formatPrice(subService.price)}
+                  {selectedMethod === 'credits' && creditBalance >= subService.price
+                    ? `Pagar con créditos`
+                    : selectedMethod === 'credits' && creditBalance > 0
+                    ? `Usar ${formatPrice(creditBalance)} de créditos`
+                    : selectedMethod?.startsWith('credits_plus_')
+                    ? `Pagar ${formatPrice(subService.price - creditBalance)}`
+                    : `Pagar ${formatPrice(subService.price)}`
+                  }
                 </Text>
                 <MaterialCommunityIcons name="lock" size={16} color="#FFFFFF" />
               </>
@@ -588,5 +715,30 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 14,
     color: Colors.text.secondary,
+  },
+  paymentMethodDisabled: {
+    opacity: 0.6,
+    borderColor: Colors.ui.border,
+  },
+  textDisabled: {
+    color: Colors.text.light,
+  },
+  creditsWarning: {
+    fontSize: 12,
+    color: Colors.ui.warning,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  additionalPaymentSection: {
+    marginTop: 24,
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: Colors.ui.border,
+  },
+  additionalPaymentTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.text.primary,
+    marginBottom: 16,
   },
 });

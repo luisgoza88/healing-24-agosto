@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { formatDateString } from '@/src/lib/dateUtils'
+import PatientCreditsCard from '@/components/PatientCreditsCard'
 
 interface PatientDetail {
   id: string
@@ -290,6 +291,14 @@ export default function PatientDetailPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Tarjeta de Créditos */}
+      <div className="mb-6">
+        <PatientCreditsCard 
+          patientId={patient.id} 
+          patientName={patient.full_name}
+        />
       </div>
 
       <div className="bg-white rounded-lg shadow-sm">

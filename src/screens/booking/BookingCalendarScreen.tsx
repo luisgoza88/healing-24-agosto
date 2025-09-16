@@ -15,6 +15,7 @@ import { Colors } from '../../constants/colors';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { supabase } from '../../lib/supabase';
+import { DripsCalendar } from '../../components/DripsCalendar';
 
 // Configurar español para el calendario
 LocaleConfig.locales['es'] = {
@@ -66,21 +67,20 @@ export const BookingCalendarScreen: React.FC<BookingCalendarScreenProps> = ({
   // Generar horarios disponibles basados en la duración del servicio
   const generateTimeSlots = () => {
     const slots = [];
-    const startHour = 9; // 9 AM
-    const endHour = 19.25; // 7:15 PM
-    const duration = subService.duration; // en minutos
+    const startHour = 8; // 8 AM
+    const closeHour = 19; // 7:00 PM - hora de cierre
+    const duration = subService.duration || 60; // duración en minutos
+    const durationHours = duration / 60;
+    
+    // Calcular el último slot posible
+    const lastPossibleSlot = closeHour - durationHours;
     
     // Generar slots cada 30 minutos
-    for (let hour = startHour; hour < endHour; hour += 0.5) {
+    for (let hour = startHour; hour <= lastPossibleSlot; hour += 0.5) {
       const h = Math.floor(hour);
       const m = (hour % 1) * 60;
       const timeString = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-      
-      // Verificar que la cita termine antes o a las 7 PM
-      const endTime = hour + (duration / 60);
-      if (endTime <= endHour) {
-        slots.push(timeString);
-      }
+      slots.push(timeString);
     }
     
     return slots;
@@ -204,37 +204,48 @@ export const BookingCalendarScreen: React.FC<BookingCalendarScreenProps> = ({
         {selectedDate && (
           <View style={styles.timeSection}>
             <Text style={styles.sectionTitle}>Selecciona una hora</Text>
-            {loading ? (
-              <ActivityIndicator size="large" color={Colors.primary.dark} style={styles.loader} />
+            {/* Usar DripsCalendar para servicios DRIPS */}
+            {service.id === 'drips' ? (
+              <DripsCalendar
+                selectedDate={new Date(selectedDate)}
+                durationMinutes={subService.duration}
+                onTimeSelect={handleTimeSelect}
+                selectedTime={selectedTime}
+              />
             ) : (
-              <View style={styles.timeGrid}>
-                {timeSlots.map((time) => {
-                  const isBusy = isTimeSlotBusy(time);
-                  return (
-                    <View key={time} style={styles.timeSlotWrapper}>
-                      <TouchableOpacity
-                        style={[
-                          styles.timeSlot,
-                          selectedTime === time && styles.timeSlotSelected,
-                          isBusy && styles.timeSlotBusy
-                        ]}
-                        onPress={() => !isBusy && handleTimeSelect(time)}
-                        disabled={isBusy}
-                      >
-                        <Text
+              // Calendario normal para otros servicios
+              loading ? (
+                <ActivityIndicator size="large" color={Colors.primary.dark} style={styles.loader} />
+              ) : (
+                <View style={styles.timeGrid}>
+                  {timeSlots.map((time) => {
+                    const isBusy = isTimeSlotBusy(time);
+                    return (
+                      <View key={time} style={styles.timeSlotWrapper}>
+                        <TouchableOpacity
                           style={[
-                            styles.timeText,
-                            selectedTime === time && styles.timeTextSelected,
-                            isBusy && styles.timeTextBusy
+                            styles.timeSlot,
+                            selectedTime === time && styles.timeSlotSelected,
+                            isBusy && styles.timeSlotBusy
                           ]}
+                          onPress={() => !isBusy && handleTimeSelect(time)}
+                          disabled={isBusy}
                         >
-                          {time}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
-              </View>
+                          <Text
+                            style={[
+                              styles.timeText,
+                              selectedTime === time && styles.timeTextSelected,
+                              isBusy && styles.timeTextBusy
+                            ]}
+                          >
+                            {time}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </View>
+              )
             )}
           </View>
         )}

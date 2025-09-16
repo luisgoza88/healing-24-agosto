@@ -18,6 +18,8 @@ import { format, addDays, startOfWeek, getDay, isToday } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { SEPTEMBER_2025_SCHEDULE } from '../../constants/breatheMoveSchedule';
 import { seedBreatheMoveClasses } from '../../utils/seedBreatheMoveClasses';
+import { cleanSundayClasses } from '../../utils/cleanSundayClasses';
+import { resetBreatheMoveClasses } from '../../utils/resetBreatheMoveClasses';
 
 const { width } = Dimensions.get('window');
 
@@ -71,7 +73,12 @@ export const ScheduleScreen = ({ navigation }: any) => {
   const next7Days = Array.from({ length: 7 }, (_, i) => addDays(today, i));
 
   useEffect(() => {
-    loadClasses();
+    // Clean Sunday classes when component mounts
+    cleanSundayClasses().then(result => {
+      console.log('Sunday cleanup result:', result);
+      // Then load classes
+      loadClasses();
+    });
   }, []);
 
   const loadClasses = async () => {
@@ -114,9 +121,28 @@ export const ScheduleScreen = ({ navigation }: any) => {
           .order('class_date', { ascending: true })
           .order('start_time', { ascending: true });
           
-        setClasses(newData || []);
+        // Filtrar clases de domingo
+        const filteredData = (newData || []).filter(cls => {
+          const date = new Date(cls.class_date);
+          return date.getDay() !== 0; // No domingos
+        });
+        
+        setClasses(filteredData);
       } else {
-        setClasses(data);
+        // Filtrar clases de domingo
+        console.log('Raw classes from DB:', data.length);
+        const filteredData = data.filter(cls => {
+          const date = new Date(cls.class_date + 'T00:00:00');
+          const dayOfWeek = date.getDay();
+          const isSunday = dayOfWeek === 0;
+          if (isSunday) {
+            console.log(`Filtering out Sunday class: ${cls.class_name} on ${cls.class_date}`);
+          }
+          return !isSunday;
+        });
+        
+        console.log('Classes after filtering Sundays:', filteredData.length);
+        setClasses(filteredData);
       }
     } catch (error) {
       console.error('Error loading classes:', error);
@@ -135,8 +161,33 @@ export const ScheduleScreen = ({ navigation }: any) => {
   const getClassesForDay = (dayIndex: number) => {
     const targetDate = next7Days[dayIndex];
     const dateString = format(targetDate, 'yyyy-MM-dd');
+    const targetDayOfWeek = targetDate.getDay();
     
-    return classes.filter(c => c.class_date === dateString);
+    console.log(`\n=== GETTING CLASSES FOR DAY ${dayIndex} ===`);
+    console.log(`Target date: ${dateString} (${format(targetDate, 'EEEE', { locale: es })})`);
+    console.log(`Target day of week: ${targetDayOfWeek} (0=Sunday, 1=Monday, etc.)`);
+    
+    const dayClasses = classes.filter(c => {
+      const matches = c.class_date === dateString;
+      if (matches) {
+        console.log(`- Found class: ${c.class_name} at ${c.start_time}`);
+      }
+      return matches;
+    });
+    
+    console.log(`Total classes found: ${dayClasses.length}`);
+    
+    // También vamos a verificar si hay clases para otros días
+    if (dayClasses.length === 0 && classes.length > 0) {
+      console.log('No classes for this date. Classes in memory are for:');
+      const uniqueDates = [...new Set(classes.map(c => c.class_date))].sort();
+      uniqueDates.forEach(date => {
+        const d = new Date(date + 'T00:00:00');
+        console.log(`  - ${date} (${format(d, 'EEEE', { locale: es })})`);
+      });
+    }
+    
+    return dayClasses;
   };
 
   const handleClassPress = (classItem: BreatheMoveClass) => {
@@ -180,63 +231,7 @@ export const ScheduleScreen = ({ navigation }: any) => {
   };
 
 
-  const loadNext7DaysClasses = async () => {
-    try {
-      setLoading(true);
-      
-      const startDate = today;
-      const endDate = addDays(today, 6);
-      
-      const { data, error } = await supabase
-        .from('breathe_move_classes')
-        .select('*')
-        .gte('class_date', format(startDate, 'yyyy-MM-dd'))
-        .lte('class_date', format(endDate, 'yyyy-MM-dd'))
-        .order('class_date', { ascending: true })
-        .order('start_time', { ascending: true });
-
-      if (!error && data && data.length > 0) {
-        setClasses(data);
-      } else {
-        // Si no hay clases en Supabase, generar desde el horario
-        const generatedClasses: BreatheMoveClass[] = [];
-        
-        for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-          const currentDate = addDays(startDate, dayOffset);
-          const dayOfWeek = getDay(currentDate);
-          const adjustedDayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek;
-          
-          const dayClasses = SEPTEMBER_2025_SCHEDULE.filter(c => c.dayOfWeek === adjustedDayOfWeek);
-          
-          dayClasses.forEach(scheduleClass => {
-            const [hours, minutes] = scheduleClass.time.split(':').map(Number);
-            const endHours = minutes + 50 >= 60 ? hours + 1 : hours;
-            const endMinutes = (minutes + 50) % 60;
-            const endTime = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
-            
-            generatedClasses.push({
-              id: `${format(currentDate, 'yyyy-MM-dd')}_${scheduleClass.id}`,
-              class_name: scheduleClass.className,
-              instructor: scheduleClass.instructor,
-              class_date: format(currentDate, 'yyyy-MM-dd'),
-              start_time: scheduleClass.time,
-              end_time: endTime,
-              max_capacity: 12,
-              current_capacity: Math.floor(Math.random() * 8),
-              status: 'scheduled',
-              intensity: scheduleClass.intensity
-            });
-          });
-        }
-        
-        setClasses(generatedClasses);
-      }
-    } catch (error) {
-      console.error('Error loading classes:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Function removed - now using loadClasses for all loading
 
   const dayClasses = getClassesForDay(selectedDayIndex);
 

@@ -8,6 +8,7 @@ import { HomeScreen } from '../screens/home/HomeScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
 import { MyCreditsScreen } from '../screens/profile/MyCreditsScreen';
 import { AppointmentsScreen } from '../screens/appointments/AppointmentsScreen';
+import { CreditsDetailScreen } from '../screens/credits/CreditsDetailScreen';
 
 // Importar pantallas de Breathe & Move
 import { BreatheAndMoveScreen } from '../screens/breatheandmove/BreatheAndMoveScreen';
@@ -41,6 +42,17 @@ const HomeStack = () => {
   );
 };
 
+// Stack para el perfil
+const ProfileStack = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="ProfileMain" component={ProfileScreen} />
+      <Stack.Screen name="CreditsDetail" component={CreditsDetailScreen} />
+      <Stack.Screen name="MyCredits" component={MyCreditsScreen} />
+    </Stack.Navigator>
+  );
+};
+
 // Stack para Breathe & Move
 const BreatheAndMoveStack = () => {
   return (
@@ -54,16 +66,6 @@ const BreatheAndMoveStack = () => {
       <Stack.Screen name="PackagePayment" component={PackagePaymentScreen} />
       <Stack.Screen name="ClassPayment" component={ClassPaymentScreen} />
       <Stack.Screen name="BreatheAndMoveClassDetail" component={BreatheAndMoveClassDetailScreen} />
-    </Stack.Navigator>
-  );
-};
-
-// Stack para Profile
-const ProfileStack = () => {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="ProfileMain" component={ProfileScreen} />
-      <Stack.Screen name="MyCredits" component={MyCreditsScreen} />
     </Stack.Navigator>
   );
 };

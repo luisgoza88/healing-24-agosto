@@ -7,6 +7,7 @@ export const SERVICE_ID_MAPPING: Record<string, string> = {
   'medicina-regenerativa': '0d6ccb17-bab0-4dc2-b9f6-b2a304ca7c23',
   'faciales': '9d35276b-41f2-411b-a592-3dd531931c51',
   'masajes': '38e81852-e43c-4847-9d9c-8a3750138a51',
+  'drips': 'c4a5e8f2-9b3d-4e1a-8f7c-2d9a3b4c5e6f',
   'otros': 'temp-otros'
 };
 

@@ -1,13 +1,19 @@
-'use client';
+'use client'
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { createClient } from '@/utils/supabase/client';
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { 
-  Activity, 
-  Sparkles, 
-  Heart, 
+  Briefcase, 
+  ChevronRight,
+  Activity,
+  Heart,
+  Sparkles,
+  Dna,
+  Droplet,
+  Smile,
+  HandHeart,
+  HeartPulse,
   TreePine,
   Wind,
   Calendar,
@@ -23,19 +29,49 @@ import {
   ArrowRight,
   Zap,
   BarChart3
-} from 'lucide-react';
+} from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { createClient } from '@/src/lib/supabase'
 
 interface ServiceCategory {
-  id: string;
-  name: string;
-  icon: any;
-  color: string;
-  bgColor: string;
-  borderColor: string;
-  description: string;
-  subServices: string[];
-  serviceCount?: number;
-  appointmentCount?: number;
+  id: string
+  name: string
+  icon: any
+  color: string
+  bgColor: string
+  borderColor: string
+  description: string
+  subServices: string[]
+  serviceCount?: number
+  appointmentCount?: number
+  stats?: {
+    totalAppointments: number
+    totalRevenue: number
+    totalPatients: number
+    upcomingAppointments: number
+  }
+}
+
+const SERVICE_ICONS: Record<string, any> = {
+  'Medicina Funcional': Heart,
+  'Medicina Estética': Sparkles,
+  'Medicina Regenerativa & Longevidad': Dna,
+  'DRIPS - Sueroterapia': Droplet,
+  'Faciales': Smile,
+  'Masajes': HandHeart,
+  'Wellness Integral': HeartPulse,
+  'Breathe & Move': Activity,
+}
+
+const SERVICE_COLORS: Record<string, string> = {
+  'Medicina Funcional': 'bg-[#3E5444]',
+  'Medicina Estética': 'bg-[#B8604D]',
+  'Medicina Regenerativa & Longevidad': 'bg-[#5E3532]',
+  'DRIPS - Sueroterapia': 'bg-[#4A6C9B]',
+  'Faciales': 'bg-[#879794]',
+  'Masajes': 'bg-[#61473B]',
+  'Wellness Integral': 'bg-[#879794]',
+  'Breathe & Move': 'bg-green-600',
 }
 
 const serviceCategories: ServiceCategory[] = [
@@ -140,66 +176,160 @@ const serviceCategories: ServiceCategory[] = [
       'Paquetes de clases'
     ]
   },
-];
+]
 
 export default function ServicesPage() {
-  const router = useRouter();
-  const supabase = createClient();
-  const [loading, setLoading] = useState(true);
-  const [categoriesData, setCategoriesData] = useState<ServiceCategory[]>(serviceCategories);
-  const [totalServices, setTotalServices] = useState(0);
-  const [todayAppointments, setTodayAppointments] = useState(0);
+  const router = useRouter()
+  const supabase = createClient()
+  const [loading, setLoading] = useState(true)
+  const [services, setServices] = useState<ServiceCategory[]>([])
+  const [categoriesData, setCategoriesData] = useState<ServiceCategory[]>(serviceCategories)
+  const [totalServices, setTotalServices] = useState(0)
+  const [todayAppointments, setTodayAppointments] = useState(0)
+  const [stats, setStats] = useState<Record<string, any>>({})
 
   useEffect(() => {
-    loadServicesData();
-  }, []);
+    loadServicesData()
+  }, [])
 
   const loadServicesData = async () => {
     try {
-      // Cargar conteo de servicios por categoría
-      const { data: services, error: servicesError } = await supabase
+      setLoading(true)
+      console.log('[Services] Loading services...')
+
+      // Load services from database
+      const { data: servicesData, error } = await supabase
         .from('services')
-        .select('id, category');
+        .select('*')
+        .order('name')
 
-      if (!servicesError && services) {
-        const serviceCounts = services.reduce((acc, service) => {
-          acc[service.category] = (acc[service.category] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>);
-
-        setCategoriesData(serviceCategories.map(cat => ({
-          ...cat,
-          serviceCount: serviceCounts[cat.id] || 0
-        })));
-
-        setTotalServices(services.length);
+      if (error) {
+        console.error('[Services] Error loading services:', error)
+        throw error
       }
 
-      // Cargar citas de hoy
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayStr = today.toISOString().split('T')[0];
+      console.log('[Services] Services loaded:', servicesData?.length || 0)
+
+      // Map services with icons and colors
+      const mappedServices = servicesData?.map(service => {
+        // Try to find matching category first
+        const matchingCategory = serviceCategories.find(cat => 
+          cat.name === service.name || cat.id === service.id
+        )
+        
+        return {
+          id: service.id,
+          name: service.name,
+          description: service.description,
+          icon: SERVICE_ICONS[service.name] || matchingCategory?.icon || Briefcase,
+          color: matchingCategory?.color || 'text-gray-700',
+          bgColor: matchingCategory?.bgColor || 'bg-gradient-to-br from-gray-50 to-gray-50',
+          borderColor: matchingCategory?.borderColor || 'border-gray-200',
+          subServices: matchingCategory?.subServices || [],
+          serviceCount: 0,
+          appointmentCount: 0
+        }
+      }) || []
+
+      // Count services by category
+      const serviceCounts = servicesData?.reduce((acc, service) => {
+        acc[service.category || service.id] = (acc[service.category || service.id] || 0) + 1
+        return acc
+      }, {} as Record<string, number>) || {}
+
+      // Update categories with counts
+      setCategoriesData(serviceCategories.map(cat => ({
+        ...cat,
+        serviceCount: serviceCounts[cat.id] || 0
+      })))
+
+      setTotalServices(servicesData?.length || 0)
+      setServices(mappedServices)
+
+      // Load today's appointments
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const todayStr = today.toISOString().split('T')[0]
 
       const { data: appointments, error: appointmentsError } = await supabase
         .from('appointments')
         .select('id')
         .eq('appointment_date', todayStr)
-        .eq('status', 'confirmed');
+        .eq('status', 'confirmed')
 
       if (!appointmentsError && appointments) {
-        setTodayAppointments(appointments.length);
+        setTodayAppointments(appointments.length)
       }
 
-    } catch (error) {
-      console.error('Error loading services data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      setLoading(false)
 
-  const handleCategoryClick = (categoryId: string) => {
-    router.push(`/dashboard/services/${categoryId}`);
-  };
+      // Load statistics in background
+      loadStatisticsInBackground(mappedServices)
+    } catch (error) {
+      console.error('[Services] Fatal error:', error)
+      setLoading(false)
+    }
+  }
+
+  const loadStatisticsInBackground = async (services: ServiceCategory[]) => {
+    try {
+      const serviceStats: Record<string, any> = {}
+      const today = new Date().toISOString().split('T')[0]
+      
+      // Load basic statistics for all services at once
+      const { data: allAppointments } = await supabase
+        .from('appointments')
+        .select('service_id, status, total_amount, payment_status, appointment_date, user_id')
+        .in('service_id', services.map(s => s.id))
+
+      if (allAppointments) {
+        // Process statistics per service
+        for (const service of services) {
+          const serviceAppointments = allAppointments.filter(apt => apt.service_id === service.id)
+          
+          const totalAppointments = serviceAppointments.length
+          const upcomingAppointments = serviceAppointments.filter(apt => 
+            apt.appointment_date >= today && 
+            ['confirmed', 'pending'].includes(apt.status)
+          ).length
+          
+          const totalRevenue = serviceAppointments
+            .filter(apt => apt.payment_status === 'paid')
+            .reduce((sum, apt) => sum + (apt.total_amount || 0), 0)
+          
+          const uniquePatients = new Set(serviceAppointments.map(apt => apt.user_id)).size
+
+          serviceStats[service.id] = {
+            totalAppointments,
+            upcomingAppointments,
+            totalRevenue,
+            totalPatients: uniquePatients
+          }
+        }
+      }
+
+      setStats(serviceStats)
+    } catch (error) {
+      console.error('[Services] Error loading statistics:', error)
+    }
+  }
+
+  const handleCategoryClick = (categoryId: string, categoryName?: string) => {
+    if (categoryName === 'Breathe & Move' || categoryId === 'breathe-move') {
+      router.push('/dashboard/services/breathe-move')
+    } else {
+      router.push(`/dashboard/services/${categoryId}`)
+    }
+  }
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount)
+  }
 
   if (loading) {
     return (
@@ -209,8 +339,11 @@ export default function ServicesPage() {
           <span className="text-gray-600">Cargando servicios...</span>
         </div>
       </div>
-    );
+    )
   }
+
+  // Determine which data to display - database services or default categories
+  const displayData = services.length > 0 ? services : categoriesData
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -245,7 +378,7 @@ export default function ServicesPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-green-700">Total Servicios</p>
-                <p className="text-3xl font-bold text-green-900 mt-1">{totalServices}</p>
+                <p className="text-3xl font-bold text-green-900 mt-1">{totalServices || displayData.length}</p>
                 <p className="text-xs text-green-600 mt-1">En todas las categorías</p>
               </div>
               <div className="p-3 bg-green-200/50 rounded-xl">
@@ -303,13 +436,15 @@ export default function ServicesPage() {
 
       {/* Service Categories Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {categoriesData.map((category, index) => {
-          const Icon = category.icon;
+        {displayData.map((category, index) => {
+          const Icon = category.icon
+          const categoryStats = stats[category.id] || category.stats
+          
           return (
             <Card 
               key={category.id}
               className={`group hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden ${category.borderColor} border-2 transform hover:-translate-y-1`}
-              onClick={() => handleCategoryClick(category.id)}
+              onClick={() => handleCategoryClick(category.id, category.name)}
             >
               <div className={`h-2 ${category.bgColor}`} />
               <CardHeader className="pb-3">
@@ -324,7 +459,7 @@ export default function ServicesPage() {
               <CardContent>
                 <p className="text-gray-600 text-sm mb-4 line-clamp-2">{category.description}</p>
                 
-                {category.subServices.length > 0 && (
+                {category.subServices && category.subServices.length > 0 && (
                   <div className="mb-4">
                     <p className="text-xs font-semibold text-gray-500 mb-2">Servicios incluidos:</p>
                     <div className="flex flex-wrap gap-1">
@@ -342,12 +477,28 @@ export default function ServicesPage() {
                   </div>
                 )}
                 
+                {/* Stats overlay on hover */}
+                {categoryStats && (
+                  <div className="absolute inset-0 bg-gradient-to-t from-gray-900/90 to-gray-900/70 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end">
+                    <div className="p-6 w-full text-white">
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-sm">Citas próximas</span>
+                        <span className="font-semibold">{categoryStats.upcomingAppointments || 0}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm">Este mes</span>
+                        <span className="font-semibold">{formatCurrency(categoryStats.totalRevenue || 0)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 <div className="flex items-center justify-between text-sm pt-3 border-t">
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-1">
                       <Users className="h-3.5 w-3.5 text-gray-400" />
                       <span className="text-gray-600 text-xs font-medium">
-                        {category.appointmentCount || 0}
+                        {category.appointmentCount || categoryStats?.totalPatients || 0}
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
@@ -360,7 +511,7 @@ export default function ServicesPage() {
                 </div>
               </CardContent>
             </Card>
-          );
+          )
         })}
       </div>
 
@@ -397,5 +548,5 @@ export default function ServicesPage() {
         </div>
       </div>
     </div>
-  );
+  )
 }

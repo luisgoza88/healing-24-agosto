@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/src/lib/supabase'
+import { useQueryClient } from '@tanstack/react-query'
 import { 
   ArrowLeft,
   Calendar,
@@ -34,7 +35,7 @@ interface Patient {
   email: string
 }
 
-export default function EditAppointmentPage({ params }: { params: { id: string } }) {
+export default function EditAppointmentPage({ params }: { params: Promise<{ id: string }> }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [appointment, setAppointment] = useState<any>(null)
@@ -45,6 +46,10 @@ export default function EditAppointmentPage({ params }: { params: { id: string }
   
   const router = useRouter()
   const supabase = createClient()
+  const queryClient = useQueryClient()
+  
+  // Unwrap the params Promise using React's use() hook
+  const { id } = use(params)
 
   const [formData, setFormData] = useState({
     user_id: '',
@@ -61,7 +66,7 @@ export default function EditAppointmentPage({ params }: { params: { id: string }
 
   useEffect(() => {
     loadData()
-  }, [params.id])
+  }, [id])
 
   useEffect(() => {
     if (formData.professional_id && formData.appointment_date) {
@@ -73,11 +78,9 @@ export default function EditAppointmentPage({ params }: { params: { id: string }
     if (formData.service_id) {
       const service = services.find(s => s.id === formData.service_id)
       if (service) {
-        setFormData(prev => ({
-          ...prev,
-          duration: service.duration,
-          total_amount: service.price
-        }))
+        // Ya que no tenemos price/duration en la tabla services,
+        // mantenemos los valores actuales del appointment
+        console.log('Service selected:', service)
       }
     }
   }, [formData.service_id, services])
@@ -88,7 +91,7 @@ export default function EditAppointmentPage({ params }: { params: { id: string }
       const { data: aptData, error: aptError } = await supabase
         .from('appointments')
         .select('*')
-        .eq('id', params.id)
+        .eq('id', id)
         .single()
 
       if (aptError || !aptData) {
@@ -114,7 +117,7 @@ export default function EditAppointmentPage({ params }: { params: { id: string }
       // Cargar datos adicionales
       const [profsData, servicesData, patientsData] = await Promise.all([
         supabase.from('professionals').select('id, full_name').eq('active', true).order('full_name'),
-        supabase.from('services').select('id, name, price, duration').eq('active', true).order('name'),
+        supabase.from('services').select('id, name').order('name'),
         supabase.from('profiles').select('id, full_name, email').order('full_name')
       ])
 
@@ -133,13 +136,18 @@ export default function EditAppointmentPage({ params }: { params: { id: string }
       // Obtener horario del profesional para el día seleccionado
       const dayOfWeek = new Date(formData.appointment_date).getDay()
       
-      const { data: schedule } = await supabase
-        .from('professional_schedules')
+      const { data: schedule, error: scheduleError } = await supabase
+        .from('professional_availability')
         .select('start_time, end_time')
         .eq('professional_id', formData.professional_id)
         .eq('day_of_week', dayOfWeek)
-        .eq('active', true)
-        .single()
+        .maybeSingle()
+
+      if (scheduleError) {
+        console.error('Error fetching schedule:', scheduleError)
+        setAvailableHours(generateDefaultHours())
+        return
+      }
 
       if (!schedule) {
         setAvailableHours([])
@@ -152,7 +160,7 @@ export default function EditAppointmentPage({ params }: { params: { id: string }
         .select('appointment_time, duration')
         .eq('professional_id', formData.professional_id)
         .eq('appointment_date', formData.appointment_date)
-        .neq('id', params.id)
+        .neq('id', id)
         .neq('status', 'cancelled')
 
       // Generar horarios disponibles
@@ -242,11 +250,15 @@ export default function EditAppointmentPage({ params }: { params: { id: string }
       const { error } = await supabase
         .from('appointments')
         .update(updateData)
-        .eq('id', params.id)
+        .eq('id', id)
 
       if (error) throw error
 
-      router.push(`/dashboard/appointments/${params.id}`)
+      // Invalidar el cache de React Query para que se actualice la lista
+      queryClient.invalidateQueries({ queryKey: ['appointments'] })
+      queryClient.invalidateQueries({ queryKey: ['appointment-stats'] })
+
+      router.push(`/dashboard/appointments/${id}`)
     } catch (error: any) {
       console.error('Error updating appointment:', error)
       alert('Error al actualizar la cita: ' + error.message)
@@ -277,7 +289,7 @@ export default function EditAppointmentPage({ params }: { params: { id: string }
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-4">
           <Link 
-            href={`/dashboard/appointments/${params.id}`}
+            href={`/dashboard/appointments/${id}`}
             className="inline-flex items-center text-gray-600 hover:text-gray-900"
           >
             <ArrowLeft className="h-5 w-5 mr-2" />
@@ -326,7 +338,7 @@ export default function EditAppointmentPage({ params }: { params: { id: string }
                 <option value="">Seleccionar servicio</option>
                 {services.map((service) => (
                   <option key={service.id} value={service.id}>
-                    {service.name} - {formatCurrency(service.price)} ({service.duration} min)
+                    {service.name}
                   </option>
                 ))}
               </select>
@@ -464,7 +476,7 @@ export default function EditAppointmentPage({ params }: { params: { id: string }
             {saving ? 'Guardando...' : 'Guardar Cambios'}
           </button>
           <Link
-            href={`/dashboard/appointments/${params.id}`}
+            href={`/dashboard/appointments/${id}`}
             className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
           >
             <X className="h-5 w-5" />

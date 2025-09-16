@@ -100,139 +100,118 @@ export const AppointmentsScreen = ({ navigation }: any) => {
 
   const loadAppointments = async () => {
     try {
-      console.log('=== LOADING APPOINTMENTS ===');
-      
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError) {
-        console.error('Error getting user in AppointmentsScreen:', userError);
-        return;
-      }
-      
-      if (!user) {
-        console.log('No user found in AppointmentsScreen');
-        return;
-      }
-      
-      console.log('Loading appointments for user:', user.id, user.email);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-      // Cargar citas médicas (incluye Breathe & Move) - excluir canceladas
-      const { data: medicalAppointments, error: medicalError } = await supabase
+      // First load regular appointments
+      const { data: appointmentsData, error: appointmentsError } = await supabase
         .from('appointments')
-        .select(`
-          *,
-          professional:professionals(
-            id,
-            full_name
-          )
-        `)
+        .select('*')
         .eq('user_id', user.id)
-        .neq('status', 'cancelled')
         .order('appointment_date', { ascending: false });
 
-      if (medicalError) {
-        console.error('Error loading medical appointments:', medicalError);
-        throw medicalError;
-      }
-      
-      console.log('Medical appointments loaded:', medicalAppointments?.length || 0);
-      console.log('First appointment:', medicalAppointments?.[0]);
-      
-      // Log all appointment IDs
-      console.log('All appointment IDs:', medicalAppointments?.map(apt => apt.id));
-      
-      // Log para ver si hay citas de Breathe & Move
-      const breatheMoveAppointments = medicalAppointments?.filter(apt => 
-        apt.notes && apt.notes.includes('Breathe & Move')
-      );
-      console.log('Breathe & Move appointments:', breatheMoveAppointments?.length || 0);
-      console.log('Breathe & Move details:', breatheMoveAppointments);
-      
-      // Debug para fechas
-      breatheMoveAppointments?.forEach(apt => {
-        console.log(`DEBUG - Appointment ID: ${apt.id}`);
-        console.log(`  - appointment_date: ${apt.appointment_date}`);
-        console.log(`  - appointment_time: ${apt.appointment_time}`);
-        console.log(`  - notes: ${apt.notes}`);
-        console.log(`  - professional: ${apt.professional?.full_name}`);
-      });
+      if (appointmentsError) throw appointmentsError;
 
-      // Cargar clases de Hot Studio - excluir canceladas
-      const { data: hotStudioEnrollments, error: hotStudioError } = await supabase
-        .from('class_enrollments')
+      // Then load Breathe & Move bookings
+      const { data: classesData, error: classesError } = await supabase
+        .from('breathe_move_bookings')
         .select(`
-          *,
-          class:classes(
-            *,
-            class_type:class_types(*),
-            instructor:instructors(*)
+          id,
+          created_at,
+          status,
+          breathe_move_classes!inner(
+            id,
+            class_date,
+            start_time,
+            end_time,
+            class_type_id,
+            instructor_id,
+            max_capacity,
+            current_capacity,
+            breathe_move_class_types!inner(
+              name,
+              color
+            ),
+            breathe_move_instructors!inner(
+              name
+            )
           )
         `)
         .eq('user_id', user.id)
-        .in('status', ['enrolled', 'attended'])
         .order('created_at', { ascending: false });
 
-      if (hotStudioError) throw hotStudioError;
+      let allAppointments: Appointment[] = [];
 
-      // Procesar citas médicas
-      const processedMedicalAppointments = (medicalAppointments || []).map(apt => {
-        // Convertir UUID a ID de constante
-        const serviceConstantId = getServiceConstantId(apt.service_id);
-        const service = SERVICES.find(s => s.id === serviceConstantId);
-        let subService = null;
-        
-        if (service && apt.notes) {
-          const subServiceName = apt.notes.split(' - ')[1];
-          subService = service.subServices?.find(ss => ss.name === subServiceName);
-        }
-
-        // Si es una cita de Breathe & Move, usar el instructor real
-        const professional = apt.professional ? {
-          name: apt.professional.full_name
-        } : {
-          name: 'Instructor' // Fallback genérico
-        };
-
-        return {
-          ...apt,
-          service,
-          subService,
-          professional,
-          isHotStudioClass: false
-        };
-      });
-
-      // Procesar clases de Hot Studio como citas
-      const processedHotStudioAppointments = (hotStudioEnrollments || []).map(enrollment => {
-        const classData = enrollment.class;
-        if (!classData) return null;
-
-        // Combinar fecha y hora de la clase
-        const appointmentDate = new Date(`${classData.class_date}T${classData.start_time}`);
-
-        return {
-          id: enrollment.id,
-          appointment_date: appointmentDate.toISOString(),
-          status: enrollment.status === 'enrolled' ? 'confirmed' : 
-                  enrollment.status === 'attended' ? 'completed' : 'cancelled',
-          total_amount: 0, // Las clases se pagan con membresía
-          notes: classData.class_type?.name || 'Clase Hot Studio',
-          service_id: 'hot-studio',
-          professional_id: classData.instructor_id,
-          created_at: enrollment.created_at,
-          isHotStudioClass: true,
-          class: classData,
-          professional: {
-            name: classData.instructor?.name || 'Instructor'
+      // Process regular appointments
+      if (appointmentsData) {
+        const regularAppointments = await Promise.all(appointmentsData.map(async (apt) => {
+          const serviceId = apt.service_id;
+          const constantServiceId = getServiceConstantId(serviceId);
+          const serviceData = SERVICES.find(s => s.id === constantServiceId);
+          const subService = serviceData?.subServices?.find(ss => ss.id === apt.sub_service_id);
+          
+          // Try to load professional data separately
+          let professional = { name: 'Profesional' };
+          if (apt.professional_id) {
+            const { data: profData } = await supabase
+              .from('professionals')
+              .select('name')
+              .eq('id', apt.professional_id)
+              .single();
+            if (profData) {
+              professional = profData;
+            }
           }
-        };
-      }).filter(Boolean);
+          
+          return {
+            ...apt,
+            professional,
+            service: serviceData,
+            subService: subService
+          };
+        }));
+        allAppointments = [...regularAppointments];
+      }
 
-      // Combinar y ordenar todas las citas
-      const allAppointments = [
-        ...processedMedicalAppointments,
-        ...processedHotStudioAppointments
-      ].sort((a, b) => new Date(b.appointment_date).getTime() - new Date(a.appointment_date).getTime());
+      // Process Breathe & Move classes as appointments
+      if (classesData) {
+        const classAppointments = classesData.map(booking => {
+          const classData = booking.breathe_move_classes;
+          
+          return {
+            id: booking.id,
+            appointment_date: `${classData.class_date}T${classData.start_time}`,
+            status: booking.status,
+            total_amount: 60000, // Default price for Breathe & Move classes
+            notes: '',
+            service_id: 'breathe-move',
+            professional_id: classData.instructor_id,
+            created_at: booking.created_at,
+            isHotStudioClass: true,
+            class: {
+              id: classData.id,
+              class_date: classData.class_date,
+              start_time: classData.start_time,
+              end_time: classData.end_time,
+              class_type: {
+                name: classData.breathe_move_class_types.name,
+                icon: 'yoga',
+                color: classData.breathe_move_class_types.color
+              },
+              instructor: {
+                name: classData.breathe_move_instructors.name
+              }
+            }
+          };
+        });
+        
+        allAppointments = [...allAppointments, ...classAppointments];
+      }
+
+      // Sort all appointments by date
+      allAppointments.sort((a, b) => 
+        new Date(b.appointment_date).getTime() - new Date(a.appointment_date).getTime()
+      );
 
       setAppointments(allAppointments);
     } catch (error) {
@@ -240,678 +219,259 @@ export const AppointmentsScreen = ({ navigation }: any) => {
       Alert.alert('Error', 'No se pudieron cargar las citas');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
-  const onRefresh = () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
-    loadAppointments();
+    await loadAppointments();
+    setRefreshing(false);
   };
 
-  const isUpcoming = (dateStr: string) => {
-    // Para fechas sin tiempo (YYYY-MM-DD), añadir tiempo para evitar problemas de timezone
-    const dateToCheck = dateStr.includes('T') ? dateStr : `${dateStr}T00:00:00`;
-    const appointmentDate = new Date(dateToCheck);
-    const now = new Date();
-    
-    // Para comparación de fechas, usar solo la fecha sin hora
-    const appointmentDateOnly = new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), appointmentDate.getDate());
-    const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
-    const isUpcomingResult = appointmentDateOnly >= nowDateOnly;
-    
-    console.log('isUpcoming check:', {
-      original: dateStr,
-      appointmentDate: appointmentDateOnly.toLocaleDateString(),
-      now: nowDateOnly.toLocaleDateString(),
-      isUpcoming: isUpcomingResult
-    });
-    
-    return isUpcomingResult;
-  };
-
-  const filteredAppointments = appointments
-    .filter(apt => {
-      // Excluir citas canceladas completamente
-      if (apt.status === 'cancelled') {
-        return false;
-      }
-      
-      const upcoming = isUpcoming(apt.appointment_date);
-      return activeTab === 'upcoming' ? upcoming : !upcoming;
-    })
-    .sort((a, b) => {
-      // Para citas próximas: ordenar de la más cercana a la más lejana
-      // Para citas pasadas: ordenar de la más reciente a la más antigua
-      const dateA = new Date(a.appointment_date).getTime();
-      const dateB = new Date(b.appointment_date).getTime();
-      
-      if (activeTab === 'upcoming') {
-        return dateA - dateB; // Ascendente (más próxima primero)
-      } else {
-        return dateB - dateA; // Descendente (más reciente primero)
-      }
-    });
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'confirmed':
-        return Colors.ui.success;
-      case 'pending_payment':
-        return Colors.ui.warning;
-      case 'cancelled':
-        return Colors.ui.error;
-      default:
-        return Colors.text.secondary;
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'confirmed':
-        return 'Confirmada';
-      case 'pending_payment':
-        return 'Pago pendiente';
-      case 'cancelled':
-        return 'Cancelada';
-      case 'completed':
-        return 'Completada';
-      default:
-        return status;
-    }
-  };
-
-  const handleCancelAppointment = (appointment: Appointment) => {
-    console.log('=== handleCancelAppointment called ===');
-    console.log('Appointment to cancel:', appointment);
-    
+  const handleCancelAppointment = async (appointment: Appointment) => {
     Alert.alert(
       'Cancelar cita',
       '¿Estás seguro de que deseas cancelar esta cita?',
       [
-        {
-          text: 'No',
-          style: 'cancel',
-          onPress: () => console.log('User cancelled the cancellation')
-        },
+        { text: 'No', style: 'cancel' },
         {
           text: 'Sí, cancelar',
           style: 'destructive',
-          onPress: () => {
-            console.log('User confirmed cancellation, calling cancelAppointment()');
-            cancelAppointment(appointment.id);
+          onPress: async () => {
+            try {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (!user) return;
+
+              if (appointment.isHotStudioClass) {
+                // Handle Breathe & Move class cancellation
+                const { error } = await supabase
+                  .from('breathe_move_bookings')
+                  .update({ status: 'cancelled' })
+                  .eq('id', appointment.id);
+
+                if (error) throw error;
+
+                // Update class capacity
+                await supabase.rpc('decrement_class_capacity', {
+                  p_class_id: appointment.class?.id
+                });
+
+                // Process credits for cancellation (if within policy)
+                const classDateTime = `${appointment.class?.class_date}T${appointment.class?.start_time}`;
+                const result = await processCancellationWithCredits(
+                  user.id, 
+                  appointment.id, 
+                  classDateTime,
+                  appointment.total_amount,
+                  'Breathe & Move'
+                );
+                
+                if (result.creditAmount && result.creditAmount > 0) {
+                  console.log(`Crédito generado: $${result.creditAmount}`);
+                }
+              } else {
+                // Handle regular appointment cancellation
+                const { error } = await supabase
+                  .from('appointments')
+                  .update({ status: 'cancelled' })
+                  .eq('id', appointment.id);
+
+                if (error) throw error;
+
+                // Process credits for cancellation
+                const appointmentDateTime = appointment.appointment_date;
+                const serviceName = `${appointment.service?.name || 'Servicio'} - ${appointment.subService?.name || ''}`;
+                const result = await processCancellationWithCredits(
+                  user.id, 
+                  appointment.id, 
+                  appointmentDateTime,
+                  appointment.total_amount,
+                  serviceName
+                );
+                
+                if (result.creditAmount && result.creditAmount > 0) {
+                  console.log(`Crédito generado: $${result.creditAmount}`);
+                }
+              }
+
+              Alert.alert('Éxito', 'Cita cancelada correctamente');
+              await loadAppointments();
+            } catch (error) {
+              console.error('Error cancelling appointment:', error);
+              Alert.alert('Error', 'No se pudo cancelar la cita');
+            }
           }
         }
       ]
     );
   };
 
-  const cancelAppointment = async (appointmentId: string) => {
-    try {
-      console.log('=== STARTING CANCELLATION PROCESS ===');
-      console.log('Appointment ID to cancel:', appointmentId);
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.log('ERROR: No user found');
-        return;
-      }
-      
-      console.log('User ID:', user.id);
-
-      // Buscar si es una cita de Hot Studio o Breathe & Move
-      const appointment = appointments.find(a => a.id === appointmentId);
-      console.log('Appointment found:', appointment);
-      console.log('Appointment notes:', appointment?.notes);
-      console.log('Is Breathe & Move?', appointment?.notes?.includes('Breathe & Move'));
-      
-      if (appointment?.isHotStudioClass) {
-        // Cancelar inscripción a clase de Hot Studio
-        const { error } = await supabase
-          .from('class_enrollments')
-          .update({ status: 'cancelled' })
-          .eq('id', appointmentId);
-
-        if (error) throw error;
-        Alert.alert('Éxito', 'Tu inscripción a la clase ha sido cancelada');
-      } else if (appointment?.notes?.includes('Breathe & Move')) {
-        // Para Breathe & Move, devolver la clase al paquete y eliminar
-        console.log('DEBUG - Canceling Breathe & Move appointment:', appointmentId);
-        
-        try {
-          console.log('=== BREATHE & MOVE CANCELLATION LOGIC ===');
-          
-          // 1. Verificar que la cita existe en la base de datos
-          const { data: existingAppointment } = await supabase
-            .from('appointments')
-            .select('*')
-            .eq('id', appointmentId)
-            .single();
-            
-          console.log('Existing appointment in DB:', existingAppointment);
-          
-          // 2. Primero eliminar la cita
-          console.log('Attempting to delete appointment with ID:', appointmentId);
-          
-          // First check if we can see the appointment
-          const { data: appointmentToDelete, error: fetchError } = await supabase
-            .from('appointments')
-            .select('*')
-            .eq('id', appointmentId)
-            .single();
-            
-          console.log('Appointment before delete:', appointmentToDelete);
-          console.log('Fetch error:', fetchError);
-          
-          // Usar UPDATE con status='cancelled' en lugar de DELETE debido a RLS
-          const { error: cancelError, data: cancelledData } = await supabase
-            .from('appointments')
-            .update({ 
-              status: 'cancelled',
-              cancelled_at: new Date().toISOString(),
-              cancelled_by: user.id,
-              cancellation_reason: 'Usuario canceló la clase'
-            })
-            .eq('id', appointmentId)
-            .eq('user_id', user.id)
-            .select();
-
-          console.log('Cancel result:', { 
-            error: cancelError, 
-            data: cancelledData,
-            appointmentId: appointmentId
-          });
-
-          if (cancelError) {
-            console.error('CRITICAL ERROR cancelling appointment:', cancelError);
-            Alert.alert('Error', `No se pudo cancelar la cita: ${cancelError.message}`);
-            return;
-          }
-
-          console.log('SUCCESS - Appointment cancelled in DB');
-
-          // 3. Buscar todos los paquetes activos del usuario
-          console.log('=== SEARCHING FOR ACTIVE PACKAGES ===');
-          const { data: activePackages, error: packagesError } = await supabase
-            .from('breathe_move_packages')
-            .select('*')
-            .eq('user_id', user.id)
-            .eq('status', 'active');
-
-          console.log('All active packages query result:', { data: activePackages, error: packagesError });
-          
-          if (packagesError) {
-            console.error('Error fetching packages:', packagesError);
-          }
-
-          // 4. Si hay paquetes activos, devolver una clase al más reciente que tenga clases usadas
-          const packagesWithUsedClasses = activePackages?.filter(pkg => pkg.classes_used > 0) || [];
-          console.log('Packages with used classes:', packagesWithUsedClasses);
-          
-          if (packagesWithUsedClasses.length > 0) {
-            const packageToUpdate = packagesWithUsedClasses.sort((a, b) => 
-              new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-            )[0];
-
-            console.log('Package selected for update:', packageToUpdate);
-            console.log('Current classes_used:', packageToUpdate.classes_used);
-
-            const newClassesUsed = Math.max(0, packageToUpdate.classes_used - 1);
-            console.log('New classes_used will be:', newClassesUsed);
-            
-            const { error: updatePackageError, data: updateResult } = await supabase
-              .from('breathe_move_packages')
-              .update({ classes_used: newClassesUsed })
-              .eq('id', packageToUpdate.id)
-              .select();
-
-            console.log('Package update result:', { error: updatePackageError, data: updateResult });
-
-            if (updatePackageError) {
-              console.error('CRITICAL ERROR updating package:', updatePackageError);
-              Alert.alert('Error', `No se pudo actualizar el paquete: ${updatePackageError.message}`);
-            } else {
-              console.log('SUCCESS - Package updated successfully');
-              console.log('Classes used changed from', packageToUpdate.classes_used, 'to', newClassesUsed);
-            }
-          } else {
-            console.log('WARNING - No packages found with used classes to decrement');
-          }
-
-          // 5. Buscar y cancelar enrollments relacionados
-          console.log('=== CLEANING UP ENROLLMENTS ===');
-          
-          // Buscar enrollments vinculados a esta cita
-          const { data: linkedEnrollments, error: enrollmentError } = await supabase
-            .from('breathe_move_enrollments')
-            .select('*')
-            .eq('appointment_id', appointmentId)
-            .eq('status', 'confirmed');
-          
-          console.log('Found linked enrollments:', linkedEnrollments);
-          
-          if (linkedEnrollments && linkedEnrollments.length > 0) {
-            for (const enrollment of linkedEnrollments) {
-              const { error: updateError } = await supabase
-                .from('breathe_move_enrollments')
-                .update({ 
-                  status: 'cancelled',
-                  cancelled_at: new Date().toISOString()
-                })
-                .eq('id', enrollment.id);
-                
-              if (updateError) {
-                console.log('Error cancelling enrollment:', updateError);
-              } else {
-                console.log('Successfully cancelled enrollment:', enrollment.id);
-              }
-            }
-          }
-          
-          // Buscar enrollments para la misma fecha (fallback para enrollments antiguos sin appointment_id)
-          if (existingAppointment && (!linkedEnrollments || linkedEnrollments.length === 0)) {
-            const { data: enrollments } = await supabase
-              .from('breathe_move_enrollments')
-              .select('*, breathe_move_classes!inner(*)')
-              .eq('user_id', user.id)
-              .eq('status', 'confirmed')
-              .eq('breathe_move_classes.class_date', existingAppointment.appointment_date);
-            
-            console.log('Found enrollments by date (fallback):', enrollments);
-            
-            // Cancelar cada enrollment encontrado
-            if (enrollments && enrollments.length > 0) {
-              for (const enrollment of enrollments) {
-                const { error: updateError } = await supabase
-                  .from('breathe_move_enrollments')
-                  .update({ 
-                    status: 'cancelled',
-                    cancelled_at: new Date().toISOString()
-                  })
-                  .eq('id', enrollment.id);
-                  
-                if (updateError) {
-                  console.log('Error cancelling enrollment:', updateError);
-                } else {
-                  console.log('Successfully cancelled enrollment:', enrollment.id);
-                }
-              }
-            }
-          }
-
-          console.log('=== RELOADING APPOINTMENTS ===');
-          await loadAppointments();
-          console.log('=== APPOINTMENTS RELOADED ===');
-
-          Alert.alert('Éxito', 'Tu clase ha sido cancelada y la clase se devolvió a tu paquete');
-
-        } catch (error) {
-          console.error('FATAL ERROR in Breathe & Move cancellation:', error);
-          Alert.alert('Error', `No se pudo cancelar la clase: ${error.message}`);
-        }
-      } else {
-        // Cancelar cita médica regular
-        console.log('=== CANCELLING MEDICAL APPOINTMENT ===');
-        
-        // Primero cancelar la cita
-        const { error: cancelError } = await supabase
-          .from('appointments')
-          .update({ 
-            status: 'cancelled',
-            cancelled_at: new Date().toISOString(),
-            cancelled_by: user.id
-          })
-          .eq('id', appointmentId);
-
-        if (cancelError) throw cancelError;
-
-        // Procesar créditos automáticamente
-        const serviceName = appointment?.notes || 'Servicio médico';
-        const appointmentAmount = appointment?.total_amount || 0;
-        
-        console.log('Processing credits for medical appointment:', {
-          appointmentId,
-          serviceName,
-          appointmentAmount,
-          appointmentDate: appointment?.appointment_date
-        });
-
-        const creditResult = await processCancellationWithCredits(
-          user.id,
-          appointmentId,
-          appointment?.appointment_date || '',
-          appointmentAmount,
-          serviceName
-        );
-
-        if (creditResult.success && creditResult.creditAmount && creditResult.creditAmount > 0) {
-          Alert.alert(
-            'Cita cancelada',
-            `Tu cita ha sido cancelada y has recibido un crédito de $${creditResult.creditAmount.toLocaleString('es-CO')} COP que puedes usar en futuras reservas.`,
-            [{ text: 'OK' }]
-          );
-        } else {
-          Alert.alert('Éxito', 'La cita ha sido cancelada');
-        }
-      }
-
-      console.log('=== FINAL RELOAD OF APPOINTMENTS ===');
-      await loadAppointments();
-      console.log('=== CANCELLATION PROCESS COMPLETE ===');
-    } catch (error) {
-      console.error('FATAL ERROR in cancellation process:', error);
-      Alert.alert('Error', `No se pudo cancelar: ${error.message}`);
-      
-      // Reload appointments even if there was an error
-      try {
-        await loadAppointments();
-      } catch (reloadError) {
-        console.error('Error reloading appointments:', reloadError);
-      }
-    }
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    
+    const day = days[date.getDay()];
+    const dayNum = date.getDate();
+    const month = months[date.getMonth()];
+    
+    return { day, dayNum, month };
   };
 
-  const handleReschedule = (appointment: Appointment) => {
-    // Si es una cita de Breathe & Move, usar flujo especial
-    if (appointment.notes?.includes('Breathe & Move')) {
-      Alert.alert(
-        'Reprogramar clase',
-        '¿Quieres cancelar esta clase y seleccionar una nueva?',
-        [
-          {
-            text: 'No',
-            style: 'cancel'
-          },
-          {
-            text: 'Sí, reprogramar',
-            onPress: () => rescheduleBreatheMoveClass(appointment)
-          }
-        ]
-      );
+  const formatTime = (timeString: string) => {
+    const [hours, minutes] = timeString.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+    return `${displayHour}:${minutes} ${ampm}`;
+  };
+
+  const isUpcoming = (dateString: string) => {
+    return new Date(dateString) > new Date();
+  };
+
+  const filteredAppointments = appointments.filter(apt => {
+    if (activeTab === 'upcoming') {
+      return isUpcoming(apt.appointment_date) && apt.status !== 'cancelled';
     } else {
-      // Navegar al calendario con los datos de la cita para reprogramar
-      navigation.navigate('RescheduleAppointment', { appointment });
+      return (!isUpcoming(apt.appointment_date) || apt.status === 'cancelled');
     }
-  };
+  });
 
-  const rescheduleBreatheMoveClass = async (appointment: Appointment) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      console.log('DEBUG - Rescheduling Breathe & Move appointment:', appointment.id);
-
-      // 1. Cancelar la cita actual
-      const { error: cancelAppointmentError } = await supabase
-        .from('appointments')
-        .update({ 
-          status: 'cancelled',
-          cancelled_at: new Date().toISOString(),
-          cancellation_reason: 'Reprogramada por el usuario'
-        })
-        .eq('id', appointment.id);
-
-      if (cancelAppointmentError) {
-        console.error('Error cancelling appointment for reschedule:', cancelAppointmentError);
-        throw cancelAppointmentError;
-      }
-
-      // 2. Devolver clase al paquete
-      const { data: activePackages } = await supabase
-        .from('breathe_move_packages')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .gt('classes_used', 0);
-
-      if (activePackages && activePackages.length > 0) {
-        const packageToUpdate = activePackages.sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        )[0];
-
-        const newClassesUsed = Math.max(0, packageToUpdate.classes_used - 1);
-        
-        await supabase
-          .from('breathe_move_packages')
-          .update({ classes_used: newClassesUsed })
-          .eq('id', packageToUpdate.id);
-
-        console.log('DEBUG - Package updated for reschedule. Classes used:', packageToUpdate.classes_used, '->', newClassesUsed);
-      }
-
-      // 3. Recargar appointments y navegar
-      loadAppointments();
-      navigation.navigate('BreatheAndMove');
-      
-      Alert.alert(
-        'Clase eliminada',
-        'Tu clase ha sido eliminada y la clase se devolvió a tu paquete. Ahora puedes seleccionar una nueva fecha y hora.'
-      );
-
-    } catch (error) {
-      console.error('Error rescheduling Breathe & Move class:', error);
-      Alert.alert('Error', 'No se pudo reprogramar la clase. Inténtalo de nuevo.');
-    }
-  };
-
-  const formatDate = (dateStr: string) => {
-    // Para Breathe & Move, usar solo la fecha sin convertir a timestamp
-    if (dateStr && !dateStr.includes('T')) {
-      // Es solo una fecha YYYY-MM-DD
-      const date = new Date(dateStr + 'T00:00:00');
-      return date.toLocaleDateString('es-CO', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-    }
-    
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('es-CO', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
-  const formatTime = (dateStr: string) => {
-    if (!dateStr) return '';
-    
-    try {
-      const date = new Date(dateStr);
-      if (isNaN(date.getTime())) return '';
-      
-      const hours = date.getHours();
-      const minutes = date.getMinutes();
-      
-      if (isNaN(hours) || isNaN(minutes)) return '';
-      
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      const displayHour = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-      return `${displayHour}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-    } catch (error) {
-      console.error('Error formatting time:', error);
-      return '';
-    }
-  };
-
-  const renderAppointmentCard = (appointment: Appointment) => {
-    const canCancel = appointment.status !== 'cancelled' && 
-                      appointment.status !== 'completed' &&
-                      isUpcoming(appointment.appointment_date);
-    
-    console.log('Rendering appointment:', {
-      id: appointment.id,
-      status: appointment.status,
-      date: appointment.appointment_date,
-      isUpcoming: isUpcoming(appointment.appointment_date),
-      canCancel: canCancel,
-      notes: appointment.notes
-    });
-
-    // Si es una clase de Hot Studio
+  const renderAppointment = (appointment: Appointment) => {
     if (appointment.isHotStudioClass && appointment.class) {
-      const classData = appointment.class;
+      const { day, dayNum, month } = formatDate(appointment.class.class_date);
+      const classColor = getClassColor(appointment.class.class_type?.name || '');
       
       return (
-        <TouchableOpacity 
-          key={appointment.id} 
+        <TouchableOpacity
+          key={appointment.id}
           style={styles.appointmentCard}
-          onPress={() => navigation.navigate('ClassDetail', { classId: classData.id })}
+          onPress={() => {
+          // TODO: Implementar pantalla de detalles
+          // navigation.navigate('AppointmentDetail', { appointment })
+        }}
         >
-          <View style={styles.appointmentHeader}>
-            <View style={[styles.serviceIcon, { backgroundColor: classData.class_type?.color || Colors.primary.green }]}>
-              <MaterialCommunityIcons name="yoga" size={24} color="#FFFFFF" />
-            </View>
-            <View style={styles.appointmentInfo}>
-              <Text style={styles.serviceName}>
-                {classData.class_type?.name || 'Clase Hot Studio'}
-              </Text>
-              <Text style={styles.serviceCategory}>Hot Studio</Text>
-            </View>
-            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(appointment.status) + '20' }]}>
-              <Text style={[styles.statusText, { color: getStatusColor(appointment.status) }]}>
-                {getStatusText(appointment.status)}
-              </Text>
-            </View>
+          <View style={styles.dateContainer}>
+            <Text style={styles.dayText}>{day}</Text>
+            <Text style={styles.dayNumText}>{dayNum}</Text>
+            <Text style={styles.monthText}>{month}</Text>
           </View>
-
-          <View style={styles.appointmentDetails}>
-            <View style={styles.detailRow}>
-              <MaterialCommunityIcons name="calendar" size={16} color={Colors.text.secondary} style={styles.detailIconView} />
-              <Text style={styles.detailText}>{formatDate(appointment.appointment_date)}</Text>
+          
+          <View style={styles.appointmentInfo}>
+            <View style={styles.appointmentHeader}>
+              <View style={[styles.classTypeBadge, { backgroundColor: classColor }]}>
+                {getClassIcon(appointment.class.class_type?.name || '')}
+              </View>
+              <View style={styles.headerTextContainer}>
+                <Text style={styles.serviceName}>Breathe & Move</Text>
+                <Text style={styles.subServiceName}>{appointment.class.class_type?.name}</Text>
+              </View>
             </View>
-            <View style={styles.detailRow}>
-              <MaterialCommunityIcons name="clock-outline" size={16} color={Colors.text.secondary} style={styles.detailIconView} />
-              <Text style={styles.detailText}>
-                {classData.start_time.slice(0, 5)} - {classData.end_time.slice(0, 5)}
-              </Text>
-            </View>
-            {classData.instructor && (
+            
+            <View style={styles.appointmentDetails}>
               <View style={styles.detailRow}>
-                <MaterialCommunityIcons name="account" size={16} color={Colors.text.secondary} style={styles.detailIconView} />
-                <Text style={styles.detailText}>{classData.instructor.name}</Text>
+                <MaterialCommunityIcons name="clock-outline" size={16} color={Colors.text.secondary} />
+                <Text style={styles.detailText}>
+                  {formatTime(appointment.class.start_time)} - {formatTime(appointment.class.end_time)}
+                </Text>
+              </View>
+              <View style={styles.detailRow}>
+                <MaterialCommunityIcons name="account" size={16} color={Colors.text.secondary} />
+                <Text style={styles.detailText}>{appointment.class.instructor?.name}</Text>
+              </View>
+            </View>
+            
+            {appointment.status === 'cancelled' && (
+              <View style={styles.cancelledBadge}>
+                <Text style={styles.cancelledText}>Cancelada</Text>
               </View>
             )}
-            <View style={styles.detailRow}>
-              <MaterialCommunityIcons name="ticket-confirmation" size={16} color={Colors.text.secondary} style={styles.detailIconView} />
-              <Text style={styles.detailText}>Incluido en membresía</Text>
-            </View>
           </View>
-
-          {canCancel && appointment.status === 'confirmed' && (
-            <View style={styles.actionButtons}>
-              <TouchableOpacity
-                style={[styles.actionButton, styles.viewButton]}
-                onPress={() => navigation.navigate('ClassDetail', { classId: classData.id })}
-              >
-                <Text style={styles.viewButtonText}>Ver detalles</Text>
-              </TouchableOpacity>
-            </View>
+          
+          {activeTab === 'upcoming' && appointment.status !== 'cancelled' && (
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => handleCancelAppointment(appointment)}
+            >
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
           )}
         </TouchableOpacity>
       );
     }
 
-    // Citas médicas regulares y Breathe & Move
+    // Regular appointment rendering
+    const { day, dayNum, month } = formatDate(appointment.appointment_date);
+    const time = appointment.appointment_date.split('T')[1]?.substring(0, 5) || '00:00';
+    
     return (
-      <View 
-        key={appointment.id} 
-        style={styles.appointmentCard}>
-        <View style={styles.appointmentHeader}>
-          <View style={[styles.serviceIcon, { 
-            backgroundColor: appointment.notes?.includes('Breathe & Move') 
-              ? getClassColor(appointment.notes.split(' - ')[1] || '') 
-              : (appointment.service?.color || '#879794') 
-          }]}>
-            {appointment.notes?.includes('Breathe & Move') ? (
-              getClassIcon(appointment.notes.split(' - ')[1] || '')
-            ) : (
-              <ServiceIcon 
-                serviceId={appointment.service?.id || getServiceConstantId(appointment.service_id)} 
-                size={24} 
-                color="#FFFFFF"
-              />
+      <TouchableOpacity
+        key={appointment.id}
+        style={styles.appointmentCard}
+        onPress={() => {
+          // TODO: Implementar pantalla de detalles
+          // navigation.navigate('AppointmentDetail', { appointment })
+        }}
+      >
+        <View style={styles.dateContainer}>
+          <Text style={styles.dayText}>{day}</Text>
+          <Text style={styles.dayNumText}>{dayNum}</Text>
+          <Text style={styles.monthText}>{month}</Text>
+        </View>
+        
+        <View style={styles.appointmentInfo}>
+          <View style={styles.appointmentHeader}>
+            {appointment.service && (
+              <View style={styles.serviceIconContainer}>
+                <ServiceIcon 
+                  serviceId={appointment.service.id} 
+                  size={24}
+                  color={Colors.primary.dark}
+                />
+              </View>
+            )}
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.serviceName}>{appointment.service?.name || 'Servicio'}</Text>
+              <Text style={styles.subServiceName}>{appointment.subService?.name || ''}</Text>
+            </View>
+          </View>
+          
+          <View style={styles.appointmentDetails}>
+            <View style={styles.detailRow}>
+              <MaterialCommunityIcons name="clock-outline" size={16} color={Colors.text.secondary} />
+              <Text style={styles.detailText}>{formatTime(time)}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <MaterialCommunityIcons name="doctor" size={16} color={Colors.text.secondary} />
+              <Text style={styles.detailText}>{appointment.professional?.name || 'Profesional'}</Text>
+            </View>
+            {appointment.total_amount > 0 && (
+              <View style={styles.detailRow}>
+                <MaterialCommunityIcons name="cash" size={16} color={Colors.text.secondary} />
+                <Text style={styles.detailText}>
+                  ${appointment.total_amount.toLocaleString('es-CO')}
+                </Text>
+              </View>
             )}
           </View>
-          <View style={styles.appointmentInfo}>
-            <Text style={styles.serviceName}>
-              {appointment.notes?.includes('Breathe & Move') 
-                ? appointment.notes.split(' - ')[1] 
-                : (appointment.subService?.name || appointment.notes)}
-            </Text>
-            <Text style={styles.serviceCategory}>
-              {appointment.notes?.includes('Breathe & Move') 
-                ? 'Breathe & Move' 
-                : appointment.service?.name}
-            </Text>
-          </View>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(appointment.status) + '20' }]}>
-            <Text style={[styles.statusText, { color: getStatusColor(appointment.status) }]}>
-              {getStatusText(appointment.status)}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.appointmentDetails}>
-          <View style={styles.detailRow}>
-            <MaterialCommunityIcons name="calendar" size={16} color={Colors.text.secondary} style={styles.detailIcon} />
-            <Text style={styles.detailText}>{formatDate(appointment.appointment_date)}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <MaterialCommunityIcons name="clock-outline" size={16} color={Colors.text.secondary} style={styles.detailIcon} />
-            <Text style={styles.detailText}>
-              {appointment.appointment_time 
-                ? `${appointment.appointment_time.slice(0, 5)} - ${appointment.end_time?.slice(0, 5) || ''}`
-                : formatTime(appointment.appointment_date)}
-            </Text>
-          </View>
-          {appointment.professional && (
-            <View style={styles.detailRow}>
-              <MaterialCommunityIcons name="doctor" size={16} color={Colors.text.secondary} style={styles.detailIcon} />
-              <Text style={styles.detailText}>{appointment.professional.full_name || appointment.professional.name}</Text>
+          
+          {appointment.status === 'cancelled' && (
+            <View style={styles.cancelledBadge}>
+              <Text style={styles.cancelledText}>Cancelada</Text>
             </View>
           )}
-          <View style={styles.detailRow}>
-            <MaterialCommunityIcons name="cash" size={16} color={Colors.text.secondary} style={styles.detailIcon} />
-            <Text style={styles.detailText}>
-              {appointment.total_amount === 0 && appointment.notes?.includes('paquete') 
-                ? 'Incluido en paquete' 
-                : `$${appointment.total_amount.toLocaleString('es-CO')} COP`}
-            </Text>
-          </View>
         </View>
-
-        {canCancel ? (
-          console.log('Rendering cancel/reschedule buttons for appointment:', appointment.id) || (
-          <View style={styles.actionButtons}>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.rescheduleButton]}
-              onPress={() => {
-                console.log('Reschedule button pressed for:', appointment.id);
-                handleReschedule(appointment);
-              }}
-            >
-              <Text style={styles.rescheduleButtonText}>Reprogramar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.cancelButton]}
-              onPress={() => {
-                console.log('Cancel button pressed for:', appointment.id);
-                console.log('Button styles:', styles.actionButton, styles.cancelButton);
-                handleCancelAppointment(appointment);
-              }}
-              onPressIn={() => console.log('Cancel button PRESSED IN')}
-              onPressOut={() => console.log('Cancel button PRESSED OUT')}
-            >
-              <Text style={styles.cancelButtonText}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        )) : console.log('NOT rendering buttons for appointment:', appointment.id, 'canCancel:', canCancel)}
-      </View>
+        
+        {activeTab === 'upcoming' && appointment.status !== 'cancelled' && (
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={() => handleCancelAppointment(appointment)}
+          >
+            <Text style={styles.cancelButtonText}>Cancelar</Text>
+          </TouchableOpacity>
+        )}
+      </TouchableOpacity>
     );
   };
 
@@ -930,9 +490,8 @@ export const AppointmentsScreen = ({ navigation }: any) => {
       <View style={styles.header}>
         <Text style={styles.title}>Mis Citas</Text>
       </View>
-
-      {/* Tabs */}
-      <View style={styles.tabs}>
+      
+      <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'upcoming' && styles.activeTab]}
           onPress={() => setActiveTab('upcoming')}
@@ -951,38 +510,43 @@ export const AppointmentsScreen = ({ navigation }: any) => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
+      <ScrollView 
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[Colors.primary.dark]}
+            onRefresh={handleRefresh}
+            tintColor={Colors.primary.green}
+            colors={[Colors.primary.green]}
           />
         }
       >
-        <View style={styles.content}>
-          {filteredAppointments.length === 0 ? (
-            <View style={styles.emptyState}>
-              <MaterialCommunityIcons 
-                name={activeTab === 'upcoming' ? 'calendar-clock' : 'calendar-check'} 
-                size={64} 
-                color={Colors.text.secondary} 
-                style={{ marginBottom: 16 }}
-              />
-              <Text style={styles.emptyTitle}>
-                No tienes citas {activeTab === 'upcoming' ? 'próximas' : 'pasadas'}
-              </Text>
-              <Text style={styles.emptyDescription}>
-                {activeTab === 'upcoming' 
-                  ? 'Agenda una nueva cita desde Inicio o inscríbete en clases de Hot Studio'
-                  : 'Aquí aparecerán tus citas y clases completadas'}
-              </Text>
-            </View>
-          ) : (
-            filteredAppointments.map(renderAppointmentCard)
-          )}
-        </View>
+        {filteredAppointments.length === 0 ? (
+          <View style={styles.emptyState}>
+            <MaterialCommunityIcons 
+              name={activeTab === 'upcoming' ? 'calendar-blank' : 'calendar-check'} 
+              size={80} 
+              color={Colors.ui.border} 
+            />
+            <Text style={styles.emptyStateText}>
+              {activeTab === 'upcoming' 
+                ? 'No tienes citas próximas' 
+                : 'No tienes citas pasadas'}
+            </Text>
+            {activeTab === 'upcoming' && (
+              <TouchableOpacity
+                style={styles.bookButton}
+                onPress={() => navigation.navigate('Home')}
+              >
+                <Text style={styles.bookButtonText}>Agendar cita</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : (
+          <View style={styles.appointmentsList}>
+            {filteredAppointments.map(renderAppointment)}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -1008,7 +572,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: Colors.primary.dark,
   },
-  tabs: {
+  tabContainer: {
     flexDirection: 'row',
     paddingHorizontal: 24,
     marginBottom: 16,
@@ -1018,140 +582,163 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
     borderBottomWidth: 2,
-    borderBottomColor: Colors.ui.divider,
+    borderBottomColor: Colors.ui.border,
   },
   activeTab: {
     borderBottomColor: Colors.primary.dark,
   },
   tabText: {
     fontSize: 16,
-    fontWeight: '500',
     color: Colors.text.secondary,
+    fontWeight: '500',
   },
   activeTabText: {
     color: Colors.primary.dark,
+    fontWeight: '600',
   },
-  content: {
+  appointmentsList: {
     paddingHorizontal: 24,
     paddingBottom: 24,
   },
   appointmentCard: {
-    backgroundColor: Colors.ui.surface,
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    flexDirection: 'row',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3.84,
+    elevation: 2,
+  },
+  dateContainer: {
+    width: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRightWidth: 1,
+    borderRightColor: Colors.ui.border,
+    paddingRight: 16,
+    marginRight: 16,
+  },
+  dayText: {
+    fontSize: 12,
+    color: Colors.text.secondary,
+    textTransform: 'uppercase',
+  },
+  dayNumText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: Colors.primary.dark,
+    marginVertical: 2,
+  },
+  monthText: {
+    fontSize: 14,
+    color: Colors.text.secondary,
+    textTransform: 'uppercase',
+  },
+  appointmentInfo: {
+    flex: 1,
   },
   appointmentHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   serviceIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    marginRight: 12,
+  },
+  serviceIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.ui.background,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
-  serviceIconText: {
-    fontSize: 24,
-  },
-  appointmentInfo: {
+  headerTextContainer: {
     flex: 1,
   },
   serviceName: {
     fontSize: 16,
     fontWeight: '600',
     color: Colors.primary.dark,
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  serviceCategory: {
+  subServiceName: {
     fontSize: 14,
     color: Colors.text.secondary,
   },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
   appointmentDetails: {
-    marginBottom: 16,
+    gap: 6,
   },
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-  },
-  detailIcon: {
-    marginRight: 8,
-  },
-  detailIconView: {
-    marginRight: 8,
   },
   detailText: {
-    fontSize: 14,
-    color: Colors.text.primary,
-    flex: 1,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    marginTop: 12,
-  },
-  actionButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginHorizontal: 6,
-  },
-  rescheduleButton: {
-    backgroundColor: Colors.primary.beige || '#F5E6D3',
-    minHeight: 44,
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.primary.dark,
-  },
-  rescheduleButtonText: {
-    color: Colors.primary.dark,
-    fontWeight: '600',
-    fontSize: 14,
+    fontSize: 13,
+    color: Colors.text.secondary,
+    marginLeft: 8,
   },
   cancelButton: {
-    backgroundColor: '#FFE5E5',
-    minHeight: 44,
-    justifyContent: 'center',
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: Colors.ui.error + '10',
   },
   cancelButtonText: {
+    fontSize: 12,
     color: Colors.ui.error,
     fontWeight: '600',
-    fontSize: 14,
   },
-  viewButton: {
-    backgroundColor: Colors.primary.green,
+  cancelledBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: Colors.ui.error,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
   },
-  viewButtonText: {
+  cancelledText: {
+    fontSize: 12,
     color: '#FFFFFF',
     fontWeight: '600',
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingTop: 80,
+    paddingHorizontal: 48,
   },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: Colors.primary.dark,
-    marginBottom: 8,
-  },
-  emptyDescription: {
-    fontSize: 16,
+  emptyStateText: {
+    fontSize: 18,
     color: Colors.text.secondary,
+    marginTop: 16,
+    marginBottom: 24,
     textAlign: 'center',
-    paddingHorizontal: 40,
+  },
+  bookButton: {
+    backgroundColor: Colors.primary.dark,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 25,
+  },
+  bookButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  classTypeBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
 });

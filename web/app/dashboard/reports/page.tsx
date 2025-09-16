@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { 
   DollarSign, 
   Calendar, 
@@ -8,29 +9,70 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   BarChart2,
+  BarChart3,
   FileText,
   Activity,
-  CheckCircle
+  CheckCircle,
+  Download,
+  Filter,
+  PieChart,
+  LineChart,
+  Loader2
 } from 'lucide-react'
 import Link from 'next/link'
-import { useReportsDashboard } from '@/hooks/useReports'
+import { 
+  AreaChart, 
+  Area, 
+  BarChart, 
+  Bar, 
+  PieChart as RechartsPieChart, 
+  Pie, 
+  Cell, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  Legend 
+} from 'recharts'
+import { useReportsDashboard, useReportMetrics, useExportReportData } from '@/src/hooks/useReports'
 import LoadingSkeleton from '@/components/LoadingSkeleton'
 import ErrorState from '@/components/ErrorState'
 
+const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']
+
 export default function ReportsPage() {
-  const { data, isLoading, error, refetch } = useReportsDashboard()
+  const [dateRange, setDateRange] = useState<'week' | 'month' | 'quarter' | 'year'>('month')
+  
+  // React Query hooks
+  const { data, isLoading: dashboardLoading, error, refetch } = useReportsDashboard()
+  const { data: metrics, isLoading: metricsLoading } = useReportMetrics(dateRange)
+  const exportData = useExportReportData(dateRange)
+  
+  const isLoading = dashboardLoading || metricsLoading a48c40e5a56e4207b473187722c71e0cc80da8f5
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',
       currency: 'COP',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
+      minimumFractionDigits: 0
     }).format(amount)
   }
 
   const formatPercentage = (value: number) => {
-    return `${value.toFixed(1)}%`
+    return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`
+  }
+
+  const getGrowthIcon = (growth: number) => {
+    return growth >= 0 ? (
+      <ArrowUpRight className="w-4 h-4 text-green-600" />
+    ) : (
+      <ArrowDownRight className="w-4 h-4 text-red-600" />
+    )
+  }
+
+  const getGrowthClass = (growth: number) => {
+    return growth >= 0 ? 'text-green-600' : 'text-red-600'
   }
 
   if (isLoading) {
@@ -40,7 +82,12 @@ export default function ReportsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Centro de Reportes</h1>
           <p className="text-sm text-gray-600 mt-1">Panel administrativo - Análisis y métricas del negocio</p>
         </div>
-        <LoadingSkeleton rows={8} />
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-green-600" />
+            <p className="text-gray-600">Generando reportes...</p>
+          </div>
+        </div>
       </div>
     )
   }
@@ -52,7 +99,7 @@ export default function ReportsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Centro de Reportes</h1>
           <p className="text-sm text-gray-600 mt-1">Panel administrativo - Análisis y métricas del negocio</p>
         </div>
-        <ErrorState message="Error al cargar los reportes" onRetry={refetch} />
+        <ErrorState message="Error al cargar los reportes" onRetry={refetch} /> a48c40e5a56e4207b473187722c71e0cc80da8f5
       </div>
     )
   }
@@ -64,85 +111,107 @@ export default function ReportsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Centro de Reportes</h1>
           <p className="text-sm text-gray-600 mt-1">Panel administrativo - Análisis y métricas del negocio</p>
         </div>
-      </div>
-
-      {/* KPIs Principales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Ingresos del Mes</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
-                {formatCurrency(data.monthlyRevenue)}
-              </p>
-              <p className={`text-sm mt-2 flex items-center ${
-                data.revenueChange >= 0 ? 'text-green-600' : 'text-red-600'
-              }`}>
-                {data.revenueChange >= 0 ? (
-                  <ArrowUpRight className="h-4 w-4 mr-1" />
-                ) : (
-                  <ArrowDownRight className="h-4 w-4 mr-1" />
-                )}
-                {formatPercentage(Math.abs(data.revenueChange))} vs mes anterior
-              </p>
-            </div>
-            <div className="p-3 bg-green-100 rounded-lg">
-              <DollarSign className="h-6 w-6 text-green-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Citas del Mes</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
-                {data.monthlyAppointments}
-              </p>
-              <p className="text-sm text-gray-500 mt-2">
-                Total histórico: {data.totalAppointments}
-              </p>
-            </div>
-            <div className="p-3 bg-blue-100 rounded-lg">
-              <Calendar className="h-6 w-6 text-blue-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Pacientes Activos</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
-                {data.activePatients}
-              </p>
-              <p className="text-sm text-gray-500 mt-2">
-                De {data.totalPatients} totales
-              </p>
-            </div>
-            <div className="p-3 bg-purple-100 rounded-lg">
-              <Users className="h-6 w-6 text-purple-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Tasa de Completitud</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
-                {formatPercentage(data.completionRate)}
-              </p>
-              <p className="text-sm text-gray-500 mt-2">
-                {data.completedAppointments} completadas
-              </p>
-            </div>
-            <div className="p-3 bg-orange-100 rounded-lg">
-              <CheckCircle className="h-6 w-6 text-orange-600" />
-            </div>
+        <div className="flex items-center space-x-4">
+          <select
+            value={dateRange}
+            onChange={(e) => setDateRange(e.target.value as any)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+          >
+            <option value="week">Última semana</option>
+            <option value="month">Este mes</option>
+            <option value="quarter">Este trimestre</option>
+            <option value="year">Este año</option>
+          </select>
+          <button
+            onClick={exportData}
+            className="px-5 py-2.5 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-lg hover:from-green-700 hover:to-green-600 transform hover:scale-105 transition-all duration-200 flex items-center space-x-2 shadow-md hover:shadow-lg"
+          >
+            <Download className="w-5 h-5" />
+            <span>Exportar</span>
+          </button> a48c40e5a56e4207b473187722c71e0cc80da8f5
           </div>
         </div>
       </div>
+
+      {/* KPIs Principales from dashboard data */}
+      {data && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Ingresos del Mes</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {formatCurrency(data.monthlyRevenue)}
+                </p>
+                <p className={`text-sm mt-2 flex items-center ${
+                  data.revenueChange >= 0 ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {data.revenueChange >= 0 ? (
+                    <ArrowUpRight className="h-4 w-4 mr-1" />
+                  ) : (
+                    <ArrowDownRight className="h-4 w-4 mr-1" />
+                  )}
+                  {formatPercentage(Math.abs(data.revenueChange))} vs mes anterior
+                </p>
+              </div>
+              <div className="p-3 bg-green-100 rounded-lg">
+                <DollarSign className="h-6 w-6 text-green-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Citas del Mes</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {data.monthlyAppointments}
+                </p>
+                <p className="text-sm text-gray-500 mt-2">
+                  Total histórico: {data.totalAppointments}
+                </p>
+              </div>
+              <div className="p-3 bg-blue-100 rounded-lg">
+                <Calendar className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Pacientes Activos</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {data.activePatients}
+                </p>
+                <p className="text-sm text-gray-500 mt-2">
+                  De {data.totalPatients} totales
+                </p>
+              </div>
+              <div className="p-3 bg-purple-100 rounded-lg">
+                <Users className="h-6 w-6 text-purple-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Tasa de Completitud</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {formatPercentage(data.completionRate)}
+                </p>
+                <p className="text-sm text-gray-500 mt-2">
+                  {data.completedAppointments} completadas
+                </p>
+              </div>
+              <div className="p-3 bg-orange-100 rounded-lg">
+                <CheckCircle className="h-6 w-6 text-orange-600" />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Enlaces a Reportes Detallados */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -204,33 +273,175 @@ export default function ReportsPage() {
         </Link>
       </div>
 
+      {/* Enhanced metrics with charts when available */}
+      {metrics && (
+        <>
+          {/* Gráficos */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Ingresos mensuales */}
+            <div className="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 p-6 border border-gray-100">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                <LineChart className="w-5 h-5 mr-2" />
+                Evolución de Ingresos
+              </h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={metrics.monthlyRevenue}>
+                  <defs>
+                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(value: any) => formatCurrency(value)} />
+                  <Area 
+                    type="monotone" 
+                    dataKey="revenue" 
+                    stroke="#10B981" 
+                    fillOpacity={1} 
+                    fill="url(#colorRevenue)" 
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Estado de citas */}
+            <div className="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 p-6 border border-gray-100">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                <PieChart className="w-5 h-5 mr-2" />
+                Distribución de Citas por Estado
+              </h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <RechartsPieChart>
+                  <Pie
+                    data={metrics.appointmentsByStatus}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ status, percentage }) => `${status}: ${percentage.toFixed(0)}%`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="count"
+                  >
+                    {metrics.appointmentsByStatus.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </RechartsPieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Tablas de rendimiento */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Top servicios */}
+            <div className="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 p-6 border border-gray-100">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                <BarChart3 className="w-5 h-5 mr-2" />
+                Top Servicios por Ingresos
+              </h3>
+              <div className="space-y-3">
+                {metrics.topServices.map((service, index) => (
+                  <div key={service.name} className="flex items-center">
+                    <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold mr-3 ${
+                      index === 0 ? 'bg-yellow-100 text-yellow-700' : 
+                      index === 1 ? 'bg-gray-100 text-gray-700' : 
+                      index === 2 ? 'bg-orange-100 text-orange-700' : 
+                      'bg-gray-100 text-gray-600'
+                    }`}>
+                      {index + 1}
+                    </span>
+                    <div className="flex-1">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-medium text-gray-800">{service.name}</span>
+                        <span className="font-semibold text-gray-900">{formatCurrency(service.revenue)}</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                        <div
+                          className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all duration-500 ease-out"
+                          style={{
+                            width: `${(service.revenue / metrics.topServices[0].revenue) * 100}%`
+                          }}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">{service.count} citas</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Rendimiento por profesional */}
+            <div className="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 p-6 border border-gray-100">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                <Users className="w-5 h-5 mr-2" />
+                Rendimiento por Profesional
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider pb-2">
+                        Profesional
+                      </th>
+                      <th className="text-center text-xs font-medium text-gray-500 uppercase tracking-wider pb-2">
+                        Citas
+                      </th>
+                      <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider pb-2">
+                        Ingresos
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {metrics.professionalPerformance.slice(0, 5).map((prof) => (
+                      <tr key={prof.name} className="border-b hover:bg-gray-50 transition-colors duration-200">
+                        <td className="py-3 text-sm text-gray-800">{prof.name}</td>
+                        <td className="py-3 text-sm text-center text-gray-600">{prof.appointments}</td>
+                        <td className="py-3 text-sm text-right font-medium text-gray-900">
+                          {formatCurrency(prof.revenue)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Resumen Rápido */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Resumen del Período Actual</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-          <div className="border-l-4 border-green-500 pl-4">
-            <p className="text-gray-600">Ingreso Total Histórico</p>
-            <p className="text-lg font-semibold text-gray-900">
-              {formatCurrency(data.totalRevenue)}
-            </p>
-          </div>
-          <div className="border-l-4 border-blue-500 pl-4">
-            <p className="text-gray-600">Promedio Mensual de Citas</p>
-            <p className="text-lg font-semibold text-gray-900">
-              {Math.round(data.totalAppointments / 12)}
-            </p>
-          </div>
-          <div className="border-l-4 border-purple-500 pl-4">
-            <p className="text-gray-600">Tasa de Actividad</p>
-            <p className="text-lg font-semibold text-gray-900">
-              {formatPercentage((data.activePatients / data.totalPatients) * 100)}
-            </p>
-          </div>
-          <div className="border-l-4 border-orange-500 pl-4">
-            <p className="text-gray-600">Citas Promedio por Paciente</p>
-            <p className="text-lg font-semibold text-gray-900">
-              {(data.totalAppointments / data.totalPatients).toFixed(1)}
-            </p>
+      {data && (
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Resumen del Período Actual</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+            <div className="border-l-4 border-green-500 pl-4">
+              <p className="text-gray-600">Ingreso Total Histórico</p>
+              <p className="text-lg font-semibold text-gray-900">
+                {formatCurrency(data.totalRevenue)}
+              </p>
+            </div>
+            <div className="border-l-4 border-blue-500 pl-4">
+              <p className="text-gray-600">Promedio Mensual de Citas</p>
+              <p className="text-lg font-semibold text-gray-900">
+                {Math.round(data.totalAppointments / 12)}
+              </p>
+            </div>
+            <div className="border-l-4 border-purple-500 pl-4">
+              <p className="text-gray-600">Tasa de Actividad</p>
+              <p className="text-lg font-semibold text-gray-900">
+                {formatPercentage((data.activePatients / data.totalPatients) * 100)}
+              </p>
+            </div>
+            <div className="border-l-4 border-orange-500 pl-4">
+              <p className="text-gray-600">Citas Promedio por Paciente</p>
+              <p className="text-lg font-semibold text-gray-900">
+                {(data.totalAppointments / data.totalPatients).toFixed(1)}
+              </p>
+            </div> a48c40e5a56e4207b473187722c71e0cc80da8f5
           </div>
         </div>
       </div>

@@ -1,727 +1,378 @@
-'use client';
+'use client'
 
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { createClient } from '@/utils/supabase/client';
-import { 
-  Wallet, 
-  Plus, 
-  Filter, 
-  Search, 
-  Download,
-  TrendingUp,
-  Users,
-  CreditCard,
-  Calendar,
-  Gift
-} from 'lucide-react';
+import { useState, useMemo } from 'react'
+import { CreditCard, TrendingUp, Users, DollarSign, Search, Filter, Eye, Plus, AlertTriangle, CheckCircle } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { createClient } from '@/src/lib/supabase'
+import Link from 'next/link'
+import AddManualCreditModal from '@/components/AddManualCreditModal'
 
-interface UserCredit {
-  id: string;
-  user_id: string;
-  amount: number;
-  credit_type: 'cancellation' | 'refund' | 'promotion' | 'admin_adjustment';
-  description?: string;
-  expires_at?: string;
-  is_used: boolean;
-  used_at?: string;
-  used_in_appointment_id?: string;
-  source_appointment_id?: string;
-  created_at: string;
-  updated_at: string;
-  profiles?: {
-    full_name: string;
-    email: string;
-  };
+interface PatientCredit {
+  id: string
+  patient_id: string
+  available_credits: number
+  total_earned: number
+  total_used: number
+  created_at: string
+  updated_at: string
+  patient: {
+    full_name: string
+    email: string
+  }
 }
 
-interface CreditTransaction {
-  id: string;
-  user_id: string;
-  credit_id?: string;
-  transaction_type: 'earned' | 'used' | 'expired' | 'refunded';
-  amount: number;
-  balance_before: number;
-  balance_after: number;
-  description?: string;
-  appointment_id?: string;
-  created_at: string;
-  profiles?: {
-    full_name: string;
-    email: string;
-  };
+interface CreditsSummary {
+  totalCredits: number
+  totalPatients: number
+  totalEarned: number
+  totalUsed: number
 }
 
-interface CreditSummary {
-  user_id: string;
-  full_name: string;
-  email: string;
-  available_balance: number;
-  total_earned: number;
-  total_used: number;
-  total_expired: number;
-  active_credits_count: number;
-}
+export default function CreditsPage() {
+  const [searchTerm, setSearchTerm] = useState('')
+  const [sortBy, setSortBy] = useState('available_credits')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const [showOnlyWithCredits, setShowOnlyWithCredits] = useState(true)
+  const [showAddModal, setShowAddModal] = useState(false)
 
-export default function CreditsManagementPage() {
-  const [loading, setLoading] = useState(true);
-  const [credits, setCredits] = useState<UserCredit[]>([]);
-  const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
-  const [creditSummaries, setCreditSummaries] = useState<CreditSummary[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<string>('all');
-  const [activeTab, setActiveTab] = useState('overview');
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState('');
-  const [newCreditAmount, setNewCreditAmount] = useState('');
-  const [newCreditType, setNewCreditType] = useState<'promotion' | 'admin_adjustment'>('promotion');
-  const [newCreditDescription, setNewCreditDescription] = useState('');
-  const [users, setUsers] = useState<Array<{ id: string; full_name: string; email: string }>>([]);
+  const supabase = createClient()
+  const queryClient = useQueryClient()
 
-  const supabase = createClient();
-
-  // Estadísticas para el overview
-  const [stats, setStats] = useState({
-    totalActiveCredits: 0,
-    totalCreditValue: 0,
-    totalUsersWithCredits: 0,
-    creditsUsedThisMonth: 0
-  });
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      await Promise.all([
-        loadCreditSummaries(),
-        loadCredits(),
-        loadTransactions(),
-        loadUsers(),
-        loadStats()
-      ]);
-    } catch (error) {
-      console.error('Error loading credits data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadCreditSummaries = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('user_credits_summary')
+  // Fetch all patient credits with patient info
+  const { data: patientCredits = [], isLoading } = useQuery({
+    queryKey: ['patient-credits-admin', showOnlyWithCredits],
+    queryFn: async (): Promise<PatientCredit[]> => {
+      let query = supabase
+        .from('patient_credits')
         .select('*')
-        .order('available_balance', { ascending: false });
 
-      if (error) throw error;
-      setCreditSummaries(data || []);
-    } catch (error) {
-      console.error('Error loading credit summaries:', error);
-    }
-  };
-
-  const loadCredits = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('user_credits')
-        .select(`
-          *,
-          profiles(full_name, email)
-        `)
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (error) throw error;
-      setCredits(data || []);
-    } catch (error) {
-      console.error('Error loading credits:', error);
-    }
-  };
-
-  const loadTransactions = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('credit_transactions')
-        .select(`
-          *,
-          profiles(full_name, email)
-        `)
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (error) throw error;
-      setTransactions(data || []);
-    } catch (error) {
-      console.error('Error loading transactions:', error);
-    }
-  };
-
-  const loadUsers = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, email')
-        .eq('role', 'client')
-        .order('full_name');
-
-      if (error) throw error;
-      setUsers(data || []);
-    } catch (error) {
-      console.error('Error loading users:', error);
-    }
-  };
-
-  const loadStats = async () => {
-    try {
-      // Total créditos activos
-      const { data: activeCredits } = await supabase
-        .from('user_credits')
-        .select('amount')
-        .eq('is_used', false)
-        .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString());
-
-      const totalActiveCredits = activeCredits?.length || 0;
-      const totalCreditValue = activeCredits?.reduce((sum, credit) => sum + credit.amount, 0) || 0;
-
-      // Usuarios únicos con créditos
-      const { data: usersWithCredits } = await supabase
-        .from('user_credits')
-        .select('user_id')
-        .eq('is_used', false)
-        .or('expires_at.is.null,expires_at.gt.' + new Date().toISOString());
-
-      const uniqueUsers = new Set(usersWithCredits?.map(c => c.user_id) || []);
-      const totalUsersWithCredits = uniqueUsers.size;
-
-      // Créditos usados este mes
-      const startOfMonth = new Date();
-      startOfMonth.setDate(1);
-      startOfMonth.setHours(0, 0, 0, 0);
-
-      const { data: usedThisMonth } = await supabase
-        .from('credit_transactions')
-        .select('amount')
-        .eq('transaction_type', 'used')
-        .gte('created_at', startOfMonth.toISOString());
-
-      const creditsUsedThisMonth = usedThisMonth?.reduce((sum, t) => sum + t.amount, 0) || 0;
-
-      setStats({
-        totalActiveCredits,
-        totalCreditValue,
-        totalUsersWithCredits,
-        creditsUsedThisMonth
-      });
-    } catch (error) {
-      console.error('Error loading stats:', error);
-    }
-  };
-
-  const createCredit = async () => {
-    if (!selectedUserId || !newCreditAmount || !newCreditDescription) {
-      alert('Por favor completa todos los campos');
-      return;
-    }
-
-    try {
-      const amount = parseFloat(newCreditAmount);
-      if (isNaN(amount) || amount <= 0) {
-        alert('El monto debe ser un número válido mayor a 0');
-        return;
+      if (showOnlyWithCredits) {
+        query = query.gt('available_credits', 0)
       }
 
-      // Obtener el usuario actual para created_by
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        alert('Error: No hay usuario autenticado');
-        return;
+      const { data: creditsData, error } = await query.order('available_credits', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching credits:', error)
+        return []
       }
 
-      // Crear el crédito
-      const expiresAt = new Date();
-      expiresAt.setMonth(expiresAt.getMonth() + 12); // Expira en 12 meses
+      // Fetch patient info separately
+      if (creditsData && creditsData.length > 0) {
+        const patientIds = creditsData.map(c => c.patient_id)
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', patientIds)
 
-      const { error: creditError } = await supabase
-        .from('user_credits')
-        .insert({
-          user_id: selectedUserId,
-          amount: amount,
-          credit_type: newCreditType,
-          description: newCreditDescription,
-          expires_at: expiresAt.toISOString(),
-          created_by: user.id
-        });
+        if (profilesError) throw profilesError
 
-      if (creditError) throw creditError;
+        // Combine the data
+        const profilesMap = new Map(profilesData?.map(p => [p.id, p]) || [])
+        return creditsData.map(credit => ({
+          ...credit,
+          patient: profilesMap.get(credit.patient_id) || { full_name: 'Usuario sin perfil', email: '' }
+        }))
+      }
 
-      // Obtener balance actual para la transacción
-      const { data: balanceData } = await supabase
-        .rpc('get_user_credit_balance', { p_user_id: selectedUserId });
+      return []
+    },
+    staleTime: 30 * 1000, // 30 seconds
+  })
 
-      const currentBalance = balanceData || 0;
-
-      // Crear transacción
-      await supabase
-        .from('credit_transactions')
-        .insert({
-          user_id: selectedUserId,
-          transaction_type: 'earned',
-          amount: amount,
-          balance_before: currentBalance - amount,
-          balance_after: currentBalance,
-          description: newCreditDescription,
-          created_by: user.id
-        });
-
-      // Resetear formulario
-      setSelectedUserId('');
-      setNewCreditAmount('');
-      setNewCreditDescription('');
-      setIsCreateDialogOpen(false);
-
-      // Recargar datos
-      await loadData();
-
-      alert('Crédito creado exitosamente');
-    } catch (error) {
-      console.error('Error creating credit:', error);
-      alert('Error al crear el crédito');
+  // Calculate summary stats
+  const creditsSummary = useMemo((): CreditsSummary => {
+    return {
+      totalCredits: patientCredits.reduce((sum, p) => sum + p.available_credits, 0),
+      totalPatients: patientCredits.length,
+      totalEarned: patientCredits.reduce((sum, p) => sum + p.total_earned, 0),
+      totalUsed: patientCredits.reduce((sum, p) => sum + p.total_used, 0),
     }
-  };
+  }, [patientCredits])
+
+  // Filter and sort credits
+  const filteredAndSortedCredits = useMemo(() => {
+    let filtered = patientCredits
+
+    // Apply search filter
+    if (searchTerm) {
+      filtered = filtered.filter(credit =>
+        credit.patient.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        credit.patient.email.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      const aVal = a[sortBy as keyof PatientCredit]
+      const bVal = b[sortBy as keyof PatientCredit]
+      
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        return sortOrder === 'asc' ? aVal - bVal : bVal - aVal
+      }
+      
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return sortOrder === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
+      }
+
+      return 0
+    })
+
+    return filtered
+  }, [patientCredits, searchTerm, sortBy, sortOrder])
 
   const formatCurrency = (amount: number) => {
-    return `$${amount.toLocaleString('es-CO')} COP`;
-  };
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0
+    }).format(amount)
+  }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('es-CO', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const getCreditTypeLabel = (type: string) => {
-    const labels = {
-      cancellation: 'Cancelación',
-      refund: 'Reembolso',
-      promotion: 'Promoción',
-      admin_adjustment: 'Ajuste Admin'
-    };
-    return labels[type as keyof typeof labels] || type;
-  };
-
-  const getTransactionTypeLabel = (type: string) => {
-    const labels = {
-      earned: 'Ganado',
-      used: 'Usado',
-      expired: 'Expirado',
-      refunded: 'Reembolsado'
-    };
-    return labels[type as keyof typeof labels] || type;
-  };
-
-  const filteredCredits = credits.filter(credit => {
-    const matchesSearch = credit.profiles?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         credit.profiles?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         credit.description?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesFilter = filterType === 'all' || 
-                         (filterType === 'active' && !credit.is_used && (!credit.expires_at || new Date(credit.expires_at) > new Date())) ||
-                         (filterType === 'used' && credit.is_used) ||
-                         (filterType === 'expired' && credit.expires_at && new Date(credit.expires_at) <= new Date());
-
-    return matchesSearch && matchesFilter;
-  });
-
-  const filteredTransactions = transactions.filter(transaction => {
-    return transaction.profiles?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           transaction.profiles?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           transaction.description?.toLowerCase().includes(searchTerm.toLowerCase());
-  });
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-lg">Cargando datos de créditos...</div>
-      </div>
-    );
+    return new Date(dateString).toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit', 
+      year: 'numeric'
+    })
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Gestión de Créditos</h1>
-          <p className="text-gray-600 mt-2">
-            Administra los créditos de los clientes y visualiza el historial de transacciones
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">Gestión de Créditos</h1>
+          <p className="text-sm text-gray-600">Administra los créditos de los pacientes</p>
         </div>
-        
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700">
-              <Plus className="w-4 h-4 mr-2" />
-              Crear Crédito
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Crear Nuevo Crédito</DialogTitle>
-              <DialogDescription>
-                Otorga créditos manuales a los clientes
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="user">Cliente</Label>
-                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {users.map(user => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.full_name} ({user.email})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <Label htmlFor="amount">Monto (COP)</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  value={newCreditAmount}
-                  onChange={(e) => setNewCreditAmount(e.target.value)}
-                  placeholder="50000"
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="type">Tipo de Crédito</Label>
-                <Select value={newCreditType} onValueChange={(value: 'promotion' | 'admin_adjustment') => setNewCreditType(value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="promotion">Promoción</SelectItem>
-                    <SelectItem value="admin_adjustment">Ajuste Administrativo</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <Label htmlFor="description">Descripción</Label>
-                <Textarea
-                  id="description"
-                  value={newCreditDescription}
-                  onChange={(e) => setNewCreditDescription(e.target.value)}
-                  placeholder="Motivo del crédito..."
-                  rows={3}
-                />
-              </div>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => setShowAddModal(true)}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Agregar Crédito Manual
+          </button>
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-green-600 mb-1">Créditos Totales</p>
+              <p className="text-2xl font-bold text-green-700">
+                {formatCurrency(creditsSummary.totalCredits)}
+              </p>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={createCredit}>
-                Crear Crédito
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Créditos Activos</CardTitle>
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalActiveCredits}</div>
-            <p className="text-xs text-muted-foreground">
-              créditos sin usar
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Valor Total</CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.totalCreditValue)}</div>
-            <p className="text-xs text-muted-foreground">
-              en créditos disponibles
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Usuarios con Créditos</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalUsersWithCredits}</div>
-            <p className="text-xs text-muted-foreground">
-              clientes activos
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Usados Este Mes</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(stats.creditsUsedThisMonth)}</div>
-            <p className="text-xs text-muted-foreground">
-              en créditos redimidos
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Main Content */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">Resumen por Cliente</TabsTrigger>
-          <TabsTrigger value="credits">Todos los Créditos</TabsTrigger>
-          <TabsTrigger value="transactions">Historial de Transacciones</TabsTrigger>
-        </TabsList>
-
-        {/* Search and Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Buscar por nombre, email o descripción..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+            <div className="p-2 bg-green-50 rounded-lg">
+              <CreditCard className="w-6 h-6 text-green-500" />
             </div>
           </div>
-          
-          {activeTab === 'credits' && (
-            <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los créditos</SelectItem>
-                <SelectItem value="active">Activos</SelectItem>
-                <SelectItem value="used">Usados</SelectItem>
-                <SelectItem value="expired">Expirados</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
         </div>
 
-        <TabsContent value="overview" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Resumen de Créditos por Cliente</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Balance Disponible</TableHead>
-                    <TableHead>Total Ganado</TableHead>
-                    <TableHead>Total Usado</TableHead>
-                    <TableHead>Créditos Activos</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {creditSummaries
-                    .filter(summary => 
-                      summary.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                      summary.email?.toLowerCase().includes(searchTerm.toLowerCase())
-                    )
-                    .map((summary) => (
-                    <TableRow key={summary.user_id}>
-                      <TableCell className="font-medium">{summary.full_name}</TableCell>
-                      <TableCell>{summary.email}</TableCell>
-                      <TableCell>
-                        <Badge variant={summary.available_balance > 0 ? "default" : "secondary"}>
-                          {formatCurrency(summary.available_balance)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{formatCurrency(summary.total_earned)}</TableCell>
-                      <TableCell>{formatCurrency(summary.total_used)}</TableCell>
-                      <TableCell>{summary.active_credits_count}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
+        <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-blue-600 mb-1">Pacientes con Créditos</p>
+              <p className="text-2xl font-bold text-blue-700">
+                {creditsSummary.totalPatients}
+              </p>
+            </div>
+            <div className="p-2 bg-blue-50 rounded-lg">
+              <Users className="w-6 h-6 text-blue-500" />
+            </div>
+          </div>
+        </div>
 
-        <TabsContent value="credits" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Lista de Créditos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Monto</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Descripción</TableHead>
-                    <TableHead>Fecha de Creación</TableHead>
-                    <TableHead>Fecha de Expiración</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredCredits.map((credit) => {
-                    const isExpired = credit.expires_at && new Date(credit.expires_at) < new Date();
-                    const isUsed = credit.is_used;
-                    
-                    return (
-                      <TableRow key={credit.id}>
-                        <TableCell className="font-medium">
-                          {credit.profiles?.full_name}
-                        </TableCell>
-                        <TableCell>{formatCurrency(credit.amount)}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
-                            {getCreditTypeLabel(credit.credit_type)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {isUsed ? (
-                            <Badge variant="secondary">Usado</Badge>
-                          ) : isExpired ? (
-                            <Badge variant="destructive">Expirado</Badge>
-                          ) : (
-                            <Badge variant="default">Disponible</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="max-w-xs truncate">
-                          {credit.description}
-                        </TableCell>
-                        <TableCell>{formatDate(credit.created_at)}</TableCell>
-                        <TableCell>
-                          {credit.expires_at ? formatDate(credit.expires_at) : 'Sin expiración'}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
+        <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-purple-600 mb-1">Total Generado</p>
+              <p className="text-2xl font-bold text-purple-700">
+                {formatCurrency(creditsSummary.totalEarned)}
+              </p>
+            </div>
+            <div className="p-2 bg-purple-50 rounded-lg">
+              <TrendingUp className="w-6 h-6 text-purple-500" />
+            </div>
+          </div>
+        </div>
 
-        <TabsContent value="transactions" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Historial de Transacciones</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Monto</TableHead>
-                    <TableHead>Balance Anterior</TableHead>
-                    <TableHead>Balance Posterior</TableHead>
-                    <TableHead>Descripción</TableHead>
-                    <TableHead>Fecha</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredTransactions.map((transaction) => (
-                    <TableRow key={transaction.id}>
-                      <TableCell className="font-medium">
-                        {transaction.profiles?.full_name}
-                      </TableCell>
-                      <TableCell>
-                        <Badge 
-                          variant={
-                            transaction.transaction_type === 'earned' ? 'default' :
-                            transaction.transaction_type === 'used' ? 'secondary' :
-                            transaction.transaction_type === 'expired' ? 'destructive' :
-                            'outline'
-                          }
+        <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-orange-600 mb-1">Total Utilizado</p>
+              <p className="text-2xl font-bold text-orange-700">
+                {formatCurrency(creditsSummary.totalUsed)}
+              </p>
+            </div>
+            <div className="p-2 bg-orange-50 rounded-lg">
+              <DollarSign className="w-6 h-6 text-orange-500" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow-sm p-4 mb-6 border border-gray-200">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Buscar por nombre o email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-3 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            />
+          </div>
+
+          <div className="relative">
+            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="pl-10 pr-3 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 appearance-none"
+            >
+              <option value="available_credits">Créditos Disponibles</option>
+              <option value="total_earned">Total Ganado</option>
+              <option value="total_used">Total Usado</option>
+              <option value="created_at">Fecha Creación</option>
+            </select>
+          </div>
+
+          <div>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
+              className="px-3 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            >
+              <option value="desc">Mayor a menor</option>
+              <option value="asc">Menor a mayor</option>
+            </select>
+          </div>
+
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="showOnlyWithCredits"
+              checked={showOnlyWithCredits}
+              onChange={(e) => setShowOnlyWithCredits(e.target.checked)}
+              className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+            />
+            <label htmlFor="showOnlyWithCredits" className="ml-2 text-sm text-gray-700">
+              Solo con créditos
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* Credits Table */}
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-200">
+        {isLoading ? (
+          <div className="p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Cargando créditos...</p>
+          </div>
+        ) : filteredAndSortedCredits.length === 0 ? (
+          <div className="p-8 text-center">
+            <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600">No se encontraron créditos con los filtros aplicados</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Paciente
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Disponible
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Total Ganado
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Total Usado
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Última Actualización
+                  </th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredAndSortedCredits.map((credit) => (
+                  <tr key={credit.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {credit.patient.full_name}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {credit.patient.email}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className={`text-sm font-semibold ${
+                        credit.available_credits > 0 ? 'text-green-600' : 'text-gray-500'
+                      }`}>
+                        {formatCurrency(credit.available_credits)}
+                      </div>
+                      {credit.available_credits > 0 && (
+                        <div className="flex items-center mt-1">
+                          <CheckCircle className="w-3 h-3 text-green-500 mr-1" />
+                          <span className="text-xs text-green-600">Activo</span>
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {formatCurrency(credit.total_earned)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {formatCurrency(credit.total_used)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatDate(credit.updated_at)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                      <div className="flex justify-center space-x-1">
+                        <Link
+                          href={`/dashboard/patients/${credit.patient_id}`}
+                          className="text-green-600 hover:text-green-900 p-1 rounded transition-colors"
+                          title="Ver perfil del paciente"
                         >
-                          {getTransactionTypeLabel(transaction.transaction_type)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className={
-                        transaction.transaction_type === 'earned' ? 'text-green-600' : 'text-red-600'
-                      }>
-                        {transaction.transaction_type === 'earned' ? '+' : '-'}
-                        {formatCurrency(Math.abs(transaction.amount))}
-                      </TableCell>
-                      <TableCell>{formatCurrency(transaction.balance_before)}</TableCell>
-                      <TableCell>{formatCurrency(transaction.balance_after)}</TableCell>
-                      <TableCell className="max-w-xs truncate">
-                        {transaction.description}
-                      </TableCell>
-                      <TableCell>{formatDate(transaction.created_at)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                          <Eye className="w-4 h-4" />
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {filteredAndSortedCredits.length > 0 && (
+        <div className="mt-4 text-sm text-gray-500 text-center">
+          Mostrando {filteredAndSortedCredits.length} de {patientCredits.length} pacientes
+        </div>
+      )}
+
+      {/* Modal para agregar crédito manual */}
+      <AddManualCreditModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['patient-credits-admin'] })
+        }}
+      />
     </div>
-  );
+  )
 }

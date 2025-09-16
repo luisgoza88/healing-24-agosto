@@ -1,56 +1,7 @@
 import { supabase } from '../lib/supabase';
-import { format, addDays, setHours, setMinutes } from 'date-fns';
-
-// Class schedule template with instructor names
-const INSTRUCTORS = {
-  'María García': 'instructor-1',
-  'Ana Martínez': 'instructor-2',
-  'Carolina López': 'instructor-3',
-  'Sofía Rodríguez': 'instructor-4',
-  'Valentina Gómez': 'instructor-5'
-};
-
-const WEEKLY_SCHEDULE = [
-  // Lunes
-  { dayOfWeek: 1, className: 'WildPower', time: '07:00', instructor: 'María García', spots: 12 },
-  { dayOfWeek: 1, className: 'GutReboot', time: '09:00', instructor: 'Ana Martínez', spots: 12 },
-  { dayOfWeek: 1, className: 'FireRush', time: '17:00', instructor: 'Carolina López', spots: 12 },
-  { dayOfWeek: 1, className: 'BloomBeat', time: '18:30', instructor: 'Sofía Rodríguez', spots: 12 },
-  
-  // Martes
-  { dayOfWeek: 2, className: 'WindMove', time: '07:00', instructor: 'Valentina Gómez', spots: 12 },
-  { dayOfWeek: 2, className: 'ForestFire', time: '10:00', instructor: 'María García', spots: 12 },
-  { dayOfWeek: 2, className: 'StoneBarre', time: '17:30', instructor: 'Ana Martínez', spots: 12 },
-  { dayOfWeek: 2, className: 'OmRoot', time: '19:00', instructor: 'Carolina López', spots: 12 },
-  
-  // Miércoles
-  { dayOfWeek: 3, className: 'HazeRocket', time: '06:30', instructor: 'Sofía Rodríguez', spots: 12 },
-  { dayOfWeek: 3, className: 'WildPower', time: '09:00', instructor: 'Valentina Gómez', spots: 12 },
-  { dayOfWeek: 3, className: 'MoonRelief', time: '12:00', instructor: 'María García', spots: 12 },
-  { dayOfWeek: 3, className: 'WindFlow', time: '18:00', instructor: 'Ana Martínez', spots: 12 },
-  
-  // Jueves
-  { dayOfWeek: 4, className: 'FireRush', time: '07:00', instructor: 'Carolina López', spots: 12 },
-  { dayOfWeek: 4, className: 'BloomBeat', time: '10:00', instructor: 'Sofía Rodríguez', spots: 12 },
-  { dayOfWeek: 4, className: 'ForestFire', time: '17:00', instructor: 'Valentina Gómez', spots: 12 },
-  { dayOfWeek: 4, className: 'GutReboot', time: '19:00', instructor: 'María García', spots: 12 },
-  
-  // Viernes
-  { dayOfWeek: 5, className: 'WildPower', time: '07:00', instructor: 'Ana Martínez', spots: 12 },
-  { dayOfWeek: 5, className: 'WindMove', time: '09:00', instructor: 'Carolina López', spots: 12 },
-  { dayOfWeek: 5, className: 'StoneBarre', time: '17:30', instructor: 'Sofía Rodríguez', spots: 12 },
-  { dayOfWeek: 5, className: 'MoonRelief', time: '19:00', instructor: 'Valentina Gómez', spots: 12 },
-  
-  // Sábado
-  { dayOfWeek: 6, className: 'HazeRocket', time: '08:00', instructor: 'María García', spots: 12 },
-  { dayOfWeek: 6, className: 'BloomBeat', time: '10:00', instructor: 'Ana Martínez', spots: 12 },
-  { dayOfWeek: 6, className: 'WindFlow', time: '11:30', instructor: 'Carolina López', spots: 12 },
-  
-  // Domingo
-  { dayOfWeek: 0, className: 'OmRoot', time: '09:00', instructor: 'Sofía Rodríguez', spots: 12 },
-  { dayOfWeek: 0, className: 'ForestFire', time: '10:30', instructor: 'Valentina Gómez', spots: 12 },
-  { dayOfWeek: 0, className: 'MoonRelief', time: '17:00', instructor: 'María García', spots: 12 },
-];
+import { format, addDays, getDay } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { SEPTEMBER_2025_SCHEDULE } from '../constants/breatheMoveSchedule';
 
 export const seedBreatheMoveClasses = async () => {
   try {
@@ -60,17 +11,26 @@ export const seedBreatheMoveClasses = async () => {
     const today = new Date();
     const classesToInsert = [];
     
-    // Generate classes for the next 7 days
-    for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+    // Generate classes for the next 30 days
+    for (let dayOffset = 0; dayOffset < 30; dayOffset++) {
       const currentDate = addDays(today, dayOffset);
-      const dayOfWeek = currentDate.getDay();
+      const dayOfWeek = getDay(currentDate);
       
-      // Find all classes for this day of week
-      const classesForDay = WEEKLY_SCHEDULE.filter(c => c.dayOfWeek === dayOfWeek);
+      // Skip Sundays - no classes on Sundays
+      if (dayOfWeek === 0) {
+        continue;
+      }
+      
+      // Debug log
+      console.log(`Date: ${format(currentDate, 'yyyy-MM-dd EEEE', { locale: es })}, dayOfWeek: ${dayOfWeek}`);
+      
+      // Find all classes for this day of week from the official schedule
+      const classesForDay = SEPTEMBER_2025_SCHEDULE.filter(c => c.dayOfWeek === dayOfWeek);
       
       for (const classTemplate of classesForDay) {
         const [hours, minutes] = classTemplate.time.split(':').map(Number);
-        const classDateTime = setMinutes(setHours(currentDate, hours), minutes);
+        const classDateTime = new Date(currentDate);
+        classDateTime.setHours(hours, minutes, 0, 0);
         
         // Skip if class time has already passed today
         if (dayOffset === 0 && classDateTime < new Date()) {
@@ -80,37 +40,52 @@ export const seedBreatheMoveClasses = async () => {
         // Calculate end time (50 minutes later)
         const endHours = minutes + 50 >= 60 ? hours + 1 : hours;
         const endMinutes = (minutes + 50) % 60;
+        const endTime = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
         
-        classesToInsert.push({
+        const classData = {
           class_name: classTemplate.className,
           class_date: format(currentDate, 'yyyy-MM-dd'),
-          start_time: classTemplate.time,
-          end_time: format(new Date(2000, 0, 1, endHours, endMinutes), 'HH:mm'), // 50 min classes
+          start_time: classTemplate.time + ':00',
+          end_time: endTime + ':00',
           instructor: classTemplate.instructor,
-          max_capacity: classTemplate.spots,
+          max_capacity: 12,
           current_capacity: 0,
           status: 'scheduled',
-          intensity: classTemplate.className === 'WildPower' || classTemplate.className === 'FireRush' || classTemplate.className === 'HazeRocket' ? 'high' :
-                     classTemplate.className === 'GutReboot' || classTemplate.className === 'WindMove' || classTemplate.className === 'OmRoot' || classTemplate.className === 'MoonRelief' ? 'low' : 'medium'
-        });
+          intensity: classTemplate.intensity
+        };
+        
+        // Debug log
+        console.log(`Creating class: ${classData.class_name} on ${classData.class_date} (${format(currentDate, 'EEEE', { locale: es })})`);
+        
+        classesToInsert.push(classData);
       }
     }
     
-    // Delete old classes (older than today) first
-    const { error: deleteError } = await supabase
+    // First, check if there are already classes to avoid duplicates
+    const { data: existingClasses, error: checkError } = await supabase
       .from('breathe_move_classes')
-      .delete()
-      .lt('class_date', format(today, 'yyyy-MM-dd'));
+      .select('id, class_date, start_time, class_name')
+      .gte('class_date', format(today, 'yyyy-MM-dd'));
     
-    if (deleteError) {
-      console.error('Error deleting old classes:', deleteError);
+    if (checkError) {
+      console.error('Error checking existing classes:', checkError);
+      return { success: false, message: checkError.message };
     }
     
-    // Insert new classes
-    if (classesToInsert.length > 0) {
+    // Filter out duplicates
+    const existingClassKeys = new Set(
+      (existingClasses || []).map(c => `${c.class_date}_${c.start_time}_${c.class_name}`)
+    );
+    
+    const newClasses = classesToInsert.filter(c => 
+      !existingClassKeys.has(`${c.class_date}_${c.start_time}_${c.class_name}`)
+    );
+    
+    // Insert only new classes
+    if (newClasses.length > 0) {
       const { data, error } = await supabase
         .from('breathe_move_classes')
-        .insert(classesToInsert)
+        .insert(newClasses)
         .select();
       
       if (error) {
@@ -118,11 +93,11 @@ export const seedBreatheMoveClasses = async () => {
         return { success: false, message: error.message };
       }
       
-      console.log(`Successfully inserted ${data?.length || 0} classes`);
-      return { success: true, message: `Created ${data?.length || 0} classes for the next 7 days` };
+      console.log(`Successfully inserted ${data?.length || 0} new classes`);
+      return { success: true, message: `Created ${data?.length || 0} new classes` };
     }
     
-    return { success: true, message: 'No new classes to insert' };
+    return { success: true, message: 'No new classes to insert - all classes already exist' };
     
   } catch (error) {
     console.error('Error in seedBreatheMoveClasses:', error);
