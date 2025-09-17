@@ -237,7 +237,7 @@ export default function ProfessionalsPage() {
                             {professional.title && (
                               <div className="text-sm text-gray-500">{professional.title}</div>
                             )}
-                            {(professional.specialties?.length > 0 || professional.specialty) && (
+                            {((professional.specialties && professional.specialties.length > 0) || professional.specialty) && (
                               <div className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200 mt-1">
                                 <Award className="w-3 h-3 mr-1" />
                                 {professional.specialties?.join(', ') || professional.specialty}
@@ -261,7 +261,7 @@ export default function ProfessionalsPage() {
                             </div>
                           )}
                           <div className="mt-2">
-                            {getStatusBadge(professional.active)}
+                            {getStatusBadge(professional.is_active)}
                           </div>
                         </div>
                       </td>

@@ -1,13 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { createClient } from '../lib/supabase';
 
-const supabase = createClient();
-
 // Hook para obtener profesionales
 export function useProfessionals() {
   return useQuery({
     queryKey: ['professionals'],
     queryFn: async () => {
+      const supabase = createClient();
       const { data, error } = await supabase
         .from('professionals')
         .select('*')
@@ -27,6 +26,7 @@ export function useServices() {
   return useQuery({
     queryKey: ['services'],
     queryFn: async () => {
+      const supabase = createClient();
       const { data, error } = await supabase
         .from('services')
         .select('*')
@@ -45,6 +45,7 @@ export function usePatients() {
   return useQuery({
     queryKey: ['patients'],
     queryFn: async () => {
+      const supabase = createClient();
       const { data, error } = await supabase
         .from('profiles')
         .select('*')

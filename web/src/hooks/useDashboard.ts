@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
+import { createClient } from '../lib/supabase';
 import { startOfMonth } from 'date-fns';
 
 interface DashboardStats {
@@ -31,6 +31,7 @@ export function useDashboardStats() {
   return useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: async (): Promise<DashboardStats> => {
+      const supabase = createClient();
       const today = new Date().toISOString().split('T')[0];
       const firstDayOfMonth = startOfMonth(new Date()).toISOString().split('T')[0];
 
@@ -101,6 +102,7 @@ export function useTodayAppointments() {
   return useQuery({
     queryKey: ['today-appointments'],
     queryFn: async (): Promise<TodayAppointment[]> => {
+      const supabase = createClient();
       const today = new Date().toISOString().split('T')[0];
 
       console.log('[useTodayAppointments] Ejecutando query para fecha:', today);
@@ -174,6 +176,7 @@ export function useRecentActivity() {
   return useQuery({
     queryKey: ['recent-activity'],
     queryFn: async (): Promise<RecentActivity[]> => {
+      const supabase = createClient();
       // Obtener las últimas citas creadas
       const { data: appointments } = await supabase
         .from('appointments')
@@ -248,6 +251,7 @@ export function useDashboardCharts() {
   return useQuery({
     queryKey: ['dashboard-charts'],
     queryFn: async () => {
+      const supabase = createClient();
       // Obtener datos de los últimos 7 días para el gráfico
       const dates = [];
       const data = [];
@@ -298,6 +302,7 @@ export function usePrefetchDashboard() {
     queryClient.prefetchQuery({
       queryKey: ['dashboard-stats'],
       queryFn: async () => {
+        const supabase = createClient();
         // La misma función que useDashboardStats
         const today = new Date().toISOString().split('T')[0];
         const firstDayOfMonth = startOfMonth(new Date()).toISOString().split('T')[0];
@@ -327,6 +332,7 @@ export function usePrefetchDashboard() {
     queryClient.prefetchQuery({
       queryKey: ['today-appointments'],
       queryFn: async () => {
+        const supabase = createClient();
         const today = new Date().toISOString().split('T')[0];
         const { data } = await supabase
           .from('appointments')

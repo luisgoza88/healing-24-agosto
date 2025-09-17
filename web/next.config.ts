@@ -9,13 +9,6 @@ const nextConfig: NextConfig = {
     root: '/Users/marianatejada/Documents/GitHub/healing-24-agosto/web'
   },
   
-  // Reducir Fast Refresh innecesarios
-  experimental: {
-    turbo: {
-      unstable_skipUnknownWebpackPlugins: true
-    }
-  },
-  
   // Configuración para resolver problemas de CSP
   async headers() {
     return [

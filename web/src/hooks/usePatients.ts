@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
+import { createClient } from '../lib/supabase';
 
 export interface Patient {
   id: string;
@@ -28,6 +28,7 @@ export function usePatients(filters: PatientFilters = {}) {
   return useQuery({
     queryKey: ['patients', filters],
     queryFn: async (): Promise<Patient[]> => {
+      const supabase = createClient();
       // Obtener pacientes
       const { data: patientsData, error: patientsError } = await supabase
         .from('profiles')
@@ -106,6 +107,7 @@ export function usePatient(patientId: string) {
   return useQuery({
     queryKey: ['patient', patientId],
     queryFn: async () => {
+      const supabase = createClient();
       // Obtener datos del paciente
       const { data: patient, error: patientError } = await supabase
         .from('profiles')
@@ -157,6 +159,7 @@ export function useCreatePatient() {
 
   return useMutation({
     mutationFn: async (patientData: Partial<Patient>) => {
+      const supabase = createClient();
       const { data, error } = await supabase
         .from('profiles')
         .insert({
@@ -192,6 +195,7 @@ export function useUpdatePatient() {
 
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<Patient> }) => {
+      const supabase = createClient();
       const { error } = await supabase
         .from('profiles')
         .update({
@@ -225,6 +229,7 @@ export function useCities() {
   return useQuery({
     queryKey: ['cities'],
     queryFn: async (): Promise<string[]> => {
+      const supabase = createClient();
       const { data, error } = await supabase
         .from('profiles')
         .select('city')
@@ -247,6 +252,7 @@ export function usePatientStats() {
   return useQuery({
     queryKey: ['patient-stats'],
     queryFn: async () => {
+      const supabase = createClient();
       const today = new Date();
       const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
       const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);

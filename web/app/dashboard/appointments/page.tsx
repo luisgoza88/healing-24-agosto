@@ -165,11 +165,11 @@ export default function AppointmentsPage() {
           console.log('[handleCancelAppointment] Credit amount:', creditInfo!.creditAmount)
           
           // Si hay crédito, usar el hook que maneja todo en una transacción
-          await generateCredit.mutateAsync({
+          await generateCredit.mutate({
             patientId: appointment.user_id,
             appointmentId: appointment.id,
             amount: creditInfo!.creditAmount,
-            reason: `Cancelación de cita - Reembolso ${creditInfo!.refundPercentage}%`
+            description: `Cancelación de cita - Reembolso ${creditInfo!.refundPercentage}%`
           })
           
           console.log('[handleCancelAppointment] Credit generated successfully')

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
+import { createClient } from '../lib/supabase';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 
 export interface BreatheMoveClass {
@@ -23,6 +23,7 @@ export function useBreatheMoveClasses(currentMonth: Date) {
   return useQuery({
     queryKey: ['breathe-move-classes', start, end],
     queryFn: async () => {
+      const supabase = createClient();
       const { data, error } = await supabase
         .from('breathe_move_classes')
         .select('*')
@@ -58,6 +59,7 @@ export function useDeleteClass() {
       const confirmed = confirm(`¿Estás seguro de que deseas eliminar la clase ${className}?`);
       if (!confirmed) throw new Error('Cancelled');
 
+      const supabase = createClient();
       const { error } = await supabase
         .from('breathe_move_classes')
         .delete()
@@ -90,6 +92,7 @@ export function useUpdateClass() {
       const endMinutes = (minutes + 50) % 60;
       const endTime = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}:00`;
 
+      const supabase = createClient();
       const { error } = await supabase
         .from('breathe_move_classes')
         .update({
@@ -133,6 +136,7 @@ export function useCreateClass() {
       const endMinutes = (minutes + 50) % 60;
       const endTime = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}:00`;
 
+      const supabase = createClient();
       const { error } = await supabase
         .from('breathe_move_classes')
         .insert({
@@ -170,6 +174,7 @@ export function usePrefetchNextMonth(currentMonth: Date) {
     queryClient.prefetchQuery({
       queryKey: ['breathe-move-classes', start, end],
       queryFn: async () => {
+        const supabase = createClient();
         const { data, error } = await supabase
           .from('breathe_move_classes')
           .select('*')

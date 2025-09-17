@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
+import { createClient } from '../lib/supabase';
 import { subDays, startOfDay, endOfDay } from 'date-fns';
 
 export interface Appointment {
@@ -31,6 +31,7 @@ interface AppointmentFilters {
 // Hook principal para obtener citas con filtros
 export function useAppointments(filters: AppointmentFilters = {}) {
   const { dateRange = 30 } = filters;
+  const supabase = createClient();
 
   return useQuery({
     queryKey: ['appointments', filters],
@@ -211,6 +212,7 @@ export function useAppointmentServices() {
   return useQuery({
     queryKey: ['appointment-services'],
     queryFn: async (): Promise<Array<{ id: string; name: string }>> => {
+      const supabase = createClient();
       const { data, error } = await supabase
         .from('services')
         .select('id, name')
@@ -231,6 +233,7 @@ export function useCreateAppointment() {
 
   return useMutation({
     mutationFn: async (appointmentData: any) => {
+      const supabase = createClient();
       const { error } = await supabase
         .from('appointments')
         .insert(appointmentData);
@@ -253,6 +256,7 @@ export function useUpdateAppointment() {
 
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const supabase = createClient();
       const { error } = await supabase
         .from('appointments')
         .update(data)
@@ -276,6 +280,7 @@ export function useCancelAppointment() {
 
   return useMutation({
     mutationFn: async (appointmentId: string) => {
+      const supabase = createClient();
       const { error } = await supabase
         .from('appointments')
         .update({ status: 'cancelled' })
@@ -298,6 +303,7 @@ export function useProfessionals() {
   return useQuery({
     queryKey: ['professionals'],
     queryFn: async () => {
+      const supabase = createClient();
       const { data, error } = await supabase
         .from('professionals')
         .select('id, full_name, specialties')
@@ -317,6 +323,7 @@ export function useServices() {
   return useQuery({
     queryKey: ['services'],
     queryFn: async () => {
+      const supabase = createClient();
       const { data, error } = await supabase
         .from('services')
         .select('id, name')
@@ -335,6 +342,7 @@ export function useAppointmentStats() {
   return useQuery({
     queryKey: ['appointment-stats'],
     queryFn: async () => {
+      const supabase = createClient();
       const today = new Date().toISOString().split('T')[0];
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);

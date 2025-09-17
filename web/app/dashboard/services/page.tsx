@@ -327,10 +327,10 @@ export default function ServicesPage() {
 
   const handleCategoryClick = (categoryId: string, categoryName?: string) => {
     if (categoryName === 'Breathe & Move' || categoryId === 'breathe-move') {
-      router.push('/dashboard/services/breathe-move')
+      router.push('/dashboard/admin/breathe-move')
     } else {
-      // Navigate to the service detail page with the category ID
-      router.push(`/dashboard/services/${categoryId}`)
+      // Navigate to the admin services page
+      router.push('/dashboard/admin/services')
     }
   }
 

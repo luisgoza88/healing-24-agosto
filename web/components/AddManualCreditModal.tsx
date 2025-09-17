@@ -56,7 +56,7 @@ export default function AddManualCreditModal({ isOpen, onClose, onSuccess }: Add
         return
       }
 
-      await createManualCredit.mutateAsync({
+      await createManualCredit.mutate({
         patientId: formData.patient_id,
         amount: amount,
         reason: formData.reason,

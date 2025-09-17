@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
+import { createClient } from '../lib/supabase';
 
 export interface Professional {
   id: string;
@@ -30,6 +30,7 @@ export function useProfessionals(filters: ProfessionalFilters = {}) {
   return useQuery({
     queryKey: ['professionals', filters],
     queryFn: async (): Promise<Professional[]> => {
+      const supabase = createClient();
       // Obtener profesionales
       const { data: professionalsData, error: professionalsError } = await supabase
         .from('professionals')
@@ -124,6 +125,7 @@ export function useProfessional(professionalId: string) {
   return useQuery({
     queryKey: ['professional', professionalId],
     queryFn: async () => {
+      const supabase = createClient();
       // Obtener datos del profesional
       const { data: professional, error: professionalError } = await supabase
         .from('professionals')
@@ -180,6 +182,7 @@ export function useCreateProfessional() {
 
   return useMutation({
     mutationFn: async (professionalData: Partial<Professional>) => {
+      const supabase = createClient();
       const { data, error } = await supabase
         .from('professionals')
         .insert({
@@ -212,6 +215,7 @@ export function useUpdateProfessional() {
 
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<Professional> }) => {
+      const supabase = createClient();
       const { error } = await supabase
         .from('professionals')
         .update({
@@ -243,6 +247,7 @@ export function useSpecialties() {
   return useQuery({
     queryKey: ['specialties'],
     queryFn: async (): Promise<string[]> => {
+      const supabase = createClient();
       const { data, error } = await supabase
         .from('professionals')
         .select('specialties');
@@ -270,6 +275,7 @@ export function useProfessionalStats() {
   return useQuery({
     queryKey: ['professional-stats'],
     queryFn: async () => {
+      const supabase = createClient();
       const today = new Date().toISOString().split('T')[0];
       
       // Consultas paralelas

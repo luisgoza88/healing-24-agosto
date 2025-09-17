@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { CreditCard, Clock, TrendingUp, History, X } from 'lucide-react'
-import { usePatientCredits, useCreditTransactions } from '@/src/hooks/usePatientCredits'
+import { usePatientCredits } from '@/src/hooks/usePatientCredits'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -13,8 +13,8 @@ interface PatientCreditsCardProps {
 
 export default function PatientCreditsCard({ patientId, patientName }: PatientCreditsCardProps) {
   const [showHistory, setShowHistory] = useState(false)
-  const { data: credits } = usePatientCredits(patientId)
-  const { data: transactions = [] } = useCreditTransactions(patientId)
+  const { summary, transactions } = usePatientCredits(patientId)
+  const credits = summary
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CO', {
@@ -73,7 +73,7 @@ export default function PatientCreditsCard({ patientId, patientName }: PatientCr
           <div className="bg-white rounded-lg p-3 border border-green-200">
             <div className="text-center">
               <div className="text-2xl font-bold text-green-700">
-                {formatCurrency(credits.available_credits)}
+                {formatCurrency(credits.available_balance)}
               </div>
               <div className="text-xs text-green-600">Disponible</div>
             </div>
@@ -141,7 +141,7 @@ export default function PatientCreditsCard({ patientId, patientName }: PatientCr
         </div>
       )}
 
-      {credits?.available_credits && credits.available_credits > 0 && (
+      {credits?.available_balance && credits.available_balance > 0 && (
         <div className="mt-3 p-2 bg-green-100 rounded-lg">
           <div className="text-xs text-green-800 font-medium flex items-center">
             <TrendingUp className="w-3 h-3 mr-1" />

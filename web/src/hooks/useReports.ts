@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
+import { createClient } from '../lib/supabase';
 import { startOfMonth, startOfQuarter, startOfYear, subMonths, subDays, format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -40,6 +40,7 @@ export function useReportMetrics(dateRange: DateRangeType = 'month') {
   return useQuery({
     queryKey: ['report-metrics', dateRange],
     queryFn: async (): Promise<DashboardMetrics> => {
+      const supabase = createClient();
       console.log('[useReportMetrics] Iniciando consulta...', { dateRange });
       const today = new Date();
       const startDate = getStartDate(dateRange);

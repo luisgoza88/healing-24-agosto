@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/src/lib/supabase'
 import { X, CreditCard, DollarSign } from 'lucide-react'
 import { useProfessionals, useServices, usePatients } from '@/src/hooks/useCachedData'
-import { usePatientCredits, useCredits } from '@/src/hooks/usePatientCredits'
+import { usePatientCredits, useCreditsForAppointment } from '@/src/hooks/usePatientCredits'
 
 interface NewAppointmentModalProps {
   isOpen: boolean
@@ -41,8 +41,7 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewA
   const { data: patients = [], isLoading: loadingPatients } = usePatients()
   
   // Credits hooks
-  const { data: patientCredits } = usePatientCredits(formData.patient_id)
-  const useCreditsHook = useCredits()
+  const { balance, summary } = usePatientCredits(formData.patient_id)
 
   const selectedService = services.find(s => s.id === formData.service_id)
 
@@ -56,7 +55,7 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewA
 
   // Calculate totals
   const servicePrice = selectedService?.base_price || 0
-  const availableCredits = patientCredits?.available_credits || 0
+  const availableCredits = balance || 0
   const maxCreditsUsable = Math.min(availableCredits, servicePrice)
   const finalAmount = servicePrice - creditsToUse
 
@@ -98,12 +97,16 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewA
 
       // If using credits, process the credit transaction
       if (useCreditsEnabled && creditsToUse > 0) {
-        await useCreditsHook.mutateAsync({
-          patientId: formData.patient_id,
-          appointmentId: newAppointment.id,
-          amount: creditsToUse,
-          description: `Pago parcial para cita - ${selectedService?.name}`
-        })
+        const success = await useCreditsForAppointment(
+          supabase,
+          formData.patient_id,
+          newAppointment.id,
+          creditsToUse
+        )
+        
+        if (!success) {
+          throw new Error('No se pudieron aplicar los créditos')
+        }
       }
 
       // Show success message

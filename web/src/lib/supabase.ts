@@ -29,6 +29,3 @@ export function createClient() {
     }
   )
 }
-
-// Exportar directamente la función para que siempre se use createClient()
-export const supabase = createClient()

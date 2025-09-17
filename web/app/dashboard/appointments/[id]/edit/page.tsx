@@ -117,7 +117,7 @@ export default function EditAppointmentPage({ params }: { params: Promise<{ id: 
       // Cargar datos adicionales
       const [profsData, servicesData, patientsData] = await Promise.all([
         supabase.from('professionals').select('id, full_name').eq('active', true).order('full_name'),
-        supabase.from('services').select('id, name').order('name'),
+        supabase.from('services').select('id, name, base_price, duration_minutes').order('name'),
         supabase.from('profiles').select('id, full_name, email').order('full_name')
       ])
 
