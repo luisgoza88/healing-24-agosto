@@ -37,7 +37,8 @@ import {
   MapPin,
   CheckCircle,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  Droplet
 } from 'lucide-react';
 
 interface Service {
@@ -88,6 +89,7 @@ const categoryInfo: Record<string, { name: string; icon: any; color: string; bgC
   'medicina-funcional': { name: 'Medicina Funcional', icon: Activity, color: 'text-green-700', bgColor: 'bg-gradient-to-br from-green-50 to-emerald-50' },
   'medicina-estetica': { name: 'Medicina Estética', icon: Sparkles, color: 'text-pink-700', bgColor: 'bg-gradient-to-br from-pink-50 to-rose-50' },
   'medicina-regenerativa': { name: 'Medicina Regenerativa & Longevidad', icon: Heart, color: 'text-red-700', bgColor: 'bg-gradient-to-br from-red-50 to-orange-50' },
+  'drips': { name: 'DRIPS - Sueroterapia', icon: Droplet, color: 'text-blue-700', bgColor: 'bg-gradient-to-br from-blue-50 to-sky-50' },
   'faciales': { name: 'Faciales', icon: Flower2, color: 'text-purple-700', bgColor: 'bg-gradient-to-br from-purple-50 to-lavender-50' },
   'masajes': { name: 'Masajes', icon: HandHelping, color: 'text-amber-700', bgColor: 'bg-gradient-to-br from-amber-50 to-yellow-50' },
   'wellness-integral': { name: 'Wellness Integral', icon: HeartHandshake, color: 'text-indigo-700', bgColor: 'bg-gradient-to-br from-indigo-50 to-blue-50' },
@@ -143,7 +145,7 @@ export default function ServiceCategoryPage() {
         // Por ahora, cargar todos los profesionales ya que no tenemos la tabla professional_services
         const { data: professionalsData } = await supabase
           .from('professionals')
-          .select('id, full_name, specialty, avatar_url')
+          .select('id, full_name, specialties, avatar_url')
           .order('full_name');
 
         if (professionalsData) {
@@ -476,6 +478,7 @@ export default function ServiceCategoryPage() {
             viewMode={viewMode}
             setViewMode={setViewMode}
             onRefresh={loadCategoryData}
+            categoryName={categoryData.name}
           />
         </TabsContent>
       </Tabs>

@@ -1,8 +1,20 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Desactivar optimizaciones que causan problemas con CSP en desarrollo
+  // Configuraciones para mejorar estabilidad en desarrollo
   productionBrowserSourceMaps: false,
+  
+  // Configurar turbopack para mejor rendimiento
+  turbo: {
+    root: '/Users/marianatejada/Documents/GitHub/healing-24-agosto/web'
+  },
+  
+  // Reducir Fast Refresh innecesarios
+  experimental: {
+    turbo: {
+      unstable_skipUnknownWebpackPlugins: true
+    }
+  },
   
   // Configuración para resolver problemas de CSP
   async headers() {

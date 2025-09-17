@@ -185,8 +185,7 @@ export function useCreateProfessional() {
         .insert({
           full_name: professionalData.full_name,
           title: professionalData.title,
-          specialty: professionalData.specialty,
-          specialties: professionalData.specialties,
+          specialties: professionalData.specialties || (professionalData.specialty ? [professionalData.specialty] : []),
           email: professionalData.email,
           phone: professionalData.phone,
           active: true,
@@ -218,8 +217,7 @@ export function useUpdateProfessional() {
         .update({
           full_name: data.full_name,
           title: data.title,
-          specialty: data.specialty,
-          specialties: data.specialties,
+          specialties: data.specialties || (data.specialty ? [data.specialty] : []),
           email: data.email,
           phone: data.phone,
           active: data.is_active,

@@ -40,3 +40,15 @@ export const SERVICE_ITEMS = {
   'Wellness Integral': [],
   'Breathe & Move': [] // Este se maneja diferente con el sistema de clases
 }
+
+// También exportar por ID para facilitar el acceso
+export const SERVICE_ITEMS_BY_ID = {
+  'medicina-funcional': SERVICE_ITEMS['Medicina Funcional'],
+  'medicina-estetica': SERVICE_ITEMS['Medicina Estética'],
+  'medicina-regenerativa': SERVICE_ITEMS['Medicina Regenerativa & Longevidad'],
+  'drips': SERVICE_ITEMS['DRIPS - Sueroterapia'],
+  'faciales': SERVICE_ITEMS['Faciales'],
+  'masajes': SERVICE_ITEMS['Masajes'],
+  'wellness-integral': SERVICE_ITEMS['Wellness Integral'],
+  'breathe-move': SERVICE_ITEMS['Breathe & Move']
+}

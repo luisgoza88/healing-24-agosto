@@ -82,7 +82,7 @@ const serviceCategories: ServiceCategory[] = [
     color: 'text-green-700',
     bgColor: 'bg-gradient-to-br from-green-50 to-emerald-50',
     borderColor: 'border-green-200',
-    description: 'Consultas especializadas en medicina funcional, péptidos y células madre',
+    description: 'Consultas especializadas y péptidos',
     subServices: [
       'Consulta funcional – primera vez',
       'Consulta funcional – seguimiento',
@@ -97,7 +97,7 @@ const serviceCategories: ServiceCategory[] = [
     color: 'text-pink-700',
     bgColor: 'bg-gradient-to-br from-pink-50 to-rose-50',
     borderColor: 'border-pink-200',
-    description: 'Procedimientos estéticos avanzados para realzar tu belleza natural',
+    description: 'Procedimientos estéticos avanzados',
     subServices: [
       'Consulta medicina estética valoración',
       'Procedimientos estéticos'
@@ -110,16 +110,27 @@ const serviceCategories: ServiceCategory[] = [
     color: 'text-red-700',
     bgColor: 'bg-gradient-to-br from-red-50 to-orange-50',
     borderColor: 'border-red-200',
-    description: 'Terapias antiedad, bienestar y longevidad avanzada',
+    description: 'Terapias antiedad y bienestar',
     subServices: [
       'Baño helado',
       'Sauna infrarrojo',
       'Baño helado + sauna infrarrojo',
+      'Cámara hiperbárica'
+    ]
+  },
+  {
+    id: 'drips',
+    name: 'DRIPS - Sueroterapia',
+    icon: Droplet,
+    color: 'text-blue-700',
+    bgColor: 'bg-gradient-to-br from-blue-50 to-sky-50',
+    borderColor: 'border-blue-200',
+    description: 'Terapias intravenosas y sueroterapia',
+    subServices: [
       'Vitaminas - IV Drips',
       'NAD 125 mg',
       'NAD 500 mg',
       'NAD 1000 mg',
-      'Cámara hiperbárica',
       'Ozonoterapia – suero ozonizado',
       'Ozonoterapia – autohemoterapia mayor'
     ]
@@ -131,7 +142,7 @@ const serviceCategories: ServiceCategory[] = [
     color: 'text-purple-700',
     bgColor: 'bg-gradient-to-br from-purple-50 to-lavender-50',
     borderColor: 'border-purple-200',
-    description: 'Tratamientos faciales especializados para cada tipo de piel',
+    description: 'Tratamientos faciales especializados',
     subServices: [
       'Clean Facial',
       'Glow Facial',
@@ -147,7 +158,7 @@ const serviceCategories: ServiceCategory[] = [
     color: 'text-amber-700',
     bgColor: 'bg-gradient-to-br from-amber-50 to-yellow-50',
     borderColor: 'border-amber-200',
-    description: 'Masajes terapéuticos y relajantes para tu bienestar',
+    description: 'Masajes terapéuticos y relajantes',
     subServices: [
       'Drenaje linfático',
       'Relajante'
@@ -160,7 +171,7 @@ const serviceCategories: ServiceCategory[] = [
     color: 'text-indigo-700',
     bgColor: 'bg-gradient-to-br from-indigo-50 to-blue-50',
     borderColor: 'border-indigo-200',
-    description: 'Experiencias integrales de bienestar y salud holística',
+    description: 'Servicios de bienestar integral',
     subServices: []
   },
   {
@@ -318,6 +329,7 @@ export default function ServicesPage() {
     if (categoryName === 'Breathe & Move' || categoryId === 'breathe-move') {
       router.push('/dashboard/services/breathe-move')
     } else {
+      // Navigate to the service detail page with the category ID
       router.push(`/dashboard/services/${categoryId}`)
     }
   }

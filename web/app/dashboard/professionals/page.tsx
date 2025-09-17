@@ -237,10 +237,10 @@ export default function ProfessionalsPage() {
                             {professional.title && (
                               <div className="text-sm text-gray-500">{professional.title}</div>
                             )}
-                            {professional.specialty && (
+                            {(professional.specialties?.length > 0 || professional.specialty) && (
                               <div className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200 mt-1">
                                 <Award className="w-3 h-3 mr-1" />
-                                {professional.specialty}
+                                {professional.specialties?.join(', ') || professional.specialty}
                               </div>
                             )}
                           </div>

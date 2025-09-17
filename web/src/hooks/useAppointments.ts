@@ -300,7 +300,7 @@ export function useProfessionals() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('professionals')
-        .select('id, full_name, specialty')
+        .select('id, full_name, specialties')
         .eq('active', true)
         .order('full_name');
 

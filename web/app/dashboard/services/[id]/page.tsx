@@ -19,7 +19,9 @@ import {
 import { createClient } from '@/src/lib/supabase'
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { SERVICE_ITEMS } from '@/src/data/serviceItems'
+import { SERVICE_ITEMS, SERVICE_ITEMS_BY_ID } from '@/src/data/serviceItems'
+import ServiceCalendarView from '@/components/ServiceCalendarView'
+import { useAppointments, useProfessionals, useServices } from '@/src/hooks/useAppointments'
 
 interface ServiceDetail {
   id: string
@@ -35,6 +37,28 @@ interface Professional {
   specialties: string[]
 }
 
+interface Appointment {
+  id: string
+  user_id: string
+  service_id: string
+  professional_id: string | null
+  appointment_date: string
+  appointment_time: string
+  end_time: string
+  status: string
+  notes: string | null
+  total_amount: number
+  payment_status: string
+  service?: ServiceDetail
+  professional?: Professional
+  patient?: {
+    id: string
+    full_name: string
+    email: string
+    phone: string
+  }
+}
+
 export default function ServiceDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -42,9 +66,17 @@ export default function ServiceDetailPage() {
   
   const [service, setService] = useState<ServiceDetail | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'calendar' | 'stats' | 'professionals' | 'settings'>('stats')
+  const [activeTab, setActiveTab] = useState<'calendar' | 'stats' | 'professionals' | 'settings'>('calendar')
   const [dateRange, setDateRange] = useState(30)
   const [professionals, setProfessionals] = useState<Professional[]>([])
+  const [selectedDate, setSelectedDate] = useState(new Date())
+  const [viewMode, setViewMode] = useState<'week' | 'month'>('month')
+  const [subServices, setSubServices] = useState<ServiceDetail[]>([])
+  
+  // Use hooks for data loading
+  const { data: appointments = [], refetch: refetchAppointments } = useAppointments({ service: serviceId })
+  const { data: allProfessionals = [] } = useProfessionals()
+  const { data: allServices = [] } = useServices()
   const [stats, setStats] = useState({
     totalAppointments: 0,
     completedAppointments: 0,
@@ -59,6 +91,12 @@ export default function ServiceDetailPage() {
   useEffect(() => {
     loadServiceData()
   }, [serviceId])
+  
+  useEffect(() => {
+    if (allProfessionals.length > 0) {
+      setProfessionals(allProfessionals)
+    }
+  }, [allProfessionals])
 
   const loadServiceData = async () => {
     try {
@@ -74,18 +112,11 @@ export default function ServiceDetailPage() {
       if (serviceError) throw serviceError
       setService(serviceData)
 
-      // Cargar profesionales que ofrecen este servicio
-      // Por ahora, cargar todos los profesionales activos
-      // TODO: Implementar relación profesional-servicio cuando esté disponible
-      const { data: professionalsData } = await supabase
-        .from('professionals')
-        .select('*')
-        .eq('active', true)
-
-      setProfessionals(professionalsData || [])
-
       // Cargar estadísticas
       await loadStats()
+      
+      // Cargar sub-servicios si existen
+      await loadSubServices()
     } catch (error) {
       console.error('Error loading service data:', error)
     } finally {
@@ -197,8 +228,47 @@ export default function ServiceDetailPage() {
     }).format(amount)
   }
 
-  const getServiceItems = (serviceName: string) => {
-    return SERVICE_ITEMS[serviceName] || []
+  const getServiceItems = (serviceName: string, serviceId?: string) => {
+    // Primero intentar por nombre
+    const itemsByName = SERVICE_ITEMS[serviceName]
+    if (itemsByName && itemsByName.length > 0) {
+      return itemsByName
+    }
+    
+    // Luego intentar por ID
+    if (serviceId) {
+      const itemsById = SERVICE_ITEMS_BY_ID[serviceId]
+      if (itemsById && itemsById.length > 0) {
+        return itemsById
+      }
+    }
+    
+    return []
+  }
+  
+  
+  const loadSubServices = async () => {
+    try {
+      const supabase = createClient()
+      
+      // Cargar servicios relacionados o sub-servicios
+      const { data: servicesData, error } = await supabase
+        .from('services')
+        .select('*')
+        .eq('category', service?.name)
+        .neq('id', serviceId)
+      
+      if (!error && servicesData) {
+        setSubServices(servicesData)
+      }
+    } catch (error) {
+      console.error('Error loading sub-services:', error)
+    }
+  }
+  
+  const handleRefresh = async () => {
+    await refetchAppointments()
+    await loadStats()
   }
 
   if (loading) {
@@ -315,7 +385,7 @@ export default function ServiceDetailPage() {
           <div className="mb-8">
             <h3 className="text-lg font-semibold mb-4">Sub-servicios disponibles</h3>
             <div className="grid gap-4">
-              {getServiceItems(service.name).map((item, index) => (
+              {getServiceItems(service.name, service.id).map((item, index) => (
                 <div key={index} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
@@ -337,7 +407,7 @@ export default function ServiceDetailPage() {
                   </div>
                 </div>
               ))}
-              {getServiceItems(service.name).length === 0 && (
+              {getServiceItems(service.name, service.id).length === 0 && (
                 <p className="text-gray-500 text-center py-8">No hay sub-servicios configurados</p>
               )}
             </div>
@@ -405,16 +475,38 @@ export default function ServiceDetailPage() {
       )}
 
       {activeTab === 'calendar' && (
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <h3 className="text-lg font-semibold mb-4">Calendario del servicio</h3>
-          <p className="text-gray-600">
-            Aquí podrás gestionar la disponibilidad, horarios y citas específicas de {service.name}.
-          </p>
-          <div className="mt-8 text-center text-gray-400">
-            <Calendar className="w-16 h-16 mx-auto mb-4" />
-            <p>Calendario en desarrollo...</p>
-          </div>
-        </div>
+        <ServiceCalendarView
+          category={service.id}
+          categoryData={service}
+          services={subServices.length > 0 ? subServices : [service]}
+          professionals={allProfessionals}
+          appointments={appointments.map(apt => ({
+            id: apt.id,
+            user_id: apt.user_id,
+            service_id: service.id,
+            professional_id: apt.professional_id,
+            appointment_date: apt.appointment_date,
+            appointment_time: apt.appointment_time,
+            end_time: apt.appointment_time, // We'll calculate this properly later
+            status: apt.status,
+            notes: apt.notes || '',
+            total_amount: apt.total_amount,
+            payment_status: apt.payment_status || 'pending',
+            service: { id: service.id, name: service.name },
+            professional: allProfessionals.find(p => p.id === apt.professional_id),
+            patient: {
+              id: apt.user_id,
+              full_name: apt.patient_name,
+              email: apt.patient_email,
+              phone: ''
+            }
+          }))}
+          selectedDate={selectedDate}
+          setSelectedDate={setSelectedDate}
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          onRefresh={handleRefresh}
+        />
       )}
 
       {activeTab === 'professionals' && (

@@ -90,9 +90,9 @@ export function useDashboardStats() {
         monthlyRevenue,
       };
     },
-    staleTime: 2 * 60 * 1000, // 2 minutos
-    gcTime: 5 * 60 * 1000, // 5 minutos
-    refetchInterval: 60 * 1000, // Refrescar cada minuto
+    staleTime: 5 * 60 * 1000, // 5 minutos
+    gcTime: 10 * 60 * 1000, // 10 minutos
+    refetchInterval: false, // Desactivar auto-refetch en desarrollo
   });
 }
 
@@ -163,9 +163,9 @@ export function useTodayAppointments() {
           };
         });
     },
-    staleTime: 1 * 60 * 1000, // 1 minuto
-    gcTime: 5 * 60 * 1000,
-    refetchInterval: 30 * 1000, // Refrescar cada 30 segundos
+    staleTime: 3 * 60 * 1000, // 3 minutos
+    gcTime: 10 * 60 * 1000,
+    refetchInterval: false, // Desactivar auto-refetch en desarrollo
   });
 }
 
@@ -237,9 +237,9 @@ export function useRecentActivity() {
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, 10);
     },
-    staleTime: 30 * 1000, // 30 segundos
-    gcTime: 2 * 60 * 1000,
-    refetchInterval: 30 * 1000, // Refrescar cada 30 segundos
+    staleTime: 2 * 60 * 1000, // 2 minutos
+    gcTime: 5 * 60 * 1000,
+    refetchInterval: false, // Desactivar auto-refetch en desarrollo
   });
 }
 
