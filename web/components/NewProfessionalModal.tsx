@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { X, Loader2, User, Mail, Phone, Award, Clock, DollarSign } from 'lucide-react'
-import { supabase } from '@/src/lib/supabase'
+import { createClient, useSupabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 
 interface NewProfessionalModalProps {
@@ -40,6 +40,7 @@ const DAYS_OF_WEEK = [
 
 export default function NewProfessionalModal({ isOpen, onClose, onSuccess }: NewProfessionalModalProps) {
   const queryClient = useQueryClient()
+  const supabase = useSupabase()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     full_name: '',

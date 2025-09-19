@@ -383,7 +383,7 @@ export const ProfileScreen = ({ navigation }: any) => {
             <TouchableOpacity
               onPress={() => {
                 setDevTapCount(devTapCount + 1);
-                if (devTapCount >= 4) {
+                if (devTapCount >= 4 && __DEV__) {
                   setDevTapCount(0);
                   navigation.navigate('DevTools');
                 }

@@ -14,6 +14,7 @@ Healing Forest es un ecosistema digital completo para gestión de clínica de me
 - Node.js 18+
 - Expo CLI
 - Cuenta de Supabase
+- Cuenta de Sentry (opcional pero recomendado)
 
 ### Instalación
 
@@ -33,8 +34,28 @@ cd ..
 
 ### Configuración
 
-1. **App Móvil**: Crea un archivo `.env` en la raíz con tus credenciales de Supabase
-2. **Panel Web**: Copia `web/.env.local.example` a `web/.env.local` y añade tus credenciales
+1. **Variables de Entorno**: Copia `.env.example` a `.env` y configura:
+   ```bash
+   cp .env.example .env
+   # Edita .env con tus credenciales
+   ```
+
+2. **Migraciones de Base de Datos**:
+   ```bash
+   # Verificar migraciones pendientes
+   node scripts/run-migrations.js --production
+   
+   # Copiar y ejecutar SQLs en Supabase Dashboard
+   ```
+
+3. **Verificar Instalación**:
+   ```bash
+   # Verificar que las migraciones se ejecutaron
+   node scripts/verify-migrations.js
+   
+   # Ejecutar tests
+   npm test
+   ```
 
 ### Desarrollo
 
@@ -97,6 +118,9 @@ healing-24-agosto/
 - RLS (Row Level Security) en todas las tablas
 - Prevención de citas superpuestas
 - Roles diferenciados (paciente/admin/profesional)
+- Logging con Sentry para monitoreo en producción
+- Variables de entorno para credenciales sensibles
+- Tests automatizados para funcionalidades críticas
 
 ## 📱 Funcionalidades Principales
 

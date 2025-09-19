@@ -434,3 +434,9 @@ COMMENT ON FUNCTION get_user_credit_balance(UUID) IS 'Obtiene el balance actual 
 COMMENT ON FUNCTION create_cancellation_credit(UUID, UUID, DECIMAL, TEXT) IS 'Crea un crédito por cancelación de cita';
 COMMENT ON FUNCTION use_credits_for_appointment(UUID, UUID, DECIMAL) IS 'Usa créditos para pagar una nueva cita';
 COMMENT ON FUNCTION public.is_admin(UUID) IS 'Función unificada para verificar permisos de administrador';
+
+
+
+
+
+

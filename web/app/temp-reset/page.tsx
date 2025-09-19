@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/src/lib/supabase";
+import { createClient, useSupabase } from '@/lib/supabase';
 import { Loader2 } from "lucide-react";
 
 export default function TempResetPage() {
@@ -13,7 +13,7 @@ export default function TempResetPage() {
     setLoading(true);
     setMessage("");
     
-    const supabase = createClient();
+    const supabase = useSupabase();
     
     try {
       // Hacer login con el service role key para poder actualizar

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ChevronLeft, Save, Trash2, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { supabase } from "@/src/lib/supabase";
+import { createClient, useSupabase } from '@/lib/supabase';
 import { useUpdateClass, useDeleteClass } from "@/src/hooks/useBreatheMoveClasses";
 
 // Importamos las constantes de las clases y instructores
@@ -39,6 +39,7 @@ export default function EditClassPage({ params }: { params: Promise<{ id: string
   const deleteClassMutation = useDeleteClass();
   const resolvedParams = use(params);
   const classId = resolvedParams.id;
+  const supabase = useSupabase();
   
   const [classData, setClassData] = useState<BreatheMoveClass | null>(null);
   const [loading, setLoading] = useState(true);

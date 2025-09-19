@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { createClient } from '@/src/lib/supabase'
+import { createClient, useSupabase } from '@/lib/supabase'
 import { 
   ArrowLeft, 
   Save, 
@@ -67,7 +67,7 @@ export default function EditProfessionalPage() {
   })
   const router = useRouter()
   const params = useParams()
-  const supabase = createClient()
+  const supabase = useSupabase()
 
   useEffect(() => {
     if (params.id) {

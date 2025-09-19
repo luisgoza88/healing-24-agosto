@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { createClient } from '../lib/supabase';
+import { createClient, useSupabase } from '../lib/supabase';
 
 export interface Professional {
   id: string;
@@ -30,7 +30,7 @@ export function useProfessionals(filters: ProfessionalFilters = {}) {
   return useQuery({
     queryKey: ['professionals', filters],
     queryFn: async (): Promise<Professional[]> => {
-      const supabase = createClient();
+      const supabase = useSupabase();
       // Obtener profesionales
       const { data: professionalsData, error: professionalsError } = await supabase
         .from('professionals')
@@ -125,7 +125,7 @@ export function useProfessional(professionalId: string) {
   return useQuery({
     queryKey: ['professional', professionalId],
     queryFn: async () => {
-      const supabase = createClient();
+      const supabase = useSupabase();
       // Obtener datos del profesional
       const { data: professional, error: professionalError } = await supabase
         .from('professionals')
@@ -182,7 +182,7 @@ export function useCreateProfessional() {
 
   return useMutation({
     mutationFn: async (professionalData: Partial<Professional>) => {
-      const supabase = createClient();
+      const supabase = useSupabase();
       const { data, error } = await supabase
         .from('professionals')
         .insert({
@@ -215,7 +215,7 @@ export function useUpdateProfessional() {
 
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<Professional> }) => {
-      const supabase = createClient();
+      const supabase = useSupabase();
       const { error } = await supabase
         .from('professionals')
         .update({
@@ -247,7 +247,7 @@ export function useSpecialties() {
   return useQuery({
     queryKey: ['specialties'],
     queryFn: async (): Promise<string[]> => {
-      const supabase = createClient();
+      const supabase = useSupabase();
       const { data, error } = await supabase
         .from('professionals')
         .select('specialties');
@@ -275,7 +275,7 @@ export function useProfessionalStats() {
   return useQuery({
     queryKey: ['professional-stats'],
     queryFn: async () => {
-      const supabase = createClient();
+      const supabase = useSupabase();
       const today = new Date().toISOString().split('T')[0];
       
       // Consultas paralelas
@@ -287,7 +287,7 @@ export function useProfessionalStats() {
         supabase
           .from('professionals')
           .select('*', { count: 'exact', head: true })
-          .eq('active', true),
+          .eq('is_active', true),
 
         // Citas de hoy por profesional
         supabase

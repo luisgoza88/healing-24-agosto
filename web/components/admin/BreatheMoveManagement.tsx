@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calendar } from '@/components/ui/calendar';
-import { createClient } from '@/src/lib/supabase';
+import { createClient, useSupabase } from '@/lib/supabase';
 import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
@@ -80,7 +80,7 @@ interface ClassTemplate {
 }
 
 export default function BreatheMoveManagement() {
-  const supabase = createClient();
+  const supabase = useSupabase();
   
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedWeek, setSelectedWeek] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
@@ -846,3 +846,9 @@ export default function BreatheMoveManagement() {
     </div>
   );
 }
+
+
+
+
+
+

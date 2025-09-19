@@ -22,7 +22,9 @@ export function useAuth(supabaseClient: any) {
   const manager = useMemo(() => new AuthManager(supabaseClient), [supabaseClient]);
 
   const loadUserData = useCallback(async (currentUser: AuthUser | null) => {
+    console.log('[loadUserData] Loading data for:', currentUser?.email);
     if (!currentUser) {
+      console.log('[loadUserData] No user, clearing data');
       setUser(null);
       setProfile(null);
       setIsAdmin(false);
@@ -39,6 +41,7 @@ export function useAuth(supabaseClient: any) {
         manager.getUserRoles(currentUser.id)
       ]);
 
+      console.log('[loadUserData] Data loaded:', { profileData, adminStatus, userRoles });
       setUser(currentUser);
       setProfile(profileData);
       setIsAdmin(adminStatus);
@@ -47,17 +50,32 @@ export function useAuth(supabaseClient: any) {
       console.error('Error loading user data:', err);
       setError(err.message || 'Error al cargar datos del usuario');
     } finally {
+      console.log('[loadUserData] Setting loading to false and initialized to true');
       setLoading(false);
       setInitialized(true);
     }
   }, [manager]);
 
   const checkAuth = useCallback(async (retryCount = 0) => {
+    console.log('[checkAuth] Starting auth check...');
     try {
       setLoading(true);
       setError(null);
 
-      const currentSession = await manager.getCurrentSession();
+      // Añadir timeout para evitar que se quede colgado
+      const timeoutPromise = new Promise<null>((resolve) => {
+        setTimeout(() => {
+          console.log('[checkAuth] Timeout reached, using null session');
+          resolve(null);
+        }, 5000); // 5 segundos de timeout
+      });
+
+      const currentSession = await Promise.race([
+        manager.getCurrentSession(),
+        timeoutPromise
+      ]);
+      
+      console.log('[checkAuth] Session:', currentSession?.user?.email);
       setSession(currentSession);
 
       if (currentSession?.user) {
@@ -65,6 +83,10 @@ export function useAuth(supabaseClient: any) {
       } else {
         await loadUserData(null);
       }
+      
+      // Ensure initialized is set to true after successful check
+      console.log('[checkAuth] Setting initialized to true');
+      setInitialized(true);
     } catch (err: any) {
       console.error('Error checking auth:', err);
       
@@ -328,3 +350,9 @@ export function useAuthStatus(supabaseClient: any) {
     userId
   };
 }
+
+
+
+
+
+

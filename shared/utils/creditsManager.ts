@@ -370,3 +370,9 @@ export const calculateCreditAmount = (
   const manager = new CreditsManager(null);
   return manager.calculateCreditAmount(appointmentAmount, appointmentDate, appointmentTime);
 };
+
+
+
+
+
+

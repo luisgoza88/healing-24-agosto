@@ -1,10 +1,9 @@
-'use client'
+"use client"
 
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { 
-  Briefcase, 
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Briefcase,
   ChevronRight,
   Activity,
   Heart,
@@ -14,334 +13,416 @@ import {
   Smile,
   HandHeart,
   HeartPulse,
-  TreePine,
   Wind,
   Calendar,
   Users,
-  TrendingUp,
   Clock,
   Loader2,
+  AlertTriangle,
   Stethoscope,
   Flower2,
   HandHelping,
   HeartHandshake,
-  Dumbbell,
   ArrowRight,
-  Zap,
   BarChart3
-} from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { createClient } from '@/src/lib/supabase'
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useSupabase } from "@/lib/supabase";
 
-interface ServiceCategory {
-  id: string
-  name: string
-  icon: any
-  color: string
-  bgColor: string
-  borderColor: string
-  description: string
-  subServices: string[]
-  serviceCount?: number
-  appointmentCount?: number
-  stats?: {
-    totalAppointments: number
-    totalRevenue: number
-    totalPatients: number
-    upcomingAppointments: number
-  }
+interface RpcServiceRow {
+  service_id: string;
+  service_code: string;
+  service_name: string;
+  service_description?: string;
+  category_name?: string | null;
+  category_code?: string | null;
+  base_price?: number | null;
+  duration_minutes?: number | null;
+  color?: string | null;
+  icon?: string | null;
+  sub_services?: Array<{
+    id: string;
+    name: string;
+    price?: number;
+    duration_minutes?: number;
+    price_note?: string | null;
+  }>;
 }
 
-const SERVICE_ICONS: Record<string, any> = {
-  'Medicina Funcional': Heart,
-  'Medicina Estética': Sparkles,
-  'Medicina Regenerativa & Longevidad': Dna,
-  'DRIPS - Sueroterapia': Droplet,
-  'Faciales': Smile,
-  'Masajes': HandHeart,
-  'Wellness Integral': HeartPulse,
-  'Breathe & Move': Activity,
+interface DashboardViewRow {
+  id: string;
+  code: string;
+  name: string;
+  category_name?: string | null;
+  category_code?: string | null;
+  total_appointments?: number | null;
+  upcoming_appointments?: number | null;
+  professional_count?: number | null;
+  sub_service_count?: number | null;
 }
 
-const SERVICE_COLORS: Record<string, string> = {
-  'Medicina Funcional': 'bg-[#3E5444]',
-  'Medicina Estética': 'bg-[#B8604D]',
-  'Medicina Regenerativa & Longevidad': 'bg-[#5E3532]',
-  'DRIPS - Sueroterapia': 'bg-[#4A6C9B]',
-  'Faciales': 'bg-[#879794]',
-  'Masajes': 'bg-[#61473B]',
-  'Wellness Integral': 'bg-[#879794]',
-  'Breathe & Move': 'bg-green-600',
+interface ServiceSummary {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  iconComponent: any;
+  colorClass: string;
+  bgClass: string;
+  borderClass: string;
+  subServices: string[];
+  categoryName?: string | null;
 }
 
-const serviceCategories: ServiceCategory[] = [
+interface ServiceStats {
+  totalAppointments: number;
+  upcomingAppointments: number;
+  totalRevenue: number;
+  totalPatients: number;
+  professionalCount: number;
+  subServiceCount: number;
+}
+
+interface CategoryCard {
+  id: string;
+  name: string;
+  description: string;
+  icon: any;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  subServices: string[];
+  serviceCount?: number;
+}
+
+const STATIC_CATEGORIES: CategoryCard[] = [
   {
-    id: 'medicina-funcional',
-    name: 'Medicina Funcional',
+    id: "Medicina Funcional",
+    name: "Medicina Funcional",
     icon: Stethoscope,
-    color: 'text-green-700',
-    bgColor: 'bg-gradient-to-br from-green-50 to-emerald-50',
-    borderColor: 'border-green-200',
-    description: 'Consultas especializadas y péptidos',
+    color: "text-green-700",
+    bgColor: "bg-gradient-to-br from-green-50 to-emerald-50",
+    borderColor: "border-green-200",
+    description: "Consultas especializadas y péptidos",
     subServices: [
-      'Consulta funcional – primera vez',
-      'Consulta funcional – seguimiento',
-      'Consulta péptidos',
-      'Consulta células madre'
+      "Consulta funcional – primera vez",
+      "Consulta funcional – seguimiento",
+      "Consulta péptidos",
+      "Consulta células madre"
     ]
   },
   {
-    id: 'medicina-estetica',
-    name: 'Medicina Estética',
+    id: "Medicina Estética",
+    name: "Medicina Estética",
     icon: Sparkles,
-    color: 'text-pink-700',
-    bgColor: 'bg-gradient-to-br from-pink-50 to-rose-50',
-    borderColor: 'border-pink-200',
-    description: 'Procedimientos estéticos avanzados',
+    color: "text-pink-700",
+    bgColor: "bg-gradient-to-br from-pink-50 to-rose-50",
+    borderColor: "border-pink-200",
+    description: "Procedimientos estéticos avanzados",
     subServices: [
-      'Consulta medicina estética valoración',
-      'Procedimientos estéticos'
+      "Consulta medicina estética valoración",
+      "Procedimientos estéticos"
     ]
   },
   {
-    id: 'medicina-regenerativa',
-    name: 'Medicina Regenerativa & Longevidad',
+    id: "Medicina Regenerativa & Longevidad",
+    name: "Medicina Regenerativa & Longevidad",
     icon: Heart,
-    color: 'text-red-700',
-    bgColor: 'bg-gradient-to-br from-red-50 to-orange-50',
-    borderColor: 'border-red-200',
-    description: 'Terapias antiedad y bienestar',
+    color: "text-red-700",
+    bgColor: "bg-gradient-to-br from-red-50 to-orange-50",
+    borderColor: "border-red-200",
+    description: "Terapias antiedad y bienestar",
     subServices: [
-      'Baño helado',
-      'Sauna infrarrojo',
-      'Baño helado + sauna infrarrojo',
-      'Cámara hiperbárica'
+      "Baño helado",
+      "Sauna infrarrojo",
+      "Baño helado + sauna infrarrojo",
+      "Cámara hiperbárica"
     ]
   },
   {
-    id: 'drips',
-    name: 'DRIPS - Sueroterapia',
+    id: "DRIPS - Sueroterapia",
+    name: "DRIPS - Sueroterapia",
     icon: Droplet,
-    color: 'text-blue-700',
-    bgColor: 'bg-gradient-to-br from-blue-50 to-sky-50',
-    borderColor: 'border-blue-200',
-    description: 'Terapias intravenosas y sueroterapia',
+    color: "text-blue-700",
+    bgColor: "bg-gradient-to-br from-blue-50 to-sky-50",
+    borderColor: "border-blue-200",
+    description: "Terapias intravenosas y sueroterapia",
     subServices: [
-      'Vitaminas - IV Drips',
-      'NAD 125 mg',
-      'NAD 500 mg',
-      'NAD 1000 mg',
-      'Ozonoterapia – suero ozonizado',
-      'Ozonoterapia – autohemoterapia mayor'
+      "Vitaminas - IV Drips",
+      "NAD 125 mg",
+      "NAD 500 mg",
+      "NAD 1000 mg",
+      "Ozonoterapia – suero ozonizado",
+      "Ozonoterapia – autohemoterapia mayor"
     ]
   },
   {
-    id: 'faciales',
-    name: 'Faciales',
+    id: "Faciales",
+    name: "Faciales",
     icon: Flower2,
-    color: 'text-purple-700',
-    bgColor: 'bg-gradient-to-br from-purple-50 to-lavender-50',
-    borderColor: 'border-purple-200',
-    description: 'Tratamientos faciales especializados',
+    color: "text-purple-700",
+    bgColor: "bg-gradient-to-br from-purple-50 to-lavender-50",
+    borderColor: "border-purple-200",
+    description: "Tratamientos faciales especializados",
     subServices: [
-      'Clean Facial',
-      'Glow Facial',
-      'Anti-Age Facial',
-      'Anti-Acné Facial',
-      'Lymph Facial'
+      "Clean Facial",
+      "Glow Facial",
+      "Anti-Age Facial",
+      "Anti-Acné Facial",
+      "Lymph Facial"
     ]
   },
   {
-    id: 'masajes',
-    name: 'Masajes',
+    id: "Masajes",
+    name: "Masajes",
     icon: HandHelping,
-    color: 'text-amber-700',
-    bgColor: 'bg-gradient-to-br from-amber-50 to-yellow-50',
-    borderColor: 'border-amber-200',
-    description: 'Masajes terapéuticos y relajantes',
+    color: "text-amber-700",
+    bgColor: "bg-gradient-to-br from-amber-50 to-yellow-50",
+    borderColor: "border-amber-200",
+    description: "Masajes terapéuticos y relajantes",
     subServices: [
-      'Drenaje linfático',
-      'Relajante'
+      "Drenaje linfático",
+      "Relajante"
     ]
   },
   {
-    id: 'wellness-integral',
-    name: 'Wellness Integral',
+    id: "Wellness Integral",
+    name: "Wellness Integral",
     icon: HeartHandshake,
-    color: 'text-indigo-700',
-    bgColor: 'bg-gradient-to-br from-indigo-50 to-blue-50',
-    borderColor: 'border-indigo-200',
-    description: 'Servicios de bienestar integral',
+    color: "text-indigo-700",
+    bgColor: "bg-gradient-to-br from-indigo-50 to-blue-50",
+    borderColor: "border-indigo-200",
+    description: "Servicios de bienestar integral",
     subServices: []
   },
   {
-    id: 'breathe-move',
-    name: 'Breathe & Move',
+    id: "Breathe & Move",
+    name: "Breathe & Move",
     icon: Wind,
-    color: 'text-cyan-700',
-    bgColor: 'bg-gradient-to-br from-cyan-50 to-sky-50',
-    borderColor: 'border-cyan-200',
-    description: 'Clases de movimiento consciente y respiración',
+    color: "text-cyan-700",
+    bgColor: "bg-gradient-to-br from-cyan-50 to-sky-50",
+    borderColor: "border-cyan-200",
+    description: "Clases de movimiento consciente y respiración",
     subServices: [
-      'Clases individuales',
-      'Paquetes de clases'
+      "Clases individuales",
+      "Paquetes de clases"
     ]
-  },
-]
+  }
+];
+
+const ICON_FALLBACKS: Record<string, any> = {
+  "medicina funcional": Stethoscope,
+  "medicina estética": Sparkles,
+  "medicina regenerativa & longevidad": Heart,
+  "drips - sueroterapia": Droplet,
+  faciales: Smile,
+  masajes: HandHeart,
+  "wellness integral": HeartPulse,
+  "breathe & move": Activity
+};
+
+const SERVICE_COLOR_FALLBACKS: Record<string, string> = {
+  "medicina funcional": "bg-gradient-to-br from-green-50 to-emerald-50",
+  "medicina estética": "bg-gradient-to-br from-pink-50 to-rose-50",
+  "medicina regenerativa & longevidad": "bg-gradient-to-br from-red-50 to-orange-50",
+  "drips - sueroterapia": "bg-gradient-to-br from-blue-50 to-sky-50",
+  faciales: "bg-gradient-to-br from-purple-50 to-lavender-50",
+  masajes: "bg-gradient-to-br from-amber-50 to-yellow-50",
+  "wellness integral": "bg-gradient-to-br from-indigo-50 to-blue-50",
+  "breathe & move": "bg-gradient-to-br from-cyan-50 to-sky-50"
+};
+
+const asErrorMessage = (error: unknown) => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  return "Error inesperado al cargar la información de servicios.";
+};
 
 export default function ServicesPage() {
-  const router = useRouter()
-  const supabase = createClient()
-  const [loading, setLoading] = useState(true)
-  const [services, setServices] = useState<ServiceCategory[]>([])
-  const [categoriesData, setCategoriesData] = useState<ServiceCategory[]>(serviceCategories)
-  const [totalServices, setTotalServices] = useState(0)
-  const [todayAppointments, setTodayAppointments] = useState(0)
-  const [stats, setStats] = useState<Record<string, any>>({})
+  const router = useRouter();
+  const supabase = useSupabase();
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [services, setServices] = useState<ServiceSummary[]>([]);
+  const [categories, setCategories] = useState<CategoryCard[]>(STATIC_CATEGORIES);
+  const [statsByService, setStatsByService] = useState<Record<string, ServiceStats>>({});
+  const [totalServices, setTotalServices] = useState(0);
+  const [todayAppointments, setTodayAppointments] = useState(0);
 
   useEffect(() => {
-    loadServicesData()
-  }, [])
+    loadDashboardData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const loadServicesData = async () => {
+  const loadDashboardData = async () => {
+    setLoading(true);
+    setError(null);
+
     try {
-      setLoading(true)
-      console.log('[Services] Loading services...')
+      const [{ data: servicesData, error: servicesError }, { data: viewData, error: viewError }] = await Promise.all([
+        supabase.rpc("get_services_with_details"),
+        supabase.from("service_dashboard_view").select("*")
+      ]);
 
-      // Load services from database
-      const { data: servicesData, error } = await supabase
-        .from('services')
-        .select('*')
-        .order('name')
-
-      if (error) {
-        console.error('[Services] Error loading services:', error)
-        throw error
+      if (servicesError) {
+        throw servicesError;
+      }
+      if (viewError) {
+        throw viewError;
       }
 
-      console.log('[Services] Services loaded:', servicesData?.length || 0)
+      const rpcRows: RpcServiceRow[] = servicesData ?? [];
+      const viewRows: DashboardViewRow[] = viewData ?? [];
+      const statsMap = new Map<string, DashboardViewRow>(
+        viewRows.map((row) => [row.id, row])
+      );
 
-      // Map services with icons and colors
-      const mappedServices = servicesData?.map(service => {
-        // Try to find matching category first
-        const matchingCategory = serviceCategories.find(cat => 
-          cat.name === service.name || cat.id === service.id
-        )
-        
+      const mappedServices: ServiceSummary[] = rpcRows.map((service) => {
+        const key = service.service_name?.toLowerCase() ?? "";
+        const fallbackCategory = STATIC_CATEGORIES.find((cat) => cat.name === service.category_name);
+        const iconComponent = fallbackCategory?.icon || ICON_FALLBACKS[key] || Briefcase;
+
         return {
-          id: service.id,
-          name: service.name,
-          description: service.description,
-          icon: SERVICE_ICONS[service.name] || matchingCategory?.icon || Briefcase,
-          color: matchingCategory?.color || 'text-gray-700',
-          bgColor: matchingCategory?.bgColor || 'bg-gradient-to-br from-gray-50 to-gray-50',
-          borderColor: matchingCategory?.borderColor || 'border-gray-200',
-          subServices: matchingCategory?.subServices || [],
-          serviceCount: 0,
-          appointmentCount: 0
+          id: service.service_id,
+          code: service.service_code,
+          name: service.service_name,
+          description: service.service_description ?? fallbackCategory?.description ?? "",
+          iconComponent,
+          colorClass: fallbackCategory?.color || "text-gray-700",
+          bgClass: fallbackCategory?.bgColor || SERVICE_COLOR_FALLBACKS[key] || "bg-gradient-to-br from-gray-50 to-gray-100",
+          borderClass: fallbackCategory?.borderColor || "border-gray-200",
+          subServices: (service.sub_services ?? []).map((sub) => sub.name),
+          categoryName: service.category_name ?? fallbackCategory?.name
+        };
+      });
+
+      setServices(mappedServices);
+      setTotalServices(mappedServices.length);
+
+      const countByCategory = mappedServices.reduce<Record<string, number>>((acc, service) => {
+        if (service.categoryName) {
+          acc[service.categoryName] = (acc[service.categoryName] || 0) + 1;
         }
-      }) || []
+        return acc;
+      }, {});
 
-      // Count services by category
-      const serviceCounts = servicesData?.reduce((acc, service) => {
-        acc[service.category || service.id] = (acc[service.category || service.id] || 0) + 1
-        return acc
-      }, {} as Record<string, number>) || {}
+      setCategories(
+        STATIC_CATEGORIES.map((category) => ({
+          ...category,
+          serviceCount: countByCategory[category.name] || 0
+        }))
+      );
 
-      // Update categories with counts
-      setCategoriesData(serviceCategories.map(cat => ({
-        ...cat,
-        serviceCount: serviceCounts[cat.id] || 0
-      })))
+      const serviceIds = mappedServices.map((service) => service.id).filter(Boolean);
+      const today = new Date();
+      const todayIso = today.toISOString().split("T")[0];
 
-      setTotalServices(servicesData?.length || 0)
-      setServices(mappedServices)
-
-      // Load today's appointments
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const todayStr = today.toISOString().split('T')[0]
+      if (serviceIds.length === 0) {
+        setStatsByService({});
+        setTodayAppointments(0);
+        return;
+      }
 
       const { data: appointments, error: appointmentsError } = await supabase
-        .from('appointments')
-        .select('id')
-        .eq('appointment_date', todayStr)
-        .eq('status', 'confirmed')
+        .from("appointments")
+        .select("service_id, status, appointment_date, total_amount, payment_status, user_id")
+        .in("service_id", serviceIds);
 
-      if (!appointmentsError && appointments) {
-        setTodayAppointments(appointments.length)
+      if (appointmentsError) {
+        const message = appointmentsError.message?.toLowerCase().includes("permission denied")
+          ? "No tienes permisos para ver la información de citas. Asegúrate de usar una cuenta administradora."
+          : appointmentsError.message;
+        throw new Error(message || "Error al cargar las citas");
       }
 
-      setLoading(false)
+      const statsAccumulator: Record<string, ServiceStats> = {};
+      const patientTracker: Record<string, Set<string>> = {};
 
-      // Load statistics in background
-      loadStatisticsInBackground(mappedServices)
-    } catch (error) {
-      console.error('[Services] Fatal error:', error)
-      setLoading(false)
-    }
-  }
+      mappedServices.forEach((service) => {
+        const viewRow = statsMap.get(service.id);
+        statsAccumulator[service.id] = {
+          totalAppointments: viewRow?.total_appointments ?? 0,
+          upcomingAppointments: viewRow?.upcoming_appointments ?? 0,
+          totalRevenue: 0,
+          totalPatients: 0,
+          professionalCount: viewRow?.professional_count ?? 0,
+          subServiceCount: viewRow?.sub_service_count ?? 0,
+        };
+        patientTracker[service.id] = new Set();
+      });
 
-  const loadStatisticsInBackground = async (services: ServiceCategory[]) => {
-    try {
-      const serviceStats: Record<string, any> = {}
-      const today = new Date().toISOString().split('T')[0]
-      
-      // Load basic statistics for all services at once
-      const { data: allAppointments } = await supabase
-        .from('appointments')
-        .select('service_id, status, total_amount, payment_status, appointment_date, user_id')
-        .in('service_id', services.map(s => s.id))
-
-      if (allAppointments) {
-        // Process statistics per service
-        for (const service of services) {
-          const serviceAppointments = allAppointments.filter(apt => apt.service_id === service.id)
-          
-          const totalAppointments = serviceAppointments.length
-          const upcomingAppointments = serviceAppointments.filter(apt => 
-            apt.appointment_date >= today && 
-            ['confirmed', 'pending'].includes(apt.status)
-          ).length
-          
-          const totalRevenue = serviceAppointments
-            .filter(apt => apt.payment_status === 'paid')
-            .reduce((sum, apt) => sum + (apt.total_amount || 0), 0)
-          
-          const uniquePatients = new Set(serviceAppointments.map(apt => apt.user_id)).size
-
-          serviceStats[service.id] = {
-            totalAppointments,
-            upcomingAppointments,
-            totalRevenue,
-            totalPatients: uniquePatients
+      if (appointments?.length) {
+        appointments.forEach((apt) => {
+          const serviceId = apt.service_id;
+          const stats = statsAccumulator[serviceId];
+          if (!stats) {
+            return;
           }
-        }
+
+          stats.totalAppointments += 1;
+
+          if (apt.appointment_date >= todayIso && ["confirmed", "pending"].includes(apt.status)) {
+            stats.upcomingAppointments += 1;
+          }
+
+          if (apt.payment_status === "paid" && typeof apt.total_amount === "number") {
+            stats.totalRevenue += Number(apt.total_amount);
+          }
+
+          if (apt.user_id) {
+            patientTracker[serviceId].add(apt.user_id);
+          }
+        });
+
+        Object.entries(patientTracker).forEach(([serviceId, patients]) => {
+          statsAccumulator[serviceId].totalPatients = patients.size;
+        });
+
+        const todayConfirmed = appointments.filter(
+          (apt) => apt.appointment_date === todayIso && apt.status === "confirmed"
+        ).length;
+        setTodayAppointments(todayConfirmed);
+      } else {
+        setTodayAppointments(0);
       }
 
-      setStats(serviceStats)
-    } catch (error) {
-      console.error('[Services] Error loading statistics:', error)
+      setStatsByService(statsAccumulator);
+    } catch (dashboardError) {
+      console.error("[Services] Fatal error:", dashboardError);
+      setError(asErrorMessage(dashboardError));
+    } finally {
+      setLoading(false);
     }
-  }
+  };
 
-  const handleCategoryClick = (categoryId: string, categoryName?: string) => {
-    if (categoryName === 'Breathe & Move' || categoryId === 'breathe-move') {
-      router.push('/dashboard/admin/breathe-move')
-    } else {
-      // Navigate to the admin services page
-      router.push('/dashboard/admin/services')
+  const handleCategoryClick = (categoryName?: string | null) => {
+    if (!categoryName) {
+      return;
     }
-  }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount)
-  }
+    if (categoryName === "Breathe & Move") {
+      router.push("/dashboard/admin/breathe-move");
+      return;
+    }
+
+    router.push("/dashboard/admin/services");
+  };
+
+  const aggregateStats = useMemo(() => {
+    const values = Object.values(statsByService);
+    return {
+      totalAppointments: values.reduce((acc, item) => acc + item.totalAppointments, 0),
+      upcomingAppointments: values.reduce((acc, item) => acc + item.upcomingAppointments, 0),
+      totalRevenue: values.reduce((acc, item) => acc + item.totalRevenue, 0),
+      totalPatients: values.reduce((acc, item) => acc + item.totalPatients, 0),
+    };
+  }, [statsByService]);
 
   if (loading) {
     return (
@@ -351,46 +432,50 @@ export default function ServicesPage() {
           <span className="text-gray-600">Cargando servicios...</span>
         </div>
       </div>
-    )
+    );
   }
 
-  // Determine which data to display - database services or default categories
-  const displayData = services.length > 0 ? services : categoriesData
-
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">
-              Gestión de Servicios
-            </h1>
-            <p className="text-gray-600 text-lg">
-              Administra todos los servicios médicos y de bienestar de Healing Forest
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <button className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Reportes
-            </button>
-            <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2">
-              <Activity className="h-4 w-4" />
-              Nuevo Servicio
-            </button>
-          </div>
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">Gestión de Servicios</h1>
+          <p className="text-gray-600 text-lg">
+            Administra todos los servicios médicos y de bienestar de Healing Forest
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+            onClick={() => router.push("/dashboard/reports")}
+          >
+            <BarChart3 className="h-4 w-4" />
+            Reportes
+          </button>
+          <button
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+            onClick={() => router.push("/dashboard/admin/services")}
+          >
+            <Activity className="h-4 w-4" />
+            Nuevo Servicio
+          </button>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      {error && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="border-0 shadow-md bg-gradient-to-br from-green-50 to-emerald-50">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-green-700">Total Servicios</p>
-                <p className="text-3xl font-bold text-green-900 mt-1">{totalServices || displayData.length}</p>
+                <p className="text-3xl font-bold text-green-900 mt-1">{totalServices}</p>
                 <p className="text-xs text-green-600 mt-1">En todas las categorías</p>
               </div>
               <div className="p-3 bg-green-200/50 rounded-xl">
@@ -399,166 +484,174 @@ export default function ServicesPage() {
             </div>
           </CardContent>
         </Card>
-
-        <Card className="border-0 shadow-md bg-gradient-to-br from-blue-50 to-sky-50">
+        <Card className="border-0 shadow-md">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-blue-700">Citas Hoy</p>
+                <p className="text-sm font-medium text-blue-700">Citas Confirmadas Hoy</p>
                 <p className="text-3xl font-bold text-blue-900 mt-1">{todayAppointments}</p>
-                <p className="text-xs text-blue-600 mt-1">Programadas</p>
+                <p className="text-xs text-blue-600 mt-1">Registros confirmados</p>
               </div>
-              <div className="p-3 bg-blue-200/50 rounded-xl">
+              <div className="p-3 bg-blue-100 rounded-xl">
                 <Calendar className="h-6 w-6 text-blue-700" />
               </div>
             </div>
           </CardContent>
         </Card>
-
-        <Card className="border-0 shadow-md bg-gradient-to-br from-purple-50 to-pink-50">
+        <Card className="border-0 shadow-md">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-purple-700">Categorías</p>
-                <p className="text-3xl font-bold text-purple-900 mt-1">{categoriesData.length}</p>
-                <p className="text-xs text-purple-600 mt-1">Activas</p>
+                <p className="text-sm font-medium text-purple-700">Pacientes Únicos</p>
+                <p className="text-3xl font-bold text-purple-900 mt-1">{aggregateStats.totalPatients}</p>
+                <p className="text-xs text-purple-600 mt-1">Últimas citas registradas</p>
               </div>
-              <div className="p-3 bg-purple-200/50 rounded-xl">
-                <Zap className="h-6 w-6 text-purple-700" />
+              <div className="p-3 bg-purple-100 rounded-xl">
+                <Users className="h-6 w-6 text-purple-700" />
               </div>
             </div>
           </CardContent>
         </Card>
-
-        <Card className="border-0 shadow-md bg-gradient-to-br from-orange-50 to-amber-50">
+        <Card className="border-0 shadow-md">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-orange-700">Rendimiento</p>
-                <p className="text-3xl font-bold text-orange-900 mt-1">94%</p>
-                <p className="text-xs text-orange-600 mt-1">Satisfacción</p>
+                <p className="text-sm font-medium text-amber-700">Próximas Citas</p>
+                <p className="text-3xl font-bold text-amber-900 mt-1">{aggregateStats.upcomingAppointments}</p>
+                <p className="text-xs text-amber-600 mt-1">Confirmadas y pendientes</p>
               </div>
-              <div className="p-3 bg-orange-200/50 rounded-xl">
-                <BarChart3 className="h-6 w-6 text-orange-700" />
+              <div className="p-3 bg-amber-100 rounded-xl">
+                <Clock className="h-6 w-6 text-amber-700" />
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Service Categories Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {displayData.map((category, index) => {
-          const Icon = category.icon
-          const categoryStats = stats[category.id] || category.stats
-          
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {categories.map((category) => {
+          const Icon = category.icon;
           return (
-            <Card 
-              key={category.id}
-              className={`group hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden ${category.borderColor} border-2 transform hover:-translate-y-1`}
-              onClick={() => handleCategoryClick(category.id, category.name)}
+            <Card
+              key={category.name}
+              className={`border ${category.borderColor} hover:shadow-lg transition-shadow`}
             >
-              <div className={`h-2 ${category.bgColor}`} />
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between mb-3">
-                  <div className={`p-4 ${category.bgColor} rounded-xl ${category.color} group-hover:scale-110 transition-transform duration-300`}>
-                    <Icon className="h-7 w-7" />
-                  </div>
-                  <ArrowRight className="h-5 w-5 text-gray-400 group-hover:text-gray-600 group-hover:translate-x-1 transition-all duration-300" />
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <div>
+                  <CardTitle className="text-lg font-semibold text-gray-900">
+                    {category.name}
+                  </CardTitle>
+                  <p className="text-sm text-gray-500">{category.description}</p>
                 </div>
-                <CardTitle className="text-lg font-bold">{category.name}</CardTitle>
+                <div className={`rounded-xl p-3 ${category.bgColor}`}>
+                  <Icon className={`h-6 w-6 ${category.color}`} />
+                </div>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600 text-sm mb-4 line-clamp-2">{category.description}</p>
-                
-                {category.subServices && category.subServices.length > 0 && (
-                  <div className="mb-4">
-                    <p className="text-xs font-semibold text-gray-500 mb-2">Servicios incluidos:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {category.subServices.slice(0, 3).map((service, idx) => (
-                        <span key={idx} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
-                          {service.split(' ').slice(0, 2).join(' ')}
-                        </span>
-                      ))}
-                      {category.subServices.length > 3 && (
-                        <span className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full font-medium">
-                          +{category.subServices.length - 3} más
-                        </span>
-                      )}
-                    </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-2xl font-bold text-gray-900">{category.serviceCount || 0}</p>
+                    <p className="text-xs text-gray-500">Servicios configurados</p>
                   </div>
-                )}
-                
-                {/* Stats overlay on hover */}
-                {categoryStats && (
-                  <div className="absolute inset-0 bg-gradient-to-t from-gray-900/90 to-gray-900/70 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end">
-                    <div className="p-6 w-full text-white">
-                      <div className="flex justify-between items-center mb-3">
-                        <span className="text-sm">Citas próximas</span>
-                        <span className="font-semibold">{categoryStats.upcomingAppointments || 0}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm">Este mes</span>
-                        <span className="font-semibold">{formatCurrency(categoryStats.totalRevenue || 0)}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                <div className="flex items-center justify-between text-sm pt-3 border-t">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1">
-                      <Users className="h-3.5 w-3.5 text-gray-400" />
-                      <span className="text-gray-600 text-xs font-medium">
-                        {category.appointmentCount || categoryStats?.totalPatients || 0}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Activity className="h-3.5 w-3.5 text-green-500" />
-                      <span className="text-green-600 text-xs font-medium">
-                        Activo
-                      </span>
-                    </div>
-                  </div>
+                  <button
+                    className="inline-flex items-center text-sm font-medium text-green-700 hover:text-green-800"
+                    onClick={() => handleCategoryClick(category.name)}
+                  >
+                    Gestionar
+                    <ChevronRight className="ml-1 h-4 w-4" />
+                  </button>
                 </div>
+                {category.subServices.length > 0 && (
+                  <ul className="mt-4 space-y-1 text-sm text-gray-600">
+                    {category.subServices.slice(0, 4).map((subService) => (
+                      <li key={subService} className="flex items-center">
+                        <span className="mr-2 text-green-600">•</span>
+                        {subService}
+                      </li>
+                    ))}
+                    {category.subServices.length > 4 && (
+                      <li className="text-xs text-gray-400">y más…</li>
+                    )}
+                  </ul>
+                )}
               </CardContent>
             </Card>
-          )
+          );
         })}
       </div>
 
-      {/* Quick Actions */}
-      <div className="mt-12 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-8 border border-green-100">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="flex items-start gap-4">
-            <div className="p-3 bg-white rounded-lg shadow-sm">
-              <Calendar className="h-6 w-6 text-green-600" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900 mb-1">Gestión de Citas</h3>
-              <p className="text-sm text-gray-600">Programa, modifica y cancela citas desde cada servicio</p>
-            </div>
-          </div>
-          <div className="flex items-start gap-4">
-            <div className="p-3 bg-white rounded-lg shadow-sm">
-              <Users className="h-6 w-6 text-green-600" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900 mb-1">Profesionales</h3>
-              <p className="text-sm text-gray-600">Asigna especialistas a cada categoría de servicio</p>
-            </div>
-          </div>
-          <div className="flex items-start gap-4">
-            <div className="p-3 bg-white rounded-lg shadow-sm">
-              <BarChart3 className="h-6 w-6 text-green-600" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900 mb-1">Reportes</h3>
-              <p className="text-sm text-gray-600">Analiza el rendimiento y estadísticas por servicio</p>
-            </div>
-          </div>
-        </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        {services.map((service, index) => {
+          const Icon = service.iconComponent || Briefcase;
+          const stats = statsByService[service.id];
+
+          return (
+            <Card
+              key={`${service.id || service.code || "service"}-${index}`}
+              className={`border ${service.borderClass} hover:shadow-lg transition-shadow`}
+            >
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <div>
+                  <CardTitle className="text-xl font-semibold text-gray-900">
+                    {service.name}
+                  </CardTitle>
+                  <p className="text-sm text-gray-500">{service.description}</p>
+                </div>
+                <div className={`rounded-xl p-3 ${service.bgClass}`}>
+                  <Icon className={`h-6 w-6 ${service.colorClass}`} />
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {stats ? (
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="rounded-lg bg-gray-50 p-3">
+                      <p className="text-xs text-gray-500">Total citas</p>
+                      <p className="text-lg font-semibold text-gray-900">{stats.totalAppointments}</p>
+                    </div>
+                    <div className="rounded-lg bg-gray-50 p-3">
+                      <p className="text-xs text-gray-500">Próximas citas</p>
+                      <p className="text-lg font-semibold text-gray-900">{stats.upcomingAppointments}</p>
+                    </div>
+                    <div className="rounded-lg bg-gray-50 p-3">
+                      <p className="text-xs text-gray-500">Profesionales asignados</p>
+                      <p className="text-lg font-semibold text-gray-900">{stats.professionalCount}</p>
+                    </div>
+                    <div className="rounded-lg bg-gray-50 p-3">
+                      <p className="text-xs text-gray-500">Pacientes únicos</p>
+                      <p className="text-lg font-semibold text-gray-900">{stats.totalPatients}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-lg bg-gray-50 p-4 text-sm text-gray-500">
+                    No hay información estadística disponible.
+                  </div>
+                )}
+
+                {service.subServices.length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-2">Sub-servicios disponibles</p>
+                    <div className="flex flex-wrap gap-2">
+                      {service.subServices.map((subService) => (
+                        <span key={subService} className="inline-flex items-center rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
+                          {subService}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  className="inline-flex items-center text-sm font-medium text-green-700 hover:text-green-800"
+                  onClick={() => router.push(`/dashboard/admin/services?service=${service.code}`)}
+                >
+                  Ver detalles
+                  <ArrowRight className="ml-1 h-4 w-4" />
+                </button>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
-  )
+  );
 }

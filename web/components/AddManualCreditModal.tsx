@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/src/lib/supabase'
+import { createClient, useSupabase } from '@/lib/supabase'
 import { X, CreditCard, User, DollarSign, FileText } from 'lucide-react'
 import { useCreateManualCredit } from '@/src/hooks/usePatientCredits'
 
@@ -27,7 +27,7 @@ export default function AddManualCreditModal({ isOpen, onClose, onSuccess }: Add
     description: ''
   })
 
-  const supabase = createClient()
+  const supabase = useSupabase()
   const createManualCredit = useCreateManualCredit()
 
   useEffect(() => {

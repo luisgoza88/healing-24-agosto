@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X, Calendar, Clock, Users, User } from 'lucide-react'
-import { createClient } from '@/src/lib/supabase'
+import { createClient, useSupabase } from '@/lib/supabase'
 
 interface BreatheClass {
   id?: string
@@ -55,7 +55,7 @@ export default function BreatheMoveClassModal({ isOpen, onClose, editingClass }:
     status: 'scheduled'
   })
   const [loading, setLoading] = useState(false)
-  const supabase = createClient()
+  const supabase = useSupabase()
 
   useEffect(() => {
     if (editingClass) {

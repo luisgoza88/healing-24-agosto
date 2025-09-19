@@ -171,3 +171,9 @@ ORDER BY routine_name;
 
 -- MENSAJE FINAL
 SELECT 'MIGRACIÓN COMPLETADA EXITOSAMENTE' as resultado;
+
+
+
+
+
+

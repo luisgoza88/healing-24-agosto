@@ -1,7 +1,14 @@
 const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
 
-const supabaseUrl = 'https://vgwyhegpymqbljqtskra.supabase.co';
-const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZnd3loZWdweW1xYmxqcXRza3JhIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NjA1NTYxMywiZXhwIjoyMDcxNjMxNjEzfQ.Ze7tkXgKYa1iKt68eBrdDyQ4jZjDY_hdrEHlXRvm8j8';
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('❌ Error: Missing Supabase credentials in environment variables');
+  console.log('💡 Tip: Make sure EXPO_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set in your .env file');
+  process.exit(1);
+}
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
@@ -63,23 +70,31 @@ async function fixAndCreateUser() {
   console.log('🔄 Intentando crear usuario...');
   
   // Primero verificar si ya existe
+  const email = process.env.TEST_USER_EMAIL;
+  const password = process.env.TEST_USER_PASSWORD;
+  const fullName = process.env.TEST_USER_NAME || 'Test User';
+  
+  if (!email || !password) {
+    console.error('❌ Error: Missing test user credentials in environment variables');
+    console.log('💡 Tip: Add TEST_USER_EMAIL and TEST_USER_PASSWORD to your .env file');
+    process.exit(1);
+  }
+  
   const { data: existingUsers } = await supabase.auth.admin.listUsers();
-  const userExists = existingUsers?.users?.some(u => u.email === 'lmg880@gmail.com');
+  const userExists = existingUsers?.users?.some(u => u.email === email);
   
   if (userExists) {
-    console.log('✅ El usuario ya existe. Puedes iniciar sesión con:');
-    console.log('Email: lmg880@gmail.com');
-    console.log('Contraseña: Florida20');
+    console.log('✅ El usuario ya existe. Puedes iniciar sesión con las credenciales en tu archivo .env');
     return;
   }
 
   // Si no existe, usar el método de signup normal
   const { data, error } = await supabase.auth.signUp({
-    email: 'lmg880@gmail.com',
-    password: 'Florida20',
+    email: email,
+    password: password,
     options: {
       data: {
-        full_name: 'Luis Miguel González López'
+        full_name: fullName
       }
     }
   });
@@ -105,9 +120,7 @@ async function fixAndCreateUser() {
     }
   }
 
-  console.log('\n🎉 Ya puedes iniciar sesión con:');
-  console.log('Email: lmg880@gmail.com');
-  console.log('Contraseña: Florida20');
+  console.log('\n🎉 Ya puedes iniciar sesión con las credenciales configuradas en tu archivo .env');
 }
 
 fixAndCreateUser();

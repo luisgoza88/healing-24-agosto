@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/src/lib/supabase'
+import { createClient, useSupabase } from '@/lib/supabase'
 import { 
   ArrowLeft,
   Users,
@@ -71,7 +71,7 @@ export default function PatientsReportPage() {
     patientsByService: [],
     riskPatients: []
   })
-  const supabase = createClient()
+  const supabase = useSupabase()
 
   useEffect(() => {
     fetchPatientAnalytics()

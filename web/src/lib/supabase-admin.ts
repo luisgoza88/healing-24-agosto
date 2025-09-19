@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, useSupabase } from '@supabase/supabase-js'
 
 // IMPORTANTE: Esta clave NUNCA debe exponerse en el cliente
 // Solo usar en Server Components o API Routes

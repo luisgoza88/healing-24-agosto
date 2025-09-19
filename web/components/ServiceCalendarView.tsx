@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
-import { createClient } from '@/utils/supabase/client';
+import { createClient, useSupabase } from '@/utils/supabase/client';
 import { Loader2 } from 'lucide-react';
 import { 
   Calendar,
@@ -60,7 +60,7 @@ export default function ServiceCalendarView({
   onRefresh,
   categoryName
 }: CalendarViewProps) {
-  const supabase = createClient();
+  const supabase = useSupabase();
   const [showModal, setShowModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);

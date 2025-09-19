@@ -471,3 +471,9 @@ ORDER BY s.name;
 
 -- Mensaje final
 SELECT '✅ SISTEMA UNIFICADO DE SERVICIOS CREADO EXITOSAMENTE' as resultado;
+
+
+
+
+
+

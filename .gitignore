@@ -62,3 +62,22 @@ android/*.iml
 # Build artifacts
 build/
 *.xcuserstate
+
+# Scripts with sensitive data
+scripts/test-*.js
+scripts/fix*.js
+scripts/create*.js
+scripts/simple*.js
+scripts/update*.js
+
+# SQL files with user data
+*.sql
+!supabase/migrations/*.sql
+
+# Temporary and debug files
+debug/
+temp/
+tmp/
+*.log
+*.bak
+*.tmp

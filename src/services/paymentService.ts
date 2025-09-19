@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import * as Linking from 'expo-linking';
 import * as Crypto from 'expo-crypto';
 import { supabase } from '../lib/supabase';
+import { logger, withLogging } from '../utils/logger';
 
 // Configuración de PayU para Colombia
 const PAYU_CONFIG = {
@@ -19,6 +20,15 @@ const PAYU_CONFIG = {
     : 'https://api.payulatam.com/payments-api/4.0/service.cgi'
 };
 
+// Verificar configuración
+if (!PAYU_CONFIG.merchantId || !PAYU_CONFIG.apiKey) {
+  logger.warn('PayU configuration incomplete', 'PaymentService', {
+    hasMerchantId: !!PAYU_CONFIG.merchantId,
+    hasApiKey: !!PAYU_CONFIG.apiKey,
+    isTest: PAYU_CONFIG.test
+  });
+}
+
 export interface PaymentData {
   appointmentId: string;
   amount: number;
@@ -27,6 +37,8 @@ export interface PaymentData {
   userName: string;
   userPhone?: string;
   userDocument?: string;
+  transactionId?: string;
+  paymentMethod?: string;
 }
 
 export interface PaymentMethod {
@@ -68,7 +80,15 @@ class PaymentService {
 
   // Crear URL de pago para PayU Webcheckout
   async createPaymentUrl(paymentData: PaymentData): Promise<TransactionResult> {
+    return withLogging(
+      'createPaymentUrl',
+      'PaymentService',
+      async () => {
     try {
+      logger.info('Creating payment URL', 'PaymentService', {
+        appointmentId: paymentData.appointmentId,
+        amount: paymentData.amount
+      });
       const reference = this.generateReference();
       const signature = await this.generateSignature(reference, paymentData.amount);
       
@@ -127,13 +147,14 @@ class PaymentService {
         paymentUrl
       };
     } catch (error) {
-      console.error('Error creating payment URL:', error);
+      logger.error('Error creating payment URL', 'PaymentService', error as Error);
       return {
         success: false,
         status: 'error',
         message: 'Error al generar el enlace de pago'
       };
     }
+    });
   }
 
   // Procesar respuesta de PayU
@@ -160,7 +181,11 @@ class PaymentService {
       );
 
       if (signature !== expectedSignature) {
-        console.error('Invalid signature');
+        logger.error('Invalid payment signature', 'PaymentService', undefined, {
+          received: signature,
+          expected: expectedSignature,
+          reference: referenceCode
+        });
         return {
           success: false,
           status: 'error',
@@ -199,7 +224,7 @@ class PaymentService {
         message: message || 'Transacción procesada'
       };
     } catch (error) {
-      console.error('Error processing payment response:', error);
+      logger.error('Error processing payment response', 'PaymentService', error as Error);
       return {
         success: false,
         status: 'error',
@@ -267,7 +292,7 @@ class PaymentService {
         paymentUrl
       };
     } catch (error) {
-      console.error('Error initiating PSE payment:', error);
+      logger.error('Error initiating PSE payment', 'PaymentService', error as Error);
       return {
         success: false,
         status: 'error',

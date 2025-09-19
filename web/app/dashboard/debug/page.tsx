@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/src/lib/supabase'
+import { createClient, useSupabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { ArrowLeft, RefreshCw } from 'lucide-react'
 
@@ -10,7 +10,7 @@ export default function DebugPage() {
   const [authUsers, setAuthUsers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const supabase = createClient()
+  const supabase = useSupabase()
 
   const loadData = async () => {
     try {

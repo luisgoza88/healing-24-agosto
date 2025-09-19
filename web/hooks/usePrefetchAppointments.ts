@@ -1,9 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { createClient } from '@/src/lib/supabase'
+import { createClient, useSupabase } from '@/lib/supabase'
 
 export function usePrefetchNextPage(currentFilters: any, currentPage: number) {
   const queryClient = useQueryClient()
-  const supabase = createClient()
+  const supabase = useSupabase()
   
   const prefetchNextPage = async () => {
     const nextPage = currentPage + 1

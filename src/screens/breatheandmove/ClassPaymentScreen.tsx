@@ -16,7 +16,7 @@ import { supabase } from '../../lib/supabase';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { formatPrice } from '../../constants/breatheMovePricing';
-import { processMockPayment } from '../../utils/mockPayment';
+// Mock payment removed - use real payment service in production
 import { getUserCreditBalance, useCreditsForAppointment } from '../../utils/creditsManager';
 
 interface PaymentMethod {
@@ -124,17 +124,10 @@ export const ClassPaymentScreen = ({ navigation, route }: any) => {
 
       // Simular procesamiento de pago
       let transactionId: string | undefined;
-      if (selectedMethod === 'test_payment') {
-        const mockResult = await processMockPayment(
-          getPrice(),
-          selectedMethod
-        );
-        
-        if (!mockResult.success) {
-          throw new Error(mockResult.error || 'Error en el pago de prueba');
-        }
-        
-        transactionId = mockResult.transactionId;
+      if (__DEV__ && selectedMethod === 'test_payment') {
+        // Simular pago en desarrollo
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        transactionId = `TEST_${Date.now()}`;
       } else {
         // Para otros métodos, simular por ahora
         await new Promise(resolve => setTimeout(resolve, 2000));
@@ -315,7 +308,7 @@ export const ClassPaymentScreen = ({ navigation, route }: any) => {
 
         <View style={styles.paymentSection}>
           <Text style={styles.sectionTitle}>Selecciona método de pago</Text>
-          {PAYMENT_METHODS.map(renderPaymentMethod)}
+          {getPaymentMethods(creditBalance, getPrice()).map(renderPaymentMethod)}
         </View>
 
         <View style={styles.footer}>

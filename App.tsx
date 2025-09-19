@@ -31,7 +31,12 @@ import { BreatheAndMoveClassDetailScreen } from './src/screens/breatheandmove/Cl
 import { ClassPaymentScreen } from './src/screens/breatheandmove/ClassPaymentScreen';
 import { PackagePaymentScreen } from './src/screens/breatheandmove/PackagePaymentScreen';
 import { MyPackagesScreen } from './src/screens/breatheandmove/MyPackagesScreen';
-import { initializeBreatheMoveClasses } from './src/utils/initializeBreatheMoveClasses';
+// Initialize functions removed - managed by backend/admin
+import { initSentry, setUser as setSentryUser } from './src/config/sentry';
+import * as Sentry from '@sentry/react-native';
+
+// Inicializar Sentry antes de cualquier otra cosa
+initSentry();
 
 const Stack = createStackNavigator();
 
@@ -60,7 +65,7 @@ const MainNavigator = () => {
   );
 };
 
-export default function App() {
+function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [showSetup, setShowSetup] = useState(false);
@@ -70,18 +75,25 @@ export default function App() {
       setSession(session);
       setLoading(false);
       
-      // Initialize Breathe & Move classes when user is logged in
+      // User is logged in
       if (session) {
-        initializeBreatheMoveClasses().catch(console.error);
+        // Classes are managed by backend/admin
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       
-      // Initialize classes when user logs in
+      // User logged in
       if (session && _event === 'SIGNED_IN') {
-        initializeBreatheMoveClasses().catch(console.error);
+        // Set user in Sentry for better error tracking
+        setSentryUser({
+          id: session.user.id,
+          email: session.user.email
+        });
+      } else if (_event === 'SIGNED_OUT') {
+        // Clear user from Sentry
+        setSentryUser(null);
       }
     });
 
@@ -125,3 +137,6 @@ export default function App() {
     </NavigationContainer>
   );
 }
+
+// Wrap App with Sentry for error boundary
+export default Sentry.wrap(App);

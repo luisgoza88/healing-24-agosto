@@ -4,10 +4,12 @@ const nextConfig: NextConfig = {
   // Configuraciones para mejorar estabilidad en desarrollo
   productionBrowserSourceMaps: false,
   
-  // Configurar turbopack para mejor rendimiento
-  turbo: {
-    root: '/Users/marianatejada/Documents/GitHub/healing-24-agosto/web'
-  },
+  // Turbopack desactivado temporalmente por errores de runtime
+  // experimental: {
+  //   turbo: {
+  //     root: '/Users/marianatejada/Documents/GitHub/healing-24-agosto/web'
+  //   }
+  // },
   
   // Configuración para resolver problemas de CSP
   async headers() {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/src/lib/supabase'
+import { useSupabase } from '@/lib/supabase'
 import { X, CreditCard, DollarSign } from 'lucide-react'
 import { useProfessionals, useServices, usePatients } from '@/src/hooks/useCachedData'
 import { usePatientCredits, useCreditsForAppointment } from '@/src/hooks/usePatientCredits'
@@ -10,6 +10,9 @@ interface NewAppointmentModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
+  defaultServiceId?: string
+  defaultDate?: string
+  defaultTime?: string
 }
 
 const calculateEndTime = (startTime: string, durationMinutes: number): string => {
@@ -20,7 +23,14 @@ const calculateEndTime = (startTime: string, durationMinutes: number): string =>
   return `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`
 }
 
-export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewAppointmentModalProps) {
+export default function NewAppointmentModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  defaultServiceId,
+  defaultDate,
+  defaultTime,
+}: NewAppointmentModalProps) {
   const [loading, setLoading] = useState(false)
   const [useCreditsEnabled, setUseCreditsEnabled] = useState(false)
   const [creditsToUse, setCreditsToUse] = useState(0)
@@ -33,7 +43,7 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewA
     notes: ''
   })
 
-  const supabase = createClient()
+  const supabase = useSupabase()
   
   // Usar hooks con caché
   const { data: professionals = [], isLoading: loadingProfessionals } = useProfessionals()
@@ -131,13 +141,28 @@ export default function NewAppointmentModal({ isOpen, onClose, onSuccess }: NewA
     }
   }
 
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        patient_id: '',
+        professional_id: '',
+        service_id: defaultServiceId || '',
+        date: defaultDate || '',
+        time: defaultTime || '',
+        notes: ''
+      })
+      setUseCreditsEnabled(false)
+      setCreditsToUse(0)
+    }
+  }, [isOpen, defaultServiceId, defaultDate, defaultTime])
+
   const handleClose = () => {
     setFormData({
       patient_id: '',
       professional_id: '',
-      service_id: '',
-      date: '',
-      time: '',
+      service_id: defaultServiceId || '',
+      date: defaultDate || '',
+      time: defaultTime || '',
       notes: ''
     })
     setUseCreditsEnabled(false)

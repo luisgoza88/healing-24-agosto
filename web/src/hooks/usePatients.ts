@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { createClient } from '../lib/supabase';
+import { createClient, useSupabase } from '../lib/supabase';
 
 export interface Patient {
   id: string;
@@ -28,7 +28,7 @@ export function usePatients(filters: PatientFilters = {}) {
   return useQuery({
     queryKey: ['patients', filters],
     queryFn: async (): Promise<Patient[]> => {
-      const supabase = createClient();
+      const supabase = useSupabase();
       // Obtener pacientes
       const { data: patientsData, error: patientsError } = await supabase
         .from('profiles')
@@ -37,7 +37,10 @@ export function usePatients(filters: PatientFilters = {}) {
 
       if (patientsError) {
         console.error('[usePatients] Error obteniendo pacientes:', patientsError);
-        throw patientsError;
+        const errorMessage = patientsError.message?.toLowerCase().includes('permission denied')
+          ? 'No tienes permisos para ver la lista completa de pacientes. Asegúrate de iniciar sesión con una cuenta administradora.'
+          : patientsError.message || 'Error al obtener los pacientes';
+        throw new Error(errorMessage);
       }
 
       console.log(`[usePatients] Pacientes obtenidos: ${patientsData?.length || 0}`);
@@ -48,7 +51,10 @@ export function usePatients(filters: PatientFilters = {}) {
         .select('user_id, appointment_date')
         .order('appointment_date', { ascending: false });
 
-      if (appointmentsError) throw appointmentsError;
+      if (appointmentsError) {
+        console.error('[usePatients] Error obteniendo citas:', appointmentsError);
+        throw new Error(appointmentsError.message || 'Error al obtener las citas');
+      }
 
       // Agrupar citas por usuario
       const appointmentsByUser = appointmentsCount?.reduce((acc: any, apt) => {
@@ -97,8 +103,12 @@ export function usePatients(filters: PatientFilters = {}) {
 
       return formattedPatients;
     },
-    staleTime: 2 * 60 * 1000, // 2 minutos
+    staleTime: 5 * 60 * 1000, // 5 minutos (optimizado)
     gcTime: 10 * 60 * 1000, // 10 minutos
+    refetchInterval: false, // ✅ DESACTIVADO
+    refetchOnWindowFocus: false,
+    // ✅ PAGINACIÓN OPTIMIZADA
+    keepPreviousData: true
   });
 }
 
@@ -107,7 +117,7 @@ export function usePatient(patientId: string) {
   return useQuery({
     queryKey: ['patient', patientId],
     queryFn: async () => {
-      const supabase = createClient();
+      const supabase = useSupabase();
       // Obtener datos del paciente
       const { data: patient, error: patientError } = await supabase
         .from('profiles')
@@ -133,7 +143,10 @@ export function usePatient(patientId: string) {
         .eq('user_id', patientId)
         .order('appointment_date', { ascending: false });
 
-      if (appointmentsError) throw appointmentsError;
+      if (appointmentsError) {
+        console.error('[usePatients] Error obteniendo citas:', appointmentsError);
+        throw new Error(appointmentsError.message || 'Error al obtener las citas');
+      }
 
       // Obtener pagos
       const { data: payments } = await supabase
@@ -159,7 +172,7 @@ export function useCreatePatient() {
 
   return useMutation({
     mutationFn: async (patientData: Partial<Patient>) => {
-      const supabase = createClient();
+      const supabase = useSupabase();
       const { data, error } = await supabase
         .from('profiles')
         .insert({
@@ -195,7 +208,7 @@ export function useUpdatePatient() {
 
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<Patient> }) => {
-      const supabase = createClient();
+      const supabase = useSupabase();
       const { error } = await supabase
         .from('profiles')
         .update({
@@ -229,7 +242,7 @@ export function useCities() {
   return useQuery({
     queryKey: ['cities'],
     queryFn: async (): Promise<string[]> => {
-      const supabase = createClient();
+      const supabase = useSupabase();
       const { data, error } = await supabase
         .from('profiles')
         .select('city')
@@ -252,7 +265,7 @@ export function usePatientStats() {
   return useQuery({
     queryKey: ['patient-stats'],
     queryFn: async () => {
-      const supabase = createClient();
+      const supabase = useSupabase();
       const today = new Date();
       const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
       const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
@@ -292,7 +305,8 @@ export function usePatientStats() {
         activePatients: uniqueActive,
       };
     },
-    staleTime: 5 * 60 * 1000, // 5 minutos
-    refetchInterval: 5 * 60 * 1000, // Refrescar cada 5 minutos
+    staleTime: 10 * 60 * 1000, // 10 minutos para stats
+    refetchInterval: false, // ✅ DESACTIVADO
+    refetchOnWindowFocus: false
   });
 }

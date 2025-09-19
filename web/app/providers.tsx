@@ -10,18 +10,21 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 5 * 60 * 1000, // 5 minutos
-            gcTime: 10 * 60 * 1000, // 10 minutos (antes cacheTime)
+            staleTime: 2 * 60 * 1000, // 2 minutos (reducido)
+            gcTime: 5 * 60 * 1000, // 5 minutos (reducido)
             retry: 1,
-            refetchOnWindowFocus: true, // Activar actualización al enfocar
-            refetchOnMount: true, // Actualizar al montar
-            refetchOnReconnect: true, // Actualizar al reconectar
+            refetchOnWindowFocus: false, // ✅ DESACTIVADO - evita refetch excesivo
+            refetchOnMount: false, // ✅ DESACTIVADO - usa cache
+            refetchOnReconnect: true, // Solo al reconectar
           },
           mutations: {
             retry: 0, // No reintentar mutaciones fallidas
             onError: (error) => {
-              console.error('Mutation error:', error);
+              console.error('[Mutation Error]', error);
             },
+            onSuccess: () => {
+              console.log('[Mutation Success] Operation completed');
+            }
           },
         },
       })

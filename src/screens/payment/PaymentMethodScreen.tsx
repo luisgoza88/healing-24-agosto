@@ -16,7 +16,7 @@ import { paymentService, PaymentData } from '../../services/paymentService';
 import { supabase } from '../../lib/supabase';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { processMockPayment } from '../../utils/mockPayment';
+// Mock payment removed - use real payment service in production
 import { getUserCreditBalance, useCreditsForAppointment } from '../../utils/creditsManager';
 
 interface PaymentMethodScreenProps {
@@ -190,31 +190,22 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
         // Procesar el pago restante
         const actualPaymentMethod = selectedMethod.replace('credits_plus_', '');
         
-        if (actualPaymentMethod === 'test_payment') {
-          const mockResult = await processMockPayment(cashToPay, actualPaymentMethod);
-          
-          if (!mockResult.success) {
-            throw new Error(mockResult.error || 'Error en el pago de prueba');
-          }
-          
-          paymentData.transactionId = mockResult.transactionId;
+        // Simular pago en desarrollo, usar servicio real en producción
+        if (__DEV__ && actualPaymentMethod === 'test_payment') {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          paymentData.transactionId = `TEST_${Date.now()}`;
         } else {
-          // Para otros métodos, simular por ahora
+          // TODO: Integrar con paymentService para pagos reales
           await new Promise(resolve => setTimeout(resolve, 2000));
           paymentData.transactionId = `SIM_${Date.now()}`;
         }
         
         paymentData.paymentMethod = actualPaymentMethod;
       }
-      // Si es pago de prueba, usar el sistema mock
-      else if (selectedMethod === 'test_payment') {
-        const mockResult = await processMockPayment(totalAmount, selectedMethod);
-        
-        if (!mockResult.success) {
-          throw new Error(mockResult.error || 'Error en el pago de prueba');
-        }
-        
-        paymentData.transactionId = mockResult.transactionId;
+      // Si es pago de prueba, simular
+      else if (__DEV__ && selectedMethod === 'test_payment') {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        paymentData.transactionId = `TEST_${Date.now()}`;
       }
       // Para otros métodos de pago
       else {

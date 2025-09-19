@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { createClient } from '@/src/lib/supabase'
+import { createClient, useSupabase } from '@/lib/supabase'
 import { 
   ArrowLeft, 
   User, 
@@ -75,7 +75,7 @@ export default function PatientDetailPage() {
   const [activeTab, setActiveTab] = useState<'info' | 'appointments' | 'medical'>('info')
   const router = useRouter()
   const params = useParams()
-  const supabase = createClient()
+  const supabase = useSupabase()
 
   useEffect(() => {
     if (params.id) {

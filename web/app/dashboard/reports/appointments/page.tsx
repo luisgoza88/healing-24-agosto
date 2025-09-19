@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/src/lib/supabase'
+import { createClient, useSupabase } from '@/lib/supabase'
 import { 
   ArrowLeft,
   Calendar,
@@ -71,7 +71,7 @@ export default function AppointmentsReportPage() {
     monthlyTrend: [],
     appointmentsByStatus: []
   })
-  const supabase = createClient()
+  const supabase = useSupabase()
 
   useEffect(() => {
     fetchAppointmentAnalytics()

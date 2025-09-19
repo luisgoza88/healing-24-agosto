@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import { createClient } from '@/src/lib/supabase'
+import { createClient, useSupabase } from '@/lib/supabase'
 
 // Hook para estadísticas generales del dashboard de reportes
 export function useReportsDashboard() {
-  const supabase = createClient()
+  const supabase = useSupabase()
   
   return useQuery({
     queryKey: ['reportsDashboard'],
@@ -108,7 +108,7 @@ export function useReportsDashboard() {
 
 // Hook para reporte de ingresos
 export function useRevenueReport(dateRange?: { from: Date; to: Date }) {
-  const supabase = createClient()
+  const supabase = useSupabase()
   
   return useQuery({
     queryKey: ['revenueReport', dateRange],
@@ -193,7 +193,7 @@ export function useRevenueReport(dateRange?: { from: Date; to: Date }) {
 
 // Hook para reporte de citas
 export function useAppointmentsReport(dateRange?: { from: Date; to: Date }) {
-  const supabase = createClient()
+  const supabase = useSupabase()
   
   return useQuery({
     queryKey: ['appointmentsReport', dateRange],
@@ -285,7 +285,7 @@ export function useAppointmentsReport(dateRange?: { from: Date; to: Date }) {
 
 // Hook para reporte de pacientes
 export function usePatientsReport() {
-  const supabase = createClient()
+  const supabase = useSupabase()
   
   return useQuery({
     queryKey: ['patientsReport'],

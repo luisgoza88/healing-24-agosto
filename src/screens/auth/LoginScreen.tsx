@@ -37,7 +37,7 @@ export const LoginScreen = () => {
           password,
           options: {
             data: {
-              full_name: email === 'lmg880@gmail.com' ? 'Luis Miguel González López' : email.split('@')[0]
+              full_name: email.split('@')[0]
             },
             emailRedirectTo: 'healing-forest://auth'
           }
@@ -158,19 +158,21 @@ export const LoginScreen = () => {
               </Text>
             </TouchableOpacity>
 
-            {/* Botón temporal para usuario de prueba */}
-            <TouchableOpacity
-              style={[styles.toggleContainer, { marginTop: 12 }]}
-              onPress={() => {
-                setEmail('lmg880@gmail.com');
-                setPassword('Florida20');
-                setIsSignUp(false);
-              }}
-            >
-              <Text style={[styles.toggleText, { fontSize: 12 }]}>
-                Usar cuenta de prueba
-              </Text>
-            </TouchableOpacity>
+            {/* Botón temporal para usuario de prueba - Solo en desarrollo */}
+            {__DEV__ && (
+              <TouchableOpacity
+                style={[styles.toggleContainer, { marginTop: 12 }]}
+                onPress={() => {
+                  setEmail(process.env.TEST_USER_EMAIL || 'demo@example.com');
+                  setPassword(process.env.TEST_USER_PASSWORD || 'demo123');
+                  setIsSignUp(false);
+                }}
+              >
+                <Text style={[styles.toggleText, { fontSize: 12 }]}>
+                  Usar cuenta de prueba (DEV)
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

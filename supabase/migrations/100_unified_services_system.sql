@@ -423,3 +423,9 @@ GROUP BY s.id, s.code, s.name, s.description, sc.name, sc.code, sc.color, s.base
 -- =====================================================
 
 SELECT 'SISTEMA UNIFICADO DE SERVICIOS CREADO EXITOSAMENTE' as resultado;
+
+
+
+
+
+

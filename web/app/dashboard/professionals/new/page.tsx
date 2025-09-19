@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/src/lib/supabase'
+import { createClient, useSupabase } from '@/lib/supabase'
 import { 
   ArrowLeft, 
   Save, 
@@ -46,7 +46,7 @@ export default function NewProfessionalPage() {
     active: true
   })
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useSupabase()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

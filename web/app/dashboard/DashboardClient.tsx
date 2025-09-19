@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { useAuth } from "@/src/hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { 
   LayoutDashboard, 
@@ -11,14 +11,14 @@ import {
   Users, 
   UserCog, 
   FileBarChart, 
-  Settings,
   LogOut,
   Menu,
   X,
   Activity,
   CreditCard,
   Briefcase,
-  Wind
+  Wind,
+  AlertTriangle
 } from "lucide-react";
 
 const menuItems = [
@@ -39,9 +39,12 @@ export default function DashboardClient({
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, signOut, isAdmin, error } = useAuth(true);
+
+  console.log('[DashboardClient] Auth state:', { user: user?.email, loading, isAdmin });
 
   if (loading) {
+    console.log('[DashboardClient] Still loading...');
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
@@ -49,8 +52,18 @@ export default function DashboardClient({
     );
   }
 
-  if (!user) {
-    return null;
+  if (!user || !isAdmin) {
+    console.warn('[DashboardClient] Blocked access. isAdmin:', isAdmin);
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-100 px-6 text-center">
+        <AlertTriangle className="mb-4 h-12 w-12 text-red-500" />
+        <h2 className="text-2xl font-semibold text-gray-900">Acceso restringido</h2>
+        <p className="mt-2 max-w-md text-sm text-gray-600">Tu cuenta no tiene permisos suficientes para acceder al panel administrativo. Inicia sesión con un usuario administrador o solicita acceso al equipo de operaciones.</p>
+        {error && (
+          <p className="mt-4 max-w-md rounded-md bg-red-50 px-4 py-2 text-sm text-red-600">{error}</p>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -142,7 +155,7 @@ export default function DashboardClient({
           </button>
           <div className="flex items-center">
             <span className="text-sm text-gray-500">Bienvenido,</span>
-            <span className="ml-2 font-medium">{user?.email}</span>
+            <span className="ml-2 font-medium">{user?.email || 'Admin'}</span>
           </div>
         </header>
         <main className="flex-1 overflow-y-auto">

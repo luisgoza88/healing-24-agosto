@@ -1,11 +1,11 @@
-import { createClient } from '@/src/lib/supabase'
+import { createClient, useSupabase } from '@/lib/supabase'
 import { supabaseAdmin } from '@/src/lib/supabase-admin'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const supabase = createClient()
+    const supabase = useSupabase()
 
     // Verificar que el usuario actual es admin
     const { data: { user: currentUser } } = await supabase.auth.getUser()

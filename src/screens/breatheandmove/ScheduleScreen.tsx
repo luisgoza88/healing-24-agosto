@@ -17,9 +17,7 @@ import { supabase } from '../../lib/supabase';
 import { format, addDays, startOfWeek, getDay, isToday } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { SEPTEMBER_2025_SCHEDULE } from '../../constants/breatheMoveSchedule';
-import { seedBreatheMoveClasses } from '../../utils/seedBreatheMoveClasses';
-import { cleanSundayClasses } from '../../utils/cleanSundayClasses';
-import { resetBreatheMoveClasses } from '../../utils/resetBreatheMoveClasses';
+// Funciones de desarrollo removidas - usar dev-scripts/ si es necesario
 
 const { width } = Dimensions.get('window');
 
@@ -73,12 +71,8 @@ export const ScheduleScreen = ({ navigation }: any) => {
   const next7Days = Array.from({ length: 7 }, (_, i) => addDays(today, i));
 
   useEffect(() => {
-    // Clean Sunday classes when component mounts
-    cleanSundayClasses().then(result => {
-      console.log('Sunday cleanup result:', result);
-      // Then load classes
-      loadClasses();
-    });
+    // Load classes when component mounts
+    loadClasses();
   }, []);
 
   const loadClasses = async () => {
@@ -107,27 +101,8 @@ export const ScheduleScreen = ({ navigation }: any) => {
         console.error('Error loading classes from Supabase:', error);
         setClasses([]);
       } else if (!data || data.length === 0) {
-        console.log('No classes found, attempting to seed...');
-        // Si no hay clases, intentar seedear
-        const seedResult = await seedBreatheMoveClasses();
-        console.log('Seed result:', seedResult);
-        
-        // Intentar cargar de nuevo
-        const { data: newData } = await supabase
-          .from('breathe_move_classes')
-          .select('*')
-          .gte('class_date', format(startDate, 'yyyy-MM-dd'))
-          .lte('class_date', format(endDate, 'yyyy-MM-dd'))
-          .order('class_date', { ascending: true })
-          .order('start_time', { ascending: true });
-          
-        // Filtrar clases de domingo
-        const filteredData = (newData || []).filter(cls => {
-          const date = new Date(cls.class_date);
-          return date.getDay() !== 0; // No domingos
-        });
-        
-        setClasses(filteredData);
+        console.log('No classes found for the selected dates');
+        setClasses([]);
       } else {
         // Filtrar clases de domingo
         console.log('Raw classes from DB:', data.length);

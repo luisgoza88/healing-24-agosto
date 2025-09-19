@@ -2,7 +2,7 @@
 
 import { useEffect, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/src/lib/supabase'
+import { createClient, useSupabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import { 
   ArrowLeft,
@@ -45,7 +45,7 @@ export default function EditAppointmentPage({ params }: { params: Promise<{ id: 
   const [availableHours, setAvailableHours] = useState<string[]>([])
   
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useSupabase()
   const queryClient = useQueryClient()
   
   // Unwrap the params Promise using React's use() hook
@@ -116,7 +116,7 @@ export default function EditAppointmentPage({ params }: { params: Promise<{ id: 
 
       // Cargar datos adicionales
       const [profsData, servicesData, patientsData] = await Promise.all([
-        supabase.from('professionals').select('id, full_name').eq('active', true).order('full_name'),
+        supabase.from('professionals').select('id, full_name').eq('is_active', true).order('full_name'),
         supabase.from('services').select('id, name, base_price, duration_minutes').order('name'),
         supabase.from('profiles').select('id, full_name, email').order('full_name')
       ])

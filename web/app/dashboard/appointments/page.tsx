@@ -9,9 +9,10 @@ import { useGenerateCredit, calculateCreditAmount } from '@/src/hooks/usePatient
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { useQueryClient } from '@tanstack/react-query'
-import { createClient } from '@/src/lib/supabase'
+import { createClient, useSupabase } from '@/lib/supabase'
 import { useDebounce } from '@/hooks/useDebounce'
 import { usePrefetchNextPage } from '@/hooks/usePrefetchAppointments'
+import { useInvalidation } from '@/src/hooks/useInvalidation'
 
 export default function AppointmentsPage() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -27,10 +28,10 @@ export default function AppointmentsPage() {
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
   // React Query y Supabase
-  const queryClient = useQueryClient()
-  const supabase = createClient()
+  const supabase = useSupabase()
   const generateCredit = useGenerateCredit()
   const updateAppointmentMutation = useUpdateAppointment()
+  const { invalidateAppointments } = useInvalidation()
 
   // React Query hooks
   const { data: appointments = [], isLoading, error, refetch } = useAppointments({
@@ -209,10 +210,8 @@ export default function AppointmentsPage() {
           alert(message)
         }
 
-        // Invalidar cache para actualizar la lista
-        queryClient.invalidateQueries({ queryKey: ['appointments'] })
-        queryClient.invalidateQueries({ queryKey: ['appointment-stats'] })
-        queryClient.invalidateQueries({ queryKey: ['patient-credits'] })
+        // ✅ INVALIDACIÓN INTELIGENTE
+        invalidateAppointments()
       } catch (error: any) {
         console.error('[handleCancelAppointment] Error:', error)
         alert('Error al cancelar la cita: ' + (error.message || 'Error inesperado'))
@@ -248,9 +247,8 @@ export default function AppointmentsPage() {
         }
 
         alert('Cita eliminada exitosamente')
-        // Invalidar cache para actualizar la lista
-        queryClient.invalidateQueries({ queryKey: ['appointments'] })
-        queryClient.invalidateQueries({ queryKey: ['appointment-stats'] })
+        // ✅ INVALIDACIÓN INTELIGENTE
+        invalidateAppointments()
       } catch (error) {
         console.error('Error:', error)
         alert('Error inesperado al eliminar la cita')
@@ -664,9 +662,8 @@ export default function AppointmentsPage() {
           onClose={() => setShowNewModal(false)} 
           onSuccess={() => {
             setShowNewModal(false);
-            // Invalidar queries en lugar de recargar la página
-            queryClient.invalidateQueries({ queryKey: ['appointments'] });
-            queryClient.invalidateQueries({ queryKey: ['appointment-stats'] });
+            // ✅ INVALIDACIÓN INTELIGENTE
+            invalidateAppointments();
           }}
         />
       )}

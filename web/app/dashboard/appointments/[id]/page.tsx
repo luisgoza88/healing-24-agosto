@@ -2,7 +2,7 @@
 
 import { useEffect, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/src/lib/supabase'
+import { createClient, useSupabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 import { 
   ArrowLeft,
@@ -66,7 +66,7 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useSupabase()
   const queryClient = useQueryClient()
   
   // Unwrap the params Promise using React's use() hook

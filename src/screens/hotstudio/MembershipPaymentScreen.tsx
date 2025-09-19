@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { supabase } from '../../lib/supabase';
+import { getUserCreditBalance, useCreditsForAppointment } from '../../utils/creditsManager';
 
 interface MembershipPaymentScreenProps {
   route: {

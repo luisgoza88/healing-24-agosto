@@ -47,11 +47,20 @@ export class AuthManager {
    * Obtiene la sesión actual del usuario
    */
   async getCurrentSession(): Promise<AuthSession | null> {
+    console.log('[AuthManager] Getting current session...');
     try {
+      // Primero intentar obtener la sesión del almacenamiento local
       const { data: { session }, error } = await this.supabase.auth.getSession();
+      console.log('[AuthManager] Session result:', { session: session?.user?.email, error });
       
       if (error) {
         console.error('Error getting current session:', error);
+        // Si hay error, intentar refresh
+        const { data: { session: refreshedSession }, error: refreshError } = await this.supabase.auth.refreshSession();
+        if (!refreshError && refreshedSession) {
+          console.log('[AuthManager] Session refreshed successfully');
+          return refreshedSession;
+        }
         return null;
       }
 
@@ -349,3 +358,9 @@ export const getUserProfile = async (supabaseClient: any, userId?: string): Prom
   const manager = new AuthManager(supabaseClient);
   return manager.getUserProfile(userId);
 };
+
+
+
+
+
+

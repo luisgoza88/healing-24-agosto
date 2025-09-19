@@ -1,16 +1,31 @@
 const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
 
-const SUPABASE_URL = 'https://vgwyhegpymqbljqtskra.supabase.co';
-const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZnd3loZWdweW1xYmxqcXRza3JhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYwNTU2MTMsImV4cCI6MjA3MTYzMTYxM30.miWLsUHcBJe9zfxlmcO3Pbw1GmGkg5NPjcBwYQRrMf4';
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!SUPABASE_URL || !ANON_KEY) {
+  console.error('❌ Error: Missing Supabase credentials in environment variables');
+  process.exit(1);
+}
 
 const supabase = createClient(SUPABASE_URL, ANON_KEY);
 
 async function testLogin() {
-  console.log('🔐 Probando login con tus credenciales...\n');
+  console.log('🔐 Probando login con credenciales de prueba...\n');
+  
+  const email = process.env.TEST_USER_EMAIL;
+  const password = process.env.TEST_USER_PASSWORD;
+  
+  if (!email || !password) {
+    console.error('❌ Error: Missing test user credentials in environment variables');
+    console.log('💡 Tip: Add TEST_USER_EMAIL and TEST_USER_PASSWORD to your .env file');
+    process.exit(1);
+  }
   
   const { data, error } = await supabase.auth.signInWithPassword({
-    email: 'lmg880@gmail.com',
-    password: 'Florida20'
+    email,
+    password
   });
 
   if (error) {
@@ -38,8 +53,8 @@ async function testLogin() {
     console.log('\n⚠️ No se encontró perfil, creándolo...');
     await supabase.from('profiles').insert({
       id: data.user.id,
-      email: 'lmg880@gmail.com',
-      full_name: 'Luis Miguel González López'
+      email: email,
+      full_name: process.env.TEST_USER_NAME || 'Test User'
     });
   }
 

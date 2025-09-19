@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/src/lib/supabase'
+import { createClient, useSupabase } from '@/lib/supabase'
 
 export default function TestAppointmentsPage() {
   const [results, setResults] = useState<any>({})
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const supabase = useSupabase()
 
   useEffect(() => {
     runTests()

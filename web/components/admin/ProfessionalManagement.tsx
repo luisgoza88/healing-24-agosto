@@ -14,8 +14,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useProfessionals, useServices } from '../../../shared/hooks/useServices';
-import { createClient } from '@/src/lib/supabase';
+import { useProfessionals } from '../../src/hooks/useProfessionals';
+import { useServices } from '../../src/hooks/useAppointments';
+import { createClient, useSupabase } from '@/lib/supabase';
 import {
   Plus,
   Edit2,
@@ -63,7 +64,7 @@ interface ProfessionalFormData {
 }
 
 export default function ProfessionalManagement() {
-  const supabase = createClient();
+  const supabase = useSupabase();
   const { professionals, loading, error, assignToService, unassignFromService, refresh } = useProfessionals(supabase);
   const { services } = useServices(supabase);
   
@@ -618,3 +619,6 @@ export default function ProfessionalManagement() {
     </div>
   );
 }
+
+
+

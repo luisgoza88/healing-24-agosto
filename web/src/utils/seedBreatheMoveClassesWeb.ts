@@ -1,4 +1,4 @@
-import { supabase } from '@/src/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { format, addDays, getDay, getDaysInMonth } from 'date-fns';
 
 // Importamos el horario oficial

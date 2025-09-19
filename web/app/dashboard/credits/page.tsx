@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { CreditCard, TrendingUp, Users, DollarSign, Search, Filter, Eye, Plus, AlertTriangle, CheckCircle } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { createClient } from '@/src/lib/supabase'
+import { createClient, useSupabase } from '@/lib/supabase'
 import Link from 'next/link'
 import AddManualCreditModal from '@/components/AddManualCreditModal'
 
@@ -35,7 +35,7 @@ export default function CreditsPage() {
   const [showOnlyWithCredits, setShowOnlyWithCredits] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
 
-  const supabase = createClient()
+  const supabase = useSupabase()
   const queryClient = useQueryClient()
 
   // Fetch all patient credits with patient info

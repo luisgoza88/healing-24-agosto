@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { createClient } from '../lib/supabase';
+import { useSupabase } from '../lib/supabase';
 
 // Hook para obtener profesionales
 export function useProfessionals() {
   return useQuery({
     queryKey: ['professionals'],
     queryFn: async () => {
-      const supabase = createClient();
+      const supabase = useSupabase();
       const { data, error } = await supabase
         .from('professionals')
         .select('*')
@@ -26,7 +26,7 @@ export function useServices() {
   return useQuery({
     queryKey: ['services'],
     queryFn: async () => {
-      const supabase = createClient();
+      const supabase = useSupabase();
       const { data, error } = await supabase
         .from('services')
         .select('*')
@@ -45,7 +45,7 @@ export function usePatients() {
   return useQuery({
     queryKey: ['patients'],
     queryFn: async () => {
-      const supabase = createClient();
+      const supabase = useSupabase();
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -61,6 +61,7 @@ export function usePatients() {
 
 // Hook para obtener horarios disponibles
 export function useAvailableSlots(professionalId: string, date: string) {
+  const supabase = useSupabase();
   return useQuery({
     queryKey: ['available-slots', professionalId, date],
     queryFn: async () => {
@@ -82,7 +83,7 @@ export function useAvailableSlots(professionalId: string, date: string) {
       // Obtener citas existentes
       const { data: appointments } = await supabase
         .from('appointments')
-        .select('appointment_time, duration')
+        .select('appointment_time, duration_minutes')
         .eq('professional_id', professionalId)
         .eq('appointment_date', date)
         .neq('status', 'cancelled');
@@ -97,7 +98,7 @@ export function useAvailableSlots(professionalId: string, date: string) {
         const timeStr = minutesToTime(time);
         const isAvailable = !appointments?.some(apt => {
           const aptStart = timeToMinutes(apt.appointment_time);
-          const aptEnd = aptStart + (apt.duration || 60);
+          const aptEnd = aptStart + ((apt.duration_minutes ?? 60));
           return time >= aptStart && time < aptEnd;
         });
 

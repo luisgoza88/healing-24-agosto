@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { X, Loader2, User, Mail, Phone, MapPin, Calendar } from 'lucide-react'
-import { supabase } from '@/src/lib/supabase'
+import { createClient, useSupabase } from '@/lib/supabase'
 import { useQueryClient } from '@tanstack/react-query'
 
 interface NewPatientModalProps {
@@ -13,6 +13,7 @@ interface NewPatientModalProps {
 
 export default function NewPatientModal({ isOpen, onClose, onSuccess }: NewPatientModalProps) {
   const queryClient = useQueryClient()
+  const supabase = useSupabase()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     full_name: '',

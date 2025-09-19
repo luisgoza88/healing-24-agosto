@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Calendar, Plus, Edit, Trash2, Clock, Users, ChevronLeft, ChevronRight } from 'lucide-react'
-import { createClient } from '@/src/lib/supabase'
+import { createClient, useSupabase } from '@/lib/supabase'
 import { formatDateString } from '@/src/lib/dateUtils'
 import ClassModal from '@/components/BreatheMoveClassModal'
 
@@ -26,7 +26,7 @@ export default function BreatheMoveCalendarPage() {
   const [showModal, setShowModal] = useState(false)
   const [editingClass, setEditingClass] = useState<BreatheClass | null>(null)
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week')
-  const supabase = createClient()
+  const supabase = useSupabase()
 
   // Cargar clases
   useEffect(() => {

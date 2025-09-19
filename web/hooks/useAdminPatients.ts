@@ -1,10 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { createClient } from '@/src/lib/supabase'
+import { createClient, useSupabase } from '@/lib/supabase'
 
 // Hook específico para que admins creen pacientes sin auth
 export function useAdminCreatePatient() {
   const queryClient = useQueryClient()
-  const supabase = createClient()
+  const supabase = useSupabase()
 
   return useMutation({
     mutationFn: async (patientData: any) => {
@@ -80,7 +80,7 @@ export function useAdminCreatePatient() {
 // Hook para crear pacientes sin autenticación (solo perfil)
 export function useCreatePatientProfile() {
   const queryClient = useQueryClient()
-  const supabase = createClient()
+  const supabase = useSupabase()
 
   return useMutation({
     mutationFn: async (patientData: any) => {

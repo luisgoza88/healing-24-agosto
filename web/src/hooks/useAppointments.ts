@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { createClient } from '../lib/supabase';
+import { createClient, useSupabase } from '../lib/supabase';
 import { subDays, startOfDay, endOfDay } from 'date-fns';
 
 export interface Appointment {
@@ -31,7 +31,7 @@ interface AppointmentFilters {
 // Hook principal para obtener citas con filtros
 export function useAppointments(filters: AppointmentFilters = {}) {
   const { dateRange = 30 } = filters;
-  const supabase = createClient();
+  const supabase = useSupabase();
 
   return useQuery({
     queryKey: ['appointments', filters],
@@ -201,9 +201,11 @@ export function useAppointments(filters: AppointmentFilters = {}) {
 
       return formattedData;
     },
-    staleTime: 1 * 60 * 1000, // 1 minuto
+    staleTime: 2 * 60 * 1000, // 2 minutos (optimizado)
     gcTime: 5 * 60 * 1000, // 5 minutos
-    refetchInterval: 30 * 1000, // Refrescar cada 30 segundos
+    refetchInterval: false, // ✅ DESACTIVADO - solo refetch manual
+    enabled: true,
+    refetchOnWindowFocus: false
   });
 }
 
@@ -212,7 +214,7 @@ export function useAppointmentServices() {
   return useQuery({
     queryKey: ['appointment-services'],
     queryFn: async (): Promise<Array<{ id: string; name: string }>> => {
-      const supabase = createClient();
+      const supabase = useSupabase();
       const { data, error } = await supabase
         .from('services')
         .select('id, name')
@@ -233,7 +235,7 @@ export function useCreateAppointment() {
 
   return useMutation({
     mutationFn: async (appointmentData: any) => {
-      const supabase = createClient();
+      const supabase = useSupabase();
       const { error } = await supabase
         .from('appointments')
         .insert(appointmentData);
@@ -256,7 +258,7 @@ export function useUpdateAppointment() {
 
   return useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      const supabase = createClient();
+      const supabase = useSupabase();
       const { error } = await supabase
         .from('appointments')
         .update(data)
@@ -280,7 +282,7 @@ export function useCancelAppointment() {
 
   return useMutation({
     mutationFn: async (appointmentId: string) => {
-      const supabase = createClient();
+      const supabase = useSupabase();
       const { error } = await supabase
         .from('appointments')
         .update({ status: 'cancelled' })
@@ -303,11 +305,11 @@ export function useProfessionals() {
   return useQuery({
     queryKey: ['professionals'],
     queryFn: async () => {
-      const supabase = createClient();
+      const supabase = useSupabase();
       const { data, error } = await supabase
         .from('professionals')
         .select('id, full_name, specialties')
-        .eq('active', true)
+        .eq('is_active', true)
         .order('full_name');
 
       if (error) throw error;
@@ -323,7 +325,7 @@ export function useServices() {
   return useQuery({
     queryKey: ['services'],
     queryFn: async () => {
-      const supabase = createClient();
+      const supabase = useSupabase();
       const { data, error } = await supabase
         .from('services')
         .select('id, name')
@@ -342,7 +344,7 @@ export function useAppointmentStats() {
   return useQuery({
     queryKey: ['appointment-stats'],
     queryFn: async () => {
-      const supabase = createClient();
+      const supabase = useSupabase();
       const today = new Date().toISOString().split('T')[0];
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
@@ -384,7 +386,8 @@ export function useAppointmentStats() {
         completedToday: completedToday.count || 0,
       };
     },
-    staleTime: 30 * 1000, // 30 segundos
-    refetchInterval: 30 * 1000, // Refrescar cada 30 segundos
+    staleTime: 5 * 60 * 1000, // 5 minutos para stats
+    refetchInterval: false, // ✅ DESACTIVADO
+    refetchOnWindowFocus: false
   });
 }

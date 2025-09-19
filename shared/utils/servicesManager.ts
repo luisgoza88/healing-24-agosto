@@ -563,3 +563,9 @@ export const getProfessionalsByService = async (supabaseClient: any, serviceId: 
   const manager = new ServicesManager(supabaseClient);
   return manager.getProfessionalsByService(serviceId);
 };
+
+
+
+
+
+

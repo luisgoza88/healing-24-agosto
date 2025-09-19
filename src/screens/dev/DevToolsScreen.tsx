@@ -10,13 +10,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
-import { seedTestAppointments, clearUserAppointments } from '../../utils/seedTestData';
 import { supabase } from '../../lib/supabase';
-import { createTestBreatheMovePackage } from '../../utils/testPayment';
-import { checkBreatheMoveCitas } from '../../utils/checkBreatheMoveCitas';
 import { testSupabasePermissions, formatTestResults } from '../../utils/testSupabasePermissions';
-import { seedBreatheMoveClasses } from '../../utils/seedBreatheMoveClasses';
-import { forceSeedClasses } from '../../utils/forceSeedClasses';
+// Development functions removed - use dev-scripts/ if necessary
 
 export const DevToolsScreen = ({ navigation }: any) => {
   const [loading, setLoading] = useState(false);
@@ -25,23 +21,9 @@ export const DevToolsScreen = ({ navigation }: any) => {
   const handleSeedData = async () => {
     Alert.alert(
       'Crear datos de prueba',
-      '¿Deseas crear citas de prueba? Esto agregará 6 citas de ejemplo.',
+      'Esta función ha sido movida a dev-scripts/. Por favor, usa el admin panel o ejecuta el script manualmente.',
       [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Crear',
-          onPress: async () => {
-            try {
-              setLoading(true);
-              await seedTestAppointments();
-              Alert.alert('Éxito', 'Citas de prueba creadas correctamente');
-            } catch (error) {
-              Alert.alert('Error', 'No se pudieron crear las citas de prueba');
-            } finally {
-              setLoading(false);
-            }
-          }
-        }
+        { text: 'OK' }
       ]
     );
   };
@@ -49,24 +31,9 @@ export const DevToolsScreen = ({ navigation }: any) => {
   const handleClearData = async () => {
     Alert.alert(
       'Eliminar datos',
-      '¿Estás seguro de eliminar todas tus citas?',
+      'Esta función ha sido movida a dev-scripts/. Por favor, usa el admin panel o ejecuta el script manualmente.',
       [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setLoading(true);
-              await clearUserAppointments();
-              Alert.alert('Éxito', 'Citas eliminadas correctamente');
-            } catch (error) {
-              Alert.alert('Error', 'No se pudieron eliminar las citas');
-            } finally {
-              setLoading(false);
-            }
-          }
-        }
+        { text: 'OK' }
       ]
     );
   };
@@ -192,7 +159,7 @@ export const DevToolsScreen = ({ navigation }: any) => {
               }
 
               // Crear paquete de prueba para Breathe & Move
-              await createTestBreatheMovePackage(user.id, 12);
+              // Esta funcionalidad ha sido movida a dev-scripts/
 
               Alert.alert(
                 'Éxito', 
@@ -765,41 +732,9 @@ ${membershipsError ? `\n❌ Memberships Error: ${membershipsError.message}` : ''
   const seedBreatheMoveClassesHandler = async () => {
     Alert.alert(
       'Cargar Clases de Breathe & Move',
-      '¿Deseas cargar las clases de Breathe & Move para los próximos 7 días en la base de datos?',
+      'Esta función ha sido movida a dev-scripts/. Por favor, usa el admin panel o ejecuta el script manualmente.',
       [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Cargar',
-          onPress: async () => {
-            try {
-              setLoading(true);
-              const result = await seedBreatheMoveClasses();
-              
-              if (result.success) {
-                Alert.alert(
-                  'Éxito',
-                  result.message,
-                  [
-                    {
-                      text: 'OK',
-                      onPress: () => {
-                        // Refrescar la pantalla o navegar
-                        console.log('Classes seeded successfully');
-                      }
-                    }
-                  ]
-                );
-              } else {
-                Alert.alert('Error', result.message);
-              }
-            } catch (error) {
-              Alert.alert('Error', 'No se pudieron cargar las clases');
-              console.error('Seed error:', error);
-            } finally {
-              setLoading(false);
-            }
-          }
-        }
+        { text: 'OK' }
       ]
     );
   };
@@ -868,16 +803,12 @@ ${membershipsError ? `\n❌ Memberships Error: ${membershipsError.message}` : ''
           
           <TouchableOpacity
             style={[styles.button, { backgroundColor: '#F59E0B' }]}
-            onPress={async () => {
-              try {
-                setLoading(true);
-                const result = await forceSeedClasses();
-                Alert.alert('Éxito', 'Clases regeneradas correctamente');
-              } catch (error) {
-                Alert.alert('Error', 'No se pudieron regenerar las clases');
-              } finally {
-                setLoading(false);
-              }
+            onPress={() => {
+              Alert.alert(
+                'Forzar regeneración de clases',
+                'Esta función ha sido movida a dev-scripts/. Por favor, usa el admin panel o ejecuta el script manualmente.',
+                [{ text: 'OK' }]
+              );
             }}
             disabled={loading}
           >
@@ -1000,11 +931,12 @@ ${membershipsError ? `\n❌ Memberships Error: ${membershipsError.message}` : ''
 
           <TouchableOpacity
             style={[styles.button, { backgroundColor: Colors.primary.dark }]}
-            onPress={async () => {
-              setLoading(true);
-              await checkBreatheMoveCitas();
-              setLoading(false);
-              Alert.alert('Verificación completada', 'Revisa la consola para ver los detalles');
+            onPress={() => {
+              Alert.alert(
+                'Verificar Citas Breathe & Move',
+                'Esta función ha sido movida a dev-scripts/. Por favor, usa el admin panel o ejecuta el script manualmente.',
+                [{ text: 'OK' }]
+              );
             }}
             disabled={loading}
           >
