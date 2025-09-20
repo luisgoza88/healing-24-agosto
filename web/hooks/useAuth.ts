@@ -1,4 +1,4 @@
-// Sistema de autenticación unificado para el dashboard administrativo
+// Sistema de autenticación simplificado y directo
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSupabase } from "@/lib/supabase";
@@ -11,17 +11,8 @@ interface Profile {
   role?: string;
 }
 
-const ADMIN_ROLES = new Set(["admin", "super_admin", "manager"]);
-
-const asErrorMessage = (error: unknown) => {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (typeof error === "string") {
-    return error;
-  }
-  return "Ocurrió un error inesperado.";
-};
+// Roles que tienen acceso admin
+const ADMIN_ROLES = ["admin", "super_admin", "manager"];
 
 export function useAuth(requireAdmin = false) {
   const router = useRouter();
@@ -34,251 +25,219 @@ export function useAuth(requireAdmin = false) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Función para verificar si es admin
   const checkAdminStatus = useCallback(async (userId: string): Promise<boolean> => {
+    console.log('[useAuth] Checking admin status for:', userId);
+    
     try {
-      const { data, error: rpcError } = await supabase.rpc("is_admin", {
-        user_id: userId,
-      });
-
-      if (!rpcError && typeof data === "boolean") {
-        return data;
+      // Primero intentar con la función RPC
+      const { data: isAdminRPC, error: rpcError } = await (supabase as any)
+        .rpc('is_admin', { user_id: userId });
+      
+      if (!rpcError && typeof isAdminRPC === 'boolean') {
+        console.log('[useAuth] RPC is_admin result:', isAdminRPC);
+        return isAdminRPC;
       }
-
-      if (rpcError && rpcError.code !== "PGRST302") {
-        console.warn("[useAuth] RPC is_admin error:", rpcError);
+      
+      // Si falla RPC, verificar directamente en profiles
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
+      
+      if (!profileError && profileData) {
+        const role = (profileData as any).role;
+        if (role && typeof role === 'string') {
+          const hasAdminRole = ADMIN_ROLES.includes(role);
+          console.log('[useAuth] Profile role:', role, 'isAdmin:', hasAdminRole);
+          return hasAdminRole;
+        }
       }
-    } catch (rpcException) {
-      console.warn("[useAuth] RPC is_admin call failed:", rpcException);
-    }
-
-    try {
-      const { data, error: profileError } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", userId)
-        .maybeSingle();
-
-      if (profileError) {
-        console.warn("[useAuth] Fallback role check error:", profileError);
-        return false;
-      }
-
-      if (!data?.role) {
-        return false;
-      }
-
-      return ADMIN_ROLES.has(data.role);
-    } catch (fallbackError) {
-      console.error("[useAuth] Unexpected error checking admin role:", fallbackError);
+      
+      console.log('[useAuth] No admin role found');
+      return false;
+    } catch (error) {
+      console.error('[useAuth] Error checking admin status:', error);
       return false;
     }
   }, [supabase]);
 
-  const loadUserData = useCallback(async (currentUser: User): Promise<boolean> => {
-    setUser(currentUser);
-    setError(null);
-
+  // Función para cargar datos del usuario
+  const loadUserData = useCallback(async (currentUser: User) => {
+    console.log('[useAuth] Loading user data for:', currentUser.email);
+    
     try {
+      // Cargar perfil
+      console.log('[useAuth] Fetching profile...');
       const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("id, email, full_name, role")
-        .eq("id", currentUser.id)
-        .maybeSingle();
-
+        .from('profiles')
+        .select('*')
+        .eq('id', currentUser.id)
+        .single();
+      
       if (profileError) {
-        console.error("[useAuth] Error loading profile:", profileError);
-        setProfile(null);
-        setIsAdmin(false);
-        setError(profileError.message || "No se pudo cargar el perfil del usuario.");
-        return false;
+        console.error('[useAuth] Profile fetch error:', profileError);
+      } else if (profileData) {
+        console.log('[useAuth] Profile loaded:', profileData.email);
+        setProfile(profileData);
       }
-
-      if (!profileData) {
-        console.warn("[useAuth] No profile found for user", currentUser.id);
-        setProfile(null);
-        setIsAdmin(false);
-        setError("No se encontró un perfil asociado a tu cuenta.");
-        return false;
-      }
-
-      setProfile(profileData as Profile);
-
+      
+      // Verificar si es admin
+      console.log('[useAuth] Checking admin status...');
       const adminStatus = await checkAdminStatus(currentUser.id);
       setIsAdmin(adminStatus);
-
-      if (!adminStatus) {
-        setError("Tu usuario no tiene permisos de administrador.");
-      }
-
-      return adminStatus;
-    } catch (profileException) {
-      console.error("[useAuth] Unexpected profile load error:", profileException);
-      setProfile(null);
-      setIsAdmin(false);
-      setError(asErrorMessage(profileException));
-      return false;
+      
+      console.log('[useAuth] User data loaded. isAdmin:', adminStatus);
+    } catch (error) {
+      console.error('[useAuth] Error loading user data:', error);
     }
   }, [checkAdminStatus, supabase]);
 
+  // Inicializar autenticación
   useEffect(() => {
-    let isMounted = true;
+    let mounted = true;
+    let timeoutId: NodeJS.Timeout;
 
-    const initialise = async () => {
+    const initialize = async () => {
+      console.log('[useAuth] Initializing...');
       setLoading(true);
+      
+      // Timeout de seguridad para evitar loading infinito
+      timeoutId = setTimeout(() => {
+        if (mounted) {
+          console.warn('[useAuth] Initialization timeout - forcing completion');
+          setLoading(false);
+        }
+      }, 3000);
+      
       try {
-        const { data, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) {
-          console.error("[useAuth] Session error:", sessionError);
-          setError(sessionError.message);
-          return;
-        }
-
-        if (!isMounted) {
-          return;
-        }
-
-        const currentSession = data.session;
-        setSession(currentSession);
-
-        if (currentSession?.user) {
-          const isElevated = await loadUserData(currentSession.user);
-          if (!isElevated) {
-            await supabase.auth.signOut();
-            if (!isMounted) {
-              return;
-            }
-            setUser(null);
-            setSession(null);
-          }
+        // Obtener sesión actual
+        console.log('[useAuth] Getting session...');
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        console.log('[useAuth] Session result:', session ? 'Found' : 'Not found');
+        
+        if (!mounted) return;
+        
+        if (session?.user) {
+          console.log('[useAuth] Session found for:', session.user.email);
+          setSession(session);
+          setUser(session.user);
+          await loadUserData(session.user);
         } else {
+          console.log('[useAuth] No session found');
           setUser(null);
+          setSession(null);
           setProfile(null);
           setIsAdmin(false);
         }
-      } catch (initError) {
-        console.error("[useAuth] Initialisation error:", initError);
-        if (isMounted) {
-          setError(asErrorMessage(initError));
+      } catch (error) {
+        console.error('[useAuth] Initialization error:', error);
+        if (mounted) {
+          setError('Error al inicializar autenticación');
         }
       } finally {
-        if (isMounted) {
+        clearTimeout(timeoutId);
+        if (mounted) {
           setLoading(false);
+          console.log('[useAuth] Initialization complete');
         }
       }
     };
 
-    initialise();
+    initialize();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      if (!isMounted) {
-        return;
-      }
-
-      if (event === "SIGNED_IN" && newSession?.user) {
-        setLoading(true);
-        setSession(newSession);
-        const hasAccess = await loadUserData(newSession.user);
-        if (!hasAccess) {
-          await supabase.auth.signOut();
-          setUser(null);
-          setSession(null);
-        }
-        setLoading(false);
-        return;
-      }
-
-      if (event === "SIGNED_OUT") {
+    // Escuchar cambios de autenticación
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[useAuth] Auth state changed:', event);
+      
+      if (!mounted) return;
+      
+      if (event === 'SIGNED_IN' && session?.user) {
+        setSession(session);
+        setUser(session.user);
+        await loadUserData(session.user);
+      } else if (event === 'SIGNED_OUT') {
         setSession(null);
         setUser(null);
         setProfile(null);
         setIsAdmin(false);
         setError(null);
-        setLoading(false);
-        return;
-      }
-
-      if (event === "TOKEN_REFRESHED" && newSession) {
-        setSession(newSession);
+      } else if (event === 'TOKEN_REFRESHED' && session) {
+        setSession(session);
       }
     });
 
     return () => {
-      isMounted = false;
+      mounted = false;
+      clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
   }, [loadUserData, supabase]);
 
+  // Redirigir si se requiere admin y no lo es
   useEffect(() => {
-    if (!requireAdmin || loading) {
-      return;
+    if (!loading && requireAdmin && !isAdmin) {
+      console.log('[useAuth] Redirecting - not admin');
+      router.push('/');
     }
+  }, [loading, requireAdmin, isAdmin, router]);
 
-    if (!user) {
-      router.push("/");
-      return;
-    }
-
-    if (!isAdmin) {
-      router.push("/");
-    }
-  }, [requireAdmin, loading, user, isAdmin, router]);
-
+  // Función para cerrar sesión
   const signOut = useCallback(async () => {
+    console.log('[useAuth] Signing out...');
     try {
       setLoading(true);
-      const { error: signOutError } = await supabase.auth.signOut();
-      if (signOutError) {
-        throw signOutError;
-      }
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      // Limpiar estado
       setUser(null);
       setSession(null);
       setProfile(null);
       setIsAdmin(false);
       setError(null);
-      router.push("/");
-      return { success: true } as const;
-    } catch (signOutException) {
-      console.error("[useAuth] Sign out error:", signOutException);
-      setError(asErrorMessage(signOutException));
-      return { success: false, error: signOutException } as const;
+      
+      // Redirigir a login
+      router.push('/');
+      return { success: true };
+    } catch (error) {
+      console.error('[useAuth] Sign out error:', error);
+      setError('Error al cerrar sesión');
+      return { success: false, error };
     } finally {
       setLoading(false);
     }
   }, [router, supabase]);
 
+  // Función para iniciar sesión
   const signIn = useCallback(async (email: string, password: string) => {
+    console.log('[useAuth] Signing in:', email);
     try {
       setLoading(true);
       setError(null);
 
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (signInError) {
-        throw signInError;
-      }
+      if (error) throw error;
+      if (!data?.user) throw new Error('No se pudo obtener la sesión');
 
-      if (!data?.user) {
-        throw new Error("No se pudo obtener la sesión del usuario.");
-      }
-
-      const hasAccess = await loadUserData(data.user);
-      if (!hasAccess) {
-        await supabase.auth.signOut();
-        setUser(null);
-        setSession(null);
-        return { success: false, error: new Error("Necesitas una cuenta con permisos de administrador.") } as const;
-      }
-
-      setSession(data.session ?? null);
-      return { success: true, data } as const;
-    } catch (signInException) {
-      console.error("[useAuth] Sign in error:", signInException);
-      const message = asErrorMessage(signInException);
+      // Cargar datos del usuario
+      setSession(data.session);
+      setUser(data.user);
+      await loadUserData(data.user);
+      
+      console.log('[useAuth] Sign in successful');
+      return { success: true, data };
+    } catch (error: any) {
+      console.error('[useAuth] Sign in error:', error);
+      const message = error.message || 'Error al iniciar sesión';
       setError(message);
-      return { success: false, error: new Error(message) } as const;
+      return { success: false, error: new Error(message) };
     } finally {
       setLoading(false);
     }
@@ -298,49 +257,12 @@ export function useAuth(requireAdmin = false) {
   };
 }
 
+// Hook simplificado para verificar estado de autenticación
 export function useAuthStatus() {
-  const supabase = useSupabase();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const checkStatus = async () => {
-      setLoading(true);
-      try {
-        const { data } = await supabase.auth.getSession();
-        const session = data.session;
-
-        if (!session?.user) {
-          setIsAuthenticated(false);
-          setIsAdmin(false);
-          return;
-        }
-
-        setIsAuthenticated(true);
-
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", session.user.id)
-          .maybeSingle();
-
-        if (profileData?.role) {
-          setIsAdmin(ADMIN_ROLES.has(profileData.role));
-        } else {
-          setIsAdmin(false);
-        }
-      } catch (statusError) {
-        console.error("[useAuthStatus] Error:", statusError);
-        setIsAuthenticated(false);
-        setIsAdmin(false);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkStatus();
-  }, [supabase]);
-
-  return { isAuthenticated, isAdmin, loading };
+  const { user, isAdmin, loading } = useAuth();
+  return {
+    isAuthenticated: Boolean(user),
+    isAdmin,
+    loading
+  };
 }

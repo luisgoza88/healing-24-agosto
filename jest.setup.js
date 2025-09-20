@@ -1,5 +1,9 @@
 // Mock de React Native
-jest.mock('react-native/Libraries/Animated/NativeAnimatedHelper');
+jest.mock(
+  'react-native/Libraries/Animated/NativeAnimatedHelper',
+  () => ({}),
+  { virtual: true }
+);
 
 // Mock de AsyncStorage
 jest.mock('@react-native-async-storage/async-storage', () =>
@@ -44,32 +48,41 @@ jest.mock('expo-notifications', () => ({
 }));
 
 // Mock de Supabase
-jest.mock('./src/lib/supabase', () => ({
-  supabase: {
-    auth: {
-      getSession: jest.fn(() => Promise.resolve({ data: { session: null }, error: null })),
-      getUser: jest.fn(() => Promise.resolve({ data: { user: null }, error: null })),
-      signInWithPassword: jest.fn(),
-      signUp: jest.fn(),
-      signOut: jest.fn(),
-      onAuthStateChange: jest.fn(() => ({ data: { subscription: { unsubscribe: jest.fn() } } }))
-    },
-    from: jest.fn(() => ({
-      select: jest.fn().mockReturnThis(),
-      insert: jest.fn().mockReturnThis(),
-      update: jest.fn().mockReturnThis(),
-      delete: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      neq: jest.fn().mockReturnThis(),
-      gte: jest.fn().mockReturnThis(),
-      lte: jest.fn().mockReturnThis(),
+jest.mock('./src/lib/supabase', () => {
+  const createQueryBuilder = () => {
+    const builder = {
+      select: jest.fn(() => builder),
+      insert: jest.fn(() => builder),
+      update: jest.fn(() => builder),
+      delete: jest.fn(() => builder),
+      eq: jest.fn(() => builder),
+      neq: jest.fn(() => builder),
+      gte: jest.fn(() => builder),
+      lte: jest.fn(() => builder),
+      order: jest.fn(() => builder),
+      limit: jest.fn(() => builder),
+      match: jest.fn(() => builder),
       single: jest.fn(() => Promise.resolve({ data: null, error: null })),
-      order: jest.fn().mockReturnThis(),
-      limit: jest.fn().mockReturnThis()
-    })),
-    rpc: jest.fn(() => Promise.resolve({ data: null, error: null }))
-  }
-}));
+      maybeSingle: jest.fn(() => Promise.resolve({ data: null, error: null })),
+    };
+    return builder;
+  };
+
+  return {
+    supabase: {
+      auth: {
+        getSession: jest.fn(() => Promise.resolve({ data: { session: null }, error: null })),
+        getUser: jest.fn(() => Promise.resolve({ data: { user: null }, error: null })),
+        signInWithPassword: jest.fn(),
+        signUp: jest.fn(),
+        signOut: jest.fn(),
+        onAuthStateChange: jest.fn(() => ({ data: { subscription: { unsubscribe: jest.fn() } } }))
+      },
+      from: jest.fn(() => createQueryBuilder()),
+      rpc: jest.fn(() => Promise.resolve({ data: null, error: null }))
+    }
+  };
+});
 
 // Mock de Sentry
 jest.mock('@sentry/react-native', () => ({
@@ -115,6 +128,12 @@ jest.mock('@react-navigation/native', () => {
 process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://test.supabase.co';
 process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key';
 process.env.EXPO_PUBLIC_PAYU_TEST = 'true';
+process.env.EXPO_PUBLIC_PAYU_MERCHANT_ID = '508029';
+process.env.EXPO_PUBLIC_PAYU_ACCOUNT_ID = '512321';
+process.env.EXPO_PUBLIC_PAYU_API_KEY = 'test-api-key';
+process.env.EXPO_PUBLIC_PAYU_API_LOGIN = 'test-api-login';
+process.env.EXPO_PUBLIC_PAYU_PUBLIC_KEY = 'test-public-key';
+process.env.EXPO_PUBLIC_API_URL = 'https://api.test';
 
 // Configuración global para tests
 global.__DEV__ = true;

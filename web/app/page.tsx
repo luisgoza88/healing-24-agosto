@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { Lock, Mail, Loader2, AlertCircle } from "lucide-react";
@@ -12,6 +12,18 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const supabase = createClient();
+
+  // Verificar si ya hay sesión activa
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        console.log('[Login] Session already exists, redirecting...');
+        router.replace("/dashboard");
+      }
+    };
+    checkSession();
+  }, [supabase, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,47 +37,31 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      console.log('[Login] Attempting sign in for:', email);
+      console.log('[Login] Attempting login for:', email);
       
+      // Intentar login
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+        email: email.trim(),
+        password: password,
       });
 
       if (signInError) {
         console.error('[Login] Sign in error:', signInError);
         setError(signInError.message);
+        setLoading(false);
         return;
       }
 
       if (data?.user) {
-        console.log('[Login] User signed in:', data.user.email);
+        console.log('[Login] Login successful for:', data.user.email);
+        console.log('[Login] Redirecting to dashboard...');
         
-        // Verificar si es admin
-        const { data: isAdminData, error: adminError } = await supabase.rpc('is_admin', {
-          user_id: data.user.id
-        });
-
-        if (adminError) {
-          console.error('[Login] Admin check error:', adminError);
-          setError("Error al verificar permisos de administrador");
-          await supabase.auth.signOut();
-          return;
-        }
-
-        if (!isAdminData) {
-          setError("No tienes permisos de administrador");
-          await supabase.auth.signOut();
-          return;
-        }
-
-        console.log('[Login] Admin verified, redirecting...');
+        // Redirigir inmediatamente
         router.push('/dashboard');
       }
     } catch (error: any) {
-      console.error('[Login] Error:', error);
+      console.error('[Login] Unexpected error:', error);
       setError(error.message || "Error al iniciar sesión");
-    } finally {
       setLoading(false);
     }
   };
@@ -99,7 +95,8 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-green-500 focus:border-green-500"
+                  disabled={loading}
+                  className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-green-500 focus:border-green-500 disabled:bg-gray-100"
                   placeholder="admin@healingforest.com"
                 />
               </div>
@@ -117,7 +114,8 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-green-500 focus:border-green-500"
+                  disabled={loading}
+                  className="pl-10 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-green-500 focus:border-green-500 disabled:bg-gray-100"
                   placeholder="••••••••"
                 />
               </div>
@@ -140,9 +138,9 @@ export default function LoginPage() {
           </button>
           
           <div className="mt-4 text-center text-sm text-gray-600">
-            <p>Usuarios disponibles:</p>
-            <p className="font-mono text-xs mt-1">admin@healingforest.com</p>
-            <p className="font-mono text-xs">lmg880@gmail.com</p>
+            <p>Usuarios de prueba:</p>
+            <p className="font-mono text-xs mt-1">lmg880@gmail.com</p>
+            <p className="font-mono text-xs">admin@healingforest.com</p>
           </div>
         </form>
       </div>

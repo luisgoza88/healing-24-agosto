@@ -18,13 +18,15 @@ import {
   CreditCard,
   Briefcase,
   Wind,
-  AlertTriangle
+  AlertTriangle,
+  Shield
 } from "lucide-react";
 
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/appointments", label: "Citas", icon: Calendar },
   { href: "/dashboard/services", label: "Servicios", icon: Briefcase },
+  { href: "/dashboard/prueba-desarrollo", label: "Prueba de desarrollo", icon: Activity },
   { href: "/dashboard/breathe-move", label: "Breathe & Move", icon: Wind },
   { href: "/dashboard/patients", label: "Pacientes", icon: Users },
   { href: "/dashboard/professionals", label: "Profesionales", icon: UserCog },
@@ -39,12 +41,10 @@ export default function DashboardClient({
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
-  const { user, loading, signOut, isAdmin, error } = useAuth(true);
+  const { user, loading, signOut, isAdmin } = useAuth(false);
 
-  console.log('[DashboardClient] Auth state:', { user: user?.email, loading, isAdmin });
-
+  // Mostrar spinner mientras carga
   if (loading) {
-    console.log('[DashboardClient] Still loading...');
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
@@ -52,16 +52,18 @@ export default function DashboardClient({
     );
   }
 
-  if (!user || !isAdmin) {
-    console.warn('[DashboardClient] Blocked access. isAdmin:', isAdmin);
+  // Si no hay usuario, redirigir a login
+  if (!user) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-100 px-6 text-center">
-        <AlertTriangle className="mb-4 h-12 w-12 text-red-500" />
-        <h2 className="text-2xl font-semibold text-gray-900">Acceso restringido</h2>
-        <p className="mt-2 max-w-md text-sm text-gray-600">Tu cuenta no tiene permisos suficientes para acceder al panel administrativo. Inicia sesión con un usuario administrador o solicita acceso al equipo de operaciones.</p>
-        {error && (
-          <p className="mt-4 max-w-md rounded-md bg-red-50 px-4 py-2 text-sm text-red-600">{error}</p>
-        )}
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Sesión no iniciada</h2>
+          <p className="text-gray-600 mb-4">Por favor inicia sesión para continuar</p>
+          <Link href="/" className="text-green-600 hover:text-green-700 underline">
+            Ir a Login
+          </Link>
+        </div>
       </div>
     );
   }
@@ -133,6 +135,19 @@ export default function DashboardClient({
             })}
           </nav>
           <div className="p-4 border-t">
+            <div className="mb-3 px-3 py-2 bg-gray-50 rounded-md">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">Estado:</span>
+                {isAdmin ? (
+                  <span className="flex items-center text-xs text-green-600">
+                    <Shield className="w-3 h-3 mr-1" />
+                    Admin
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-600">Usuario</span>
+                )}
+              </div>
+            </div>
             <button
               onClick={signOut}
               className="flex items-center w-full px-3 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-100"
@@ -153,9 +168,17 @@ export default function DashboardClient({
           >
             <Menu className="w-6 h-6" />
           </button>
-          <div className="flex items-center">
-            <span className="text-sm text-gray-500">Bienvenido,</span>
-            <span className="ml-2 font-medium">{user?.email || 'Admin'}</span>
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center">
+              <span className="text-sm text-gray-500">Bienvenido,</span>
+              <span className="ml-2 font-medium">{user?.email || 'Usuario'}</span>
+            </div>
+            {!isAdmin && (
+              <div className="bg-yellow-50 text-yellow-800 text-xs px-2 py-1 rounded-md flex items-center">
+                <AlertTriangle className="w-3 h-3 mr-1" />
+                Modo limitado
+              </div>
+            )}
           </div>
         </header>
         <main className="flex-1 overflow-y-auto">

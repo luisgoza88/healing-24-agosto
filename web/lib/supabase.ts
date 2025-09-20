@@ -2,7 +2,10 @@ import { createBrowserClient } from '@supabase/ssr'
 import type { Database } from '../types/database'
 
 // ✅ CLIENTE SUPABASE ÚNICO PARA TODO EL DASHBOARD
-let supabaseInstance: ReturnType<typeof createBrowserClient<Database>> | null = null
+let supabaseInstance: ReturnType<typeof createBrowserClient<Database>> | null =
+  typeof window !== 'undefined' && (window as any).__hf_supabase_client
+    ? (window as any).__hf_supabase_client
+    : null
 
 export function createClient() {
   // Singleton pattern - una sola instancia para toda la aplicación
@@ -22,7 +25,7 @@ export function createClient() {
         detectSessionInUrl: true,
         storage: typeof window !== 'undefined' ? window.localStorage : undefined,
         storageKey: 'healing-dashboard-auth',
-        flowType: 'pkce'
+        flowType: 'implicit'
       },
       global: {
         headers: {
@@ -41,6 +44,10 @@ export function createClient() {
     }
   )
 
+  if (typeof window !== 'undefined') {
+    (window as any).__hf_supabase_client = supabaseInstance
+  }
+
   return supabaseInstance
 }
 
@@ -53,6 +60,8 @@ export function useSupabase() {
 export function resetSupabaseInstance() {
   supabaseInstance = null
 }
+
+
 
 
 

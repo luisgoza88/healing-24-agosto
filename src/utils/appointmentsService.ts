@@ -92,8 +92,10 @@ export async function updateAppointmentStatus(appointmentId: string, status: str
     const { error } = await supabase
       .from('appointments')
       .update(updateData)
-      .eq('id', appointmentId)
-      .eq('user_id', user.id);
+      .match({
+        id: appointmentId,
+        user_id: user.id
+      });
 
     if (error) throw error;
     return { error: null };

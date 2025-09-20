@@ -30,7 +30,7 @@ import {
   LineChart as RechartsLineChart,
   Line
 } from 'recharts'
-import { useRevenueReport } from '@/hooks/useReports'
+import { useRevenueReport } from '@/src/hooks/useReports'
 import LoadingSkeleton from '@/components/LoadingSkeleton'
 import ErrorState from '@/components/ErrorState'
 

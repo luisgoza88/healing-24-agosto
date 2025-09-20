@@ -102,3 +102,5 @@ Agregué el import faltante de `useEffect` en `web/app/page.tsx`.
 
 
 
+
+

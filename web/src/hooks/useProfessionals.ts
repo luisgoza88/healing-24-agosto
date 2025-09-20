@@ -81,7 +81,8 @@ export function useProfessionals(filters: ProfessionalFilters = {}) {
         email: prof.email,
         phone: prof.phone,
         avatar_url: prof.avatar_url,
-        is_active: prof.active ?? true,
+        // Normalizar is_active (algunas BD usan active)
+        is_active: (prof as any).is_active ?? (prof as any).active ?? true,
         created_at: prof.created_at,
         total_appointments: appointmentsByProfessional?.[prof.id]?.total || 0,
         completed_appointments: appointmentsByProfessional?.[prof.id]?.completed || 0,

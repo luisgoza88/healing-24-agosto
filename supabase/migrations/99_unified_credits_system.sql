@@ -440,3 +440,5 @@ COMMENT ON FUNCTION public.is_admin(UUID) IS 'Función unificada para verificar 
 
 
 
+
+

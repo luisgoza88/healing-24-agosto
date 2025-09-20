@@ -89,11 +89,11 @@ describe('Appointments Service', () => {
       });
       
       const mockUpdate = jest.fn().mockReturnThis();
-      const mockEq = jest.fn().mockResolvedValue({ error: null });
+      const mockMatch = jest.fn().mockResolvedValue({ error: null });
       
       (supabase.from as jest.Mock).mockReturnValue({
         update: mockUpdate,
-        eq: mockEq
+        match: mockMatch
       });
       
       const result = await updateAppointmentStatus('apt-123', 'cancelled', 'User requested');
@@ -103,6 +103,7 @@ describe('Appointments Service', () => {
         status: 'cancelled',
         cancellation_reason: 'User requested'
       });
+      expect(mockMatch).toHaveBeenCalledWith({ id: 'apt-123', user_id: 'user-123' });
     });
     
     it('should update status without cancellation reason', async () => {
@@ -112,17 +113,18 @@ describe('Appointments Service', () => {
       });
       
       const mockUpdate = jest.fn().mockReturnThis();
-      const mockEq = jest.fn().mockResolvedValue({ error: null });
+      const mockMatch = jest.fn().mockResolvedValue({ error: null });
       
       (supabase.from as jest.Mock).mockReturnValue({
         update: mockUpdate,
-        eq: mockEq
+        match: mockMatch
       });
       
       const result = await updateAppointmentStatus('apt-123', 'confirmed');
       
       expect(result.error).toBeNull();
       expect(mockUpdate).toHaveBeenCalledWith({ status: 'confirmed' });
+      expect(mockMatch).toHaveBeenCalledWith({ id: 'apt-123', user_id: 'user-123' });
     });
   });
   

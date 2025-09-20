@@ -8,6 +8,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "admin": "cd web && npm run dev",
+    "admin:nohmr": "cd web && NEXT_DISABLE_HMR=1 npm run dev",
+    "admin:prod": "cd web && npm run build && npm run start",
     "admin:build": "cd web && npm run build",
     "dev:all": "concurrently \"npm start\" \"npm run admin\"",
     "test": "jest",

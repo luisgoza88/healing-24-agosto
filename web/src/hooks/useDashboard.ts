@@ -58,6 +58,7 @@ export function useDashboardStats() {
             .from('appointments')
             .select('*', { count: 'exact', head: true })
             .eq('appointment_date', today)
+            .neq('status', 'cancelled')
         ),
 
         // Total de pacientes
@@ -107,16 +108,7 @@ export function useDashboardStats() {
           monthlyRevenue: 45320.75,
         };
       }
-
-      // Obtener citas no canceladas para contar correctamente
-      const { data: appointmentsData } = await queryWithTimeout(
-        supabase
-          .from('appointments')
-          .select('status')
-          .eq('appointment_date', today)
-      ) || { data: [] };
-      
-      const nonCancelledCount = appointmentsData?.filter(a => a.status !== 'cancelled').length || 0;
+      const nonCancelledCount = todayAppointments?.count || 0;
 
       const todayRevenue = todayPayments?.data?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
       const monthlyRevenue = monthPayments?.data?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
@@ -160,22 +152,34 @@ export function useTodayAppointments() {
       });
       
       try {
+        // Cargar citas con relaciones en un solo viaje
         const result = await Promise.race([
           supabase
             .from('appointments')
-            .select('id,appointment_date,appointment_time,service_id,status,user_id,professional_id')
+            .select(`
+              id,
+              appointment_date,
+              appointment_time,
+              status,
+              user_id,
+              professional_id,
+              service_id,
+              professionals ( id, full_name ),
+              services ( id, name )
+            `)
             .eq('appointment_date', today)
+            .neq('status', 'cancelled')
             .order('appointment_time', { ascending: true })
-            .limit(20), // Aumentamos el límite para compensar el filtro del cliente
+            .limit(10),
           timeoutPromise
         ]);
-        
+
         if (!result) {
           console.log('[useTodayAppointments] Query timeout, returning empty array');
           return [];
         }
-        
-        const { data, error } = result;
+
+        const { data, error } = result as any;
 
         if (error) {
           console.error('[useTodayAppointments] Error detallado:', {
@@ -187,47 +191,31 @@ export function useTodayAppointments() {
           throw error;
         }
 
-        // Obtener datos relacionados
-        const userIds = [...new Set(data?.map(a => a.user_id).filter(Boolean) || [])];
-        const professionalIds = [...new Set(data?.map(a => a.professional_id).filter(Boolean) || [])];
-        const serviceIds = [...new Set(data?.map(a => a.service_id).filter(Boolean) || [])];
+        // Cargar perfiles en una segunda consulta si es necesario
+        const userIds = [...new Set((data || []).map((a: any) => a.user_id).filter(Boolean))];
+        let profilesMap = new Map<string, { id: string; full_name?: string }>();
+        if (userIds.length > 0) {
+          const { data: profilesData } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', userIds as string[]);
+          profilesMap = new Map((profilesData || []).map((p: any) => [p.id, p]));
+        }
 
-        const [profiles, professionals, services] = await Promise.all([
-        userIds.length > 0
-          ? supabase.from('profiles').select('id, full_name').in('id', userIds)
-          : { data: [] },
-        professionalIds.length > 0
-          ? supabase.from('professionals').select('id, full_name').in('id', professionalIds)
-          : { data: [] },
-        serviceIds.length > 0
-          ? supabase.from('services').select('id, name').in('id', serviceIds)
-          : { data: [] },
-      ]);
-
-      const profilesMap = new Map(profiles.data?.map(p => [p.id, p]) || []);
-      const professionalsMap = new Map(professionals.data?.map(p => [p.id, p]) || []);
-      const servicesMap = new Map(services.data?.map(s => [s.id, s]) || []);
-
-      // Filtrar citas canceladas en el cliente
-      return (data || [])
-        .filter(apt => apt.status !== 'cancelled')
-        .slice(0, 10) // Limitar a 10 resultados después del filtro
-        .map(apt => {
-          const profile = profilesMap.get(apt.user_id);
-          const professional = professionalsMap.get(apt.professional_id);
-          const service = servicesMap.get(apt.service_id);
-          
+        return (data || []).map((apt: any) => {
+          const patient = profilesMap.get(apt.user_id);
+          const professionalName = apt.professionals?.full_name || 'N/A';
+          const serviceName = apt.services?.name as string | undefined;
           return {
             id: apt.id,
             appointment_date: apt.appointment_date,
             appointment_time: apt.appointment_time,
-            patient_name: profile?.full_name || 'N/A',
-            professional_name: professional?.full_name || 'N/A',
-            service: service?.name,
+            patient_name: patient?.full_name || 'N/A',
+            professional_name: professionalName,
+            service: serviceName,
             status: apt.status,
-          };
+          } as TodayAppointment;
         });
-        
       } catch (error) {
         console.error('[useTodayAppointments] Query timeout or error:', error);
         // Retornar datos de demo en caso de error

@@ -136,3 +136,5 @@ Para completar al 100%, ejecuta el script SQL en Supabase:
 
 
 
+
+

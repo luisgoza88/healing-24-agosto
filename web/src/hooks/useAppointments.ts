@@ -53,7 +53,9 @@ export function useAppointments(filters: AppointmentFilters = {}) {
           professional_id,
           service_id,
           created_at,
-          notes
+          notes,
+          professionals ( id, full_name ),
+          services ( id, name )
         `);
 
       // Solo aplicar filtro de fecha si no es "todas las citas"
@@ -93,29 +95,11 @@ export function useAppointments(filters: AppointmentFilters = {}) {
         searchTerm: filters.searchTerm 
       });
 
-      // Obtener IDs únicos para las consultas relacionadas
-      const userIds = [...new Set(data?.map(a => a.user_id).filter(Boolean) || [])];
-      const professionalIds = [...new Set(data?.map(a => a.professional_id).filter(Boolean) || [])];
-      const serviceIds = [...new Set(data?.map(a => a.service_id).filter(Boolean) || [])];
-
-      // Obtener datos relacionados en paralelo
-      const [profiles, professionals, services] = await Promise.all([
-        userIds.length > 0
-          ? supabase.from('profiles').select('id, full_name, email').in('id', userIds)
-          : { data: [] },
-        professionalIds.length > 0
-          ? supabase.from('professionals').select('id, full_name').in('id', professionalIds)
-          : { data: [] },
-        serviceIds.length > 0
-          ? supabase.from('services').select('id, name').in('id', serviceIds)
-          : { data: [] },
-      ]);
-
       // Obtener información adicional para citas de Breathe & Move
-      const breatheMoveAppointments = data?.filter(apt => {
-        const service = services.data?.find(s => s.id === apt.service_id);
-        return service?.name === 'BritainMove' || service?.name === 'Breathe & Move';
-      }) || [];
+      const breatheMoveAppointments = (data || []).filter((apt: any) => {
+        const serviceName = (apt as any).services?.name;
+        return serviceName === 'BritainMove' || serviceName === 'Breathe & Move';
+      });
 
       let breatheMoveClassesMap = new Map();
       if (breatheMoveAppointments.length > 0) {
@@ -152,14 +136,21 @@ export function useAppointments(filters: AppointmentFilters = {}) {
       }
 
       // Crear mapas para búsqueda rápida
-      const profilesMap = new Map(profiles.data?.map(p => [p.id, p]) || []);
-      const professionalsMap = new Map(professionals.data?.map(p => [p.id, p]) || []);
-      const servicesMap = new Map(services.data?.map(s => [s.id, s]) || []);
+      // Cargar perfiles en bloque (no hay FK declarada en PostgREST)
+      const userIds = [...new Set((data || []).map(a => a.user_id).filter(Boolean))];
+      let profilesMap = new Map<string, { id: string; full_name?: string; email?: string }>();
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', userIds as string[]);
+        profilesMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+      }
 
       const formattedData = data?.map(apt => {
         const profile = profilesMap.get(apt.user_id);
-        const professional = professionalsMap.get(apt.professional_id);
-        const service = servicesMap.get(apt.service_id);
+        const professional = (apt as any).professionals;
+        const service = (apt as any).services;
         const className = breatheMoveClassesMap.get(apt.id);
 
         // Formatear el nombre del servicio para Breathe & Move

@@ -406,12 +406,11 @@ export default function ServicesPage() {
       return;
     }
 
-    if (categoryName === "Breathe & Move") {
-      router.push("/dashboard/admin/breathe-move");
-      return;
+    // Filtrar servicios por categoría y navegar al primero
+    const categoryServices = services.filter(s => s.categoryName === categoryName);
+    if (categoryServices.length > 0) {
+      router.push(`/dashboard/services/${categoryServices[0].code}`);
     }
-
-    router.push("/dashboard/admin/services");
   };
 
   const aggregateStats = useMemo(() => {
@@ -642,7 +641,7 @@ export default function ServicesPage() {
 
                 <button
                   className="inline-flex items-center text-sm font-medium text-green-700 hover:text-green-800"
-                  onClick={() => router.push(`/dashboard/admin/services?service=${service.code}`)}
+                  onClick={() => router.push(`/dashboard/services/${service.code}`)}
                 >
                   Ver detalles
                   <ArrowRight className="ml-1 h-4 w-4" />

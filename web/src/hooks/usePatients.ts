@@ -29,10 +29,10 @@ export function usePatients(filters: PatientFilters = {}) {
     queryKey: ['patients', filters],
     queryFn: async (): Promise<Patient[]> => {
       const supabase = useSupabase();
-      // Obtener pacientes
+      // Obtener pacientes (solo columnas necesarias)
       const { data: patientsData, error: patientsError } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, full_name, email, phone, date_of_birth, gender, city, address, created_at, medical_conditions, allergies')
         .order('created_at', { ascending: false });
 
       if (patientsError) {
