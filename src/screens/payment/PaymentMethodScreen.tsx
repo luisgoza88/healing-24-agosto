@@ -237,17 +237,20 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
 
       // Registrar el pago
       const paymentMethod = creditsToPay > 0 && cashToPay === 0 ? 'credits' : selectedMethod;
-      const { error: paymentError } = await supabase
-        .from('payments')
-        .insert({
-          user_id: user.id,
-          appointment_id: appointmentId,
-          amount: totalAmount,
-          payment_method: paymentMethod,
-          status: 'completed',
-          transaction_id: paymentData.transactionId || `PAYMENT_${Date.now()}`,
-          description: `${service.name} - ${subService.name} - ${format(parseISO(date), 'd MMMM yyyy', { locale: es })}`,
-          metadata: {
+      
+      console.log('About to insert payment with user.id:', user.id);
+      console.log('Current auth session:', await supabase.auth.getSession());
+      
+      // Usar la función helper para evitar problemas de RLS
+      const { error: paymentError, data: paymentData2 } = await supabase
+        .rpc('create_payment', {
+          p_appointment_id: appointmentId,
+          p_amount: totalAmount,
+          p_payment_method: paymentMethod,
+          p_status: 'completed',
+          p_transaction_id: paymentData.transactionId || `PAYMENT_${Date.now()}`,
+          p_description: `${service.name} - ${subService.name} - ${format(parseISO(date), 'd MMMM yyyy', { locale: es })}`,
+          p_metadata: {
             type: 'appointment',
             appointment_id: appointmentId,
             service_name: service.name,
@@ -260,6 +263,14 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
 
       if (paymentError) {
         console.error('Error recording payment:', paymentError);
+        console.error('Payment error details:', {
+          code: paymentError.code,
+          message: paymentError.message,
+          details: paymentError.details,
+          hint: paymentError.hint
+        });
+      } else {
+        console.log('Payment recorded successfully with ID:', paymentData2);
       }
 
       let successMessage = '';

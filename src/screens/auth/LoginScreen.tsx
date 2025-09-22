@@ -33,44 +33,71 @@ export const LoginScreen = () => {
       if (isSignUp) {
         // Primero intentamos el signup
         const { data, error } = await supabase.auth.signUp({
-          email,
+          email: email.toLowerCase().trim(),
           password,
           options: {
             data: {
-              full_name: email.split('@')[0]
+              full_name: email.split('@')[0],
+              first_name: email.split('@')[0]
             },
             emailRedirectTo: 'healing-forest://auth'
           }
         });
         
         if (error) {
+          console.log('SignUp error:', error);
+          
           // Si el usuario ya existe, cambiamos a login
-          if (error.message.includes('already registered')) {
+          if (error.message.includes('already registered') || 
+              error.message.includes('User already registered') ||
+              error.message.includes('duplicate key value')) {
             setIsSignUp(false);
             Alert.alert('Info', 'El usuario ya existe. Intenta iniciar sesión.');
             setLoading(false);
             return;
           }
+          
+          // Error de base de datos al crear perfil
+          if (error.message.includes('Database error') || 
+              error.message.includes('profiles') ||
+              error.message.includes('duplicate key')) {
+            // Intentar login de todas formas, el usuario puede haberse creado
+            const { error: loginError } = await supabase.auth.signInWithPassword({
+              email: email.toLowerCase().trim(),
+              password,
+            });
+            
+            if (!loginError) {
+              // Login exitoso
+              return;
+            }
+          }
+          
           throw error;
         }
         
         // Si todo salió bien, intentamos hacer login automático
-        if (data.user && !data.session) {
+        if (data.user) {
+          // Esperamos un poco para que se complete la creación del perfil
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
           const { error: loginError } = await supabase.auth.signInWithPassword({
-            email,
+            email: email.toLowerCase().trim(),
             password,
           });
           
           if (!loginError) {
             // Login exitoso, no mostramos alerta
             return;
+          } else {
+            Alert.alert('Cuenta creada', 'Tu cuenta fue creada. Por favor inicia sesión.');
+            setIsSignUp(false);
+            return;
           }
         }
-        
-        Alert.alert('Éxito', 'Cuenta creada exitosamente');
       } else {
         const { error } = await supabase.auth.signInWithPassword({
-          email,
+          email: email.toLowerCase().trim(),
           password,
         });
         if (error) throw error;

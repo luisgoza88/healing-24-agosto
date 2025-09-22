@@ -14,9 +14,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors } from '../../constants/colors';
-import { SERVICES, HOT_STUDIO_CLASSES } from '../../constants/services';
+import { SERVICES } from '../../constants/services';
 import { supabase } from '../../lib/supabase';
-import { Button } from '../../components/Button';
 import { ServiceGrid } from '../../components/ServiceGrid';
 import { useNotifications } from '../../hooks/useNotifications';
 import { ServiceDetailScreen } from '../services/ServiceDetailScreen';
@@ -38,7 +37,7 @@ const backgroundImages = [
 
 export const HomeScreen = ({ navigation }: any) => {
   const [selectedService, setSelectedService] = useState<string | null>(null);
-  const { unreadCount, scheduleAppointmentNotifications, scheduleClassNotifications } = useNotifications();
+  const { unreadCount, scheduleAppointmentNotifications } = useNotifications();
   const [selectedSubService, setSelectedSubService] = useState<any>(null);
   const [currentService, setCurrentService] = useState<any>(null);
   const [bookingData, setBookingData] = useState<any>({
@@ -48,11 +47,51 @@ export const HomeScreen = ({ navigation }: any) => {
   });
   const [currentStep, setCurrentStep] = useState<'services' | 'calendar' | 'professional' | 'confirmation' | 'payment'>('services');
   const [appointmentId, setAppointmentId] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string>('');
+  const [loadingUser, setLoadingUser] = useState(true);
   
   // Estados para el carrusel
   const [images, setImages] = useState([...backgroundImages, backgroundImages[0]]); // Duplicar primera imagen al final
   const scrollX = useRef(new Animated.Value(0)).current;
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  // Cargar información del usuario
+  useEffect(() => {
+    loadUserInfo();
+  }, []);
+
+  const loadUserInfo = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // Primero intentar obtener el nombre del perfil
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('first_name, full_name')
+          .eq('id', user.id)
+          .single();
+        
+        if (profile && profile.first_name) {
+          // Usar el primer nombre directamente
+          setUserName(profile.first_name);
+        } else if (profile && profile.full_name) {
+          // Si no hay first_name pero sí full_name, obtener el primer nombre del full_name
+          const firstName = profile.full_name.split(' ')[0];
+          setUserName(firstName);
+        } else if (user.email) {
+          // Si no hay nombre, usar la parte antes del @ del email
+          const emailName = user.email.split('@')[0];
+          // Capitalizar la primera letra
+          const capitalizedName = emailName.charAt(0).toUpperCase() + emailName.slice(1).toLowerCase();
+          setUserName(capitalizedName);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading user info:', error);
+    } finally {
+      setLoadingUser(false);
+    }
+  };
 
   // Efecto para el carrusel automático con deslizamiento continuo
   useEffect(() => {
@@ -328,10 +367,6 @@ export const HomeScreen = ({ navigation }: any) => {
         </View>
         <Text style={styles.brandName}>Healing{'\n'}Forest</Text>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.langButton}>
-            <Text style={styles.langText}>ES</Text>
-            <Ionicons name="globe-outline" size={20} color={Colors.primary.dark} />
-          </TouchableOpacity>
           <TouchableOpacity 
             style={styles.notificationButton}
             onPress={() => navigation.navigate('Notifications')}
@@ -370,7 +405,9 @@ export const HomeScreen = ({ navigation }: any) => {
             
             {/* Contenido superpuesto */}
             <View style={styles.contentOverlay}>
-              <Text style={styles.greeting}>¡Hola Luis!</Text>
+              <Text style={styles.greeting}>
+                {loadingUser ? '¡Hola!' : userName ? `¡Hola ${userName}!` : '¡Hola!'}
+              </Text>
               <Text style={styles.subtitle}>Tu bienestar es nuestra prioridad</Text>
               <View style={styles.quickActions}>
                 <TouchableOpacity 
@@ -471,20 +508,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
-  },
-  langButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.ui.surface,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 4,
-  },
-  langText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.primary.dark,
   },
   welcomeSection: {
     backgroundColor: Colors.primary.dark,

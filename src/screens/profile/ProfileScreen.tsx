@@ -146,6 +146,10 @@ export const ProfileScreen = ({ navigation }: any) => {
 
       setProfile({
         full_name: profileData.full_name || '',
+        first_name: profileData.first_name || '',
+        middle_name: profileData.middle_name || '',
+        last_name: profileData.last_name || '',
+        second_last_name: profileData.second_last_name || '',
         phone: profileData.phone || '',
         email: user.email || '',
         bio: profileData.bio || '',
@@ -177,6 +181,15 @@ export const ProfileScreen = ({ navigation }: any) => {
     } catch (error) {
       console.error('Error loading credit balance:', error);
       setCreditBalance(0);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
+      Alert.alert('Error', 'No se pudo cerrar sesión. Inténtalo nuevamente.');
     }
   };
 
@@ -298,8 +311,18 @@ export const ProfileScreen = ({ navigation }: any) => {
         .eq('id', user.id)
         .maybeSingle();
 
+      // Reconstruir el nombre completo basado en los campos separados
+      const fullName = [profile.first_name, profile.middle_name, profile.last_name, profile.second_last_name]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+
       const profileData = {
-        full_name: profile.full_name,
+        full_name: fullName || profile.full_name,
+        first_name: profile.first_name,
+        middle_name: profile.middle_name || null,
+        last_name: profile.last_name || null,
+        second_last_name: profile.second_last_name || null,
         phone: profile.phone,
         bio: profile.bio,
         date_of_birth: profile.date_of_birth || null,
@@ -312,15 +335,22 @@ export const ProfileScreen = ({ navigation }: any) => {
         allergies: profile.allergies || null
       };
 
+      console.log('Guardando perfil con datos:', profileData);
+      console.log('Usuario ID:', user.id);
+
       let error;
+      let data;
       
       if (existingProfile) {
         // Actualizar perfil existente
         const result = await supabase
           .from('profiles')
           .update(profileData)
-          .eq('id', user.id);
+          .eq('id', user.id)
+          .select();
         error = result.error;
+        data = result.data;
+        console.log('Resultado de actualización:', { error, data });
       } else {
         // Crear nuevo perfil
         const result = await supabase
@@ -402,7 +432,7 @@ export const ProfileScreen = ({ navigation }: any) => {
               ) : (
                 <View style={styles.avatarPlaceholder}>
                   <Text style={styles.avatarPlaceholderText}>
-                    {profile.full_name ? profile.full_name[0].toUpperCase() : '?'}
+                    {profile.first_name ? profile.first_name[0].toUpperCase() : '?'}
                   </Text>
                 </View>
               )}
@@ -457,12 +487,43 @@ export const ProfileScreen = ({ navigation }: any) => {
               <Text style={styles.sectionTitle}>Información Personal</Text>
             </View>
             
-            <Input
-              label="Nombre completo"
-              value={profile.full_name}
-              onChangeText={(text) => setProfile({ ...profile, full_name: text })}
-              placeholder="Tu nombre completo"
-            />
+            <View style={styles.row}>
+              <View style={styles.halfInput}>
+                <Input
+                  label="Primer nombre"
+                  value={profile.first_name}
+                  onChangeText={(text) => setProfile({ ...profile, first_name: text })}
+                  placeholder="Primer nombre"
+                />
+              </View>
+              <View style={styles.halfInput}>
+                <Input
+                  label="Segundo nombre"
+                  value={profile.middle_name}
+                  onChangeText={(text) => setProfile({ ...profile, middle_name: text })}
+                  placeholder="Segundo nombre (opcional)"
+                />
+              </View>
+            </View>
+
+            <View style={styles.row}>
+              <View style={styles.halfInput}>
+                <Input
+                  label="Apellido"
+                  value={profile.last_name}
+                  onChangeText={(text) => setProfile({ ...profile, last_name: text })}
+                  placeholder="Apellido"
+                />
+              </View>
+              <View style={styles.halfInput}>
+                <Input
+                  label="Segundo apellido"
+                  value={profile.second_last_name}
+                  onChangeText={(text) => setProfile({ ...profile, second_last_name: text })}
+                  placeholder="Segundo apellido (opcional)"
+                />
+              </View>
+            </View>
 
             <Input
               label="Correo electrónico"
@@ -621,6 +682,14 @@ export const ProfileScreen = ({ navigation }: any) => {
               </View>
             </TouchableOpacity>
           </View>
+
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={handleLogout}
+          >
+            <MaterialCommunityIcons name="logout-variant" size={20} color={Colors.ui.error} />
+            <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
+          </TouchableOpacity>
           
           <View style={styles.bottomSpacing} />
         </ScrollView>
@@ -787,6 +856,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     gap: 12,
+    marginBottom: 16,
   },
   halfInput: {
     flex: 1,
@@ -857,6 +927,24 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+  logoutButton: {
+    marginHorizontal: 24,
+    marginTop: 4,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.ui.border,
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  logoutButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.ui.error,
   },
   inputLabel: {
     fontSize: 14,
