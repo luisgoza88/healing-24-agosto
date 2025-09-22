@@ -7,7 +7,6 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from '@/components/ui/card';
 import {
   Tabs,
@@ -17,7 +16,7 @@ import {
 } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import Button from '@/components/ui/button';
 import { useSupabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { useServicesAdmin } from '@/hooks/useServicesAdmin';
@@ -400,10 +399,10 @@ export default function ServiceManagement() {
                 <CardTitle className="text-xl font-semibold text-gray-900">
                   Calendario de {activeService.name}
                 </CardTitle>
-                <CardDescription>
+                <p className="text-sm text-muted-foreground">
                   Rango: {dashboardRangeLabel}
                   {serviceDashboard.isFetching ? ' · actualizando…' : ''}
-                </CardDescription>
+                </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {(['day', 'week', 'month'] as ServiceDashboardViewMode[]).map((mode) => (
@@ -461,7 +460,7 @@ export default function ServiceManagement() {
           <Card>
             <CardHeader>
               <CardTitle>Servicios</CardTitle>
-              <CardDescription>Selecciona un servicio para explorar sus datos</CardDescription>
+              <p className="text-sm text-muted-foreground">Selecciona un servicio para explorar sus datos</p>
             </CardHeader>
             <CardContent className="space-y-2">
               {loading ? (
@@ -724,7 +723,7 @@ export default function ServiceManagement() {
                     <Card className="border-dashed">
                       <CardHeader>
                         <CardTitle className="text-base font-semibold">Resumen del período</CardTitle>
-                        <CardDescription>Datos agregados con base en las citas cargadas.</CardDescription>
+                        <p className="text-sm text-muted-foreground">Datos agregados con base en las citas cargadas.</p>
                       </CardHeader>
                       <CardContent className="space-y-2 text-sm">
                         <div className="flex items-center justify-between">
@@ -745,7 +744,7 @@ export default function ServiceManagement() {
                     <Card className="border-dashed">
                       <CardHeader>
                         <CardTitle className="text-base font-semibold">Top sub-servicios</CardTitle>
-                        <CardDescription>Basado en ingresos pagados.</CardDescription>
+                        <p className="text-sm text-muted-foreground">Basado en ingresos pagados.</p>
                       </CardHeader>
                       <CardContent className="space-y-3 text-sm">
                         {topSubServices.length === 0 ? (
@@ -769,7 +768,7 @@ export default function ServiceManagement() {
                     <Card className="border-dashed">
                       <CardHeader>
                         <CardTitle className="text-base font-semibold">Top profesionales</CardTitle>
-                        <CardDescription>Ranking por ingresos cobrados.</CardDescription>
+                        <p className="text-sm text-muted-foreground">Ranking por ingresos cobrados.</p>
                       </CardHeader>
                       <CardContent className="space-y-3 text-sm">
                         {topProfessionals.length === 0 ? (
@@ -791,7 +790,7 @@ export default function ServiceManagement() {
                     <Card className="border-dashed">
                       <CardHeader>
                         <CardTitle className="text-base font-semibold">Métricas diarias</CardTitle>
-                        <CardDescription>Totales por fecha en el rango.</CardDescription>
+                        <p className="text-sm text-muted-foreground">Totales por fecha en el rango.</p>
                       </CardHeader>
                       <CardContent className="space-y-2 text-sm">
                         {serviceDashboard.data.metrics.length === 0 ? (

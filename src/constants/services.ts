@@ -25,7 +25,7 @@ export const SERVICES = [
   },
   {
     id: 'medicina-regenerativa',
-    name: 'Medicina Regenerativa & Longevidad',
+    name: 'Medicina Regenerativa',
     color: '#5E3532',
     icon: 'dna',
     description: 'Terapias antiedad y bienestar',

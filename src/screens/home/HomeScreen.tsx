@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
-  Alert
+  Alert,
+  ImageBackground,
+  Animated
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -28,6 +30,12 @@ import { PaymentMethodScreen } from '../payment/PaymentMethodScreen';
 
 const { width } = Dimensions.get('window');
 
+const backgroundImages = [
+  'https://vgwyhegpymqbljqtskra.supabase.co/storage/v1/object/sign/FOTOS%20DESLIZABLES/Captura%20de%20pantalla%202025-09-21%20a%20la(s)%207.50.48%20p.m..png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81YWEyOTI0YS1mNmRjLTQ0NjEtOTRiZC0yMDc2ZDRkZWY5OGYiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJGT1RPUyBERVNMSVpBQkxFUy9DYXB0dXJhIGRlIHBhbnRhbGxhIDIwMjUtMDktMjEgYSBsYShzKSA3LjUwLjQ4IHAubS4ucG5nIiwiaWF0IjoxNzU4NTAyNjg5LCJleHAiOjE5MTYxODI2ODl9.2wweNUuusHNlcvFBn1DPCFymnAASY-UjXeSTe-WIrNo',
+  'https://vgwyhegpymqbljqtskra.supabase.co/storage/v1/object/sign/FOTOS%20DESLIZABLES/Captura%20de%20pantalla%202025-09-21%20a%20la(s)%207.51.24%20p.m..png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81YWEyOTI0YS1mNmRjLTQ0NjEtOTRiZC0yMDc2ZDRkZWY5OGYiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJGT1RPUyBERVNMSVpBQkxFUy9DYXB0dXJhIGRlIHBhbnRhbGxhIDIwMjUtMDktMjEgYSBsYShzKSA3LjUxLjI0IHAubS4ucG5nIiwiaWF0IjoxNzU4NTAyNjk4LCJleHAiOjE3OTAwMzg2OTh9.so27EUodU_RQlf-4_4aayJFoINUdGv8a4AGxuQlIDPQ',
+  'https://vgwyhegpymqbljqtskra.supabase.co/storage/v1/object/sign/FOTOS%20DESLIZABLES/Captura%20de%20pantalla%202025-09-21%20a%20la(s)%207.52.40%20p.m..png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81YWEyOTI0YS1mNmRjLTQ0NjEtOTRiZC0yMDc2ZDRkZWY5OGYiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJGT1RPUyBERVNMSVpBQkxFUy9DYXB0dXJhIGRlIHBhbnRhbGxhIDIwMjUtMDktMjEgYSBsYShzKSA3LjUyLjQwIHAubS4ucG5nIiwiaWF0IjoxNzU4NTAyNzA3LCJleHAiOjE3OTAwMzg3MDd9.n7v814-98SFa2tQZe2yw9HHU7T3_T1QPtXy8Fg9NTK8'
+];
+
 export const HomeScreen = ({ navigation }: any) => {
   const [selectedService, setSelectedService] = useState<string | null>(null);
   const { unreadCount, scheduleAppointmentNotifications, scheduleClassNotifications } = useNotifications();
@@ -40,6 +48,37 @@ export const HomeScreen = ({ navigation }: any) => {
   });
   const [currentStep, setCurrentStep] = useState<'services' | 'calendar' | 'professional' | 'confirmation' | 'payment'>('services');
   const [appointmentId, setAppointmentId] = useState<string | null>(null);
+  
+  // Estados para el carrusel
+  const [images, setImages] = useState([...backgroundImages, backgroundImages[0]]); // Duplicar primera imagen al final
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  // Efecto para el carrusel automático con deslizamiento continuo
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (currentIndex < backgroundImages.length) {
+        // Deslizar a la siguiente imagen más lentamente
+        Animated.timing(scrollX, {
+          toValue: -(currentIndex + 1) * width,
+          duration: 2000, // 2 segundos para el deslizamiento
+          useNativeDriver: true,
+        }).start();
+        
+        if (currentIndex === backgroundImages.length - 1) {
+          // Si es la última imagen, preparar el loop
+          setTimeout(() => {
+            scrollX.setValue(0);
+            setCurrentIndex(0);
+          }, 2000);
+        } else {
+          setCurrentIndex(currentIndex + 1);
+        }
+      }
+    }, 4000); // 4 segundos antes de cada deslizamiento
+
+    return () => clearTimeout(timer);
+  }, [currentIndex, scrollX]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -309,23 +348,47 @@ export const HomeScreen = ({ navigation }: any) => {
 
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.welcomeSection}>
-          <Text style={styles.greeting}>¡Hola Luis!</Text>
-          <Text style={styles.subtitle}>Tu bienestar es nuestra prioridad</Text>
-          <View style={styles.quickActions}>
-            <TouchableOpacity 
-              style={styles.quickActionButton}
-              onPress={() => navigation.navigate('Appointments')}
+          <View style={styles.carouselContainer}>
+            {/* Contenedor de imágenes deslizables */}
+            <Animated.View
+              style={[
+                styles.imageSlider,
+                {
+                  transform: [{ translateX: scrollX }],
+                },
+              ]}
             >
-              <Ionicons name="calendar" size={24} color={Colors.secondary.green} />
-              <Text style={styles.quickActionText}>Citas</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.quickActionButton}
-              onPress={() => navigation.navigate('Messages')}
-            >
-              <Ionicons name="chatbubble" size={24} color={Colors.secondary.green} />
-              <Text style={styles.quickActionText}>Mensajes</Text>
-            </TouchableOpacity>
+              {images.map((image, index) => (
+                <ImageBackground
+                  key={index}
+                  source={{ uri: image }}
+                  style={styles.slideImage}
+                  imageStyle={styles.backgroundImageStyle}
+                />
+              ))}
+            </Animated.View>
+            
+            {/* Contenido superpuesto */}
+            <View style={styles.contentOverlay}>
+              <Text style={styles.greeting}>¡Hola Luis!</Text>
+              <Text style={styles.subtitle}>Tu bienestar es nuestra prioridad</Text>
+              <View style={styles.quickActions}>
+                <TouchableOpacity 
+                  style={styles.quickActionButton}
+                  onPress={() => navigation.navigate('Appointments')}
+                >
+                  <Ionicons name="calendar" size={24} color={Colors.secondary.green} />
+                  <Text style={styles.quickActionText}>Citas</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.quickActionButton}
+                  onPress={() => navigation.navigate('Messages')}
+                >
+                  <Ionicons name="chatbubble" size={24} color={Colors.secondary.green} />
+                  <Text style={styles.quickActionText}>Mensajes</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </View>
 
@@ -335,15 +398,23 @@ export const HomeScreen = ({ navigation }: any) => {
           onPress={() => navigation.navigate('BreatheAndMove')}
           activeOpacity={0.9}
         >
-          <View style={styles.breatheAndMoveContent}>
-            <Text style={styles.breatheAndMoveBrand}>Breathe & Move</Text>
-            <TouchableOpacity 
-              style={styles.breatheAndMoveButton}
-              onPress={() => navigation.navigate('BreatheAndMove')}
-            >
-              <Text style={styles.breatheAndMoveButtonText}>Ver Clases</Text>
-            </TouchableOpacity>
-          </View>
+          <ImageBackground
+            source={{ uri: 'https://vgwyhegpymqbljqtskra.supabase.co/storage/v1/object/sign/FOTOS%20DESLIZABLES/Captura%20de%20pantalla%202025-09-21%20a%20la(s)%208.26.33%20p.m..png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81YWEyOTI0YS1mNmRjLTQ0NjEtOTRiZC0yMDc2ZDRkZWY5OGYiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJGT1RPUyBERVNMSVpBQkxFUy9DYXB0dXJhIGRlIHBhbnRhbGxhIDIwMjUtMDktMjEgYSBsYShzKSA4LjI2LjMzIHAubS4ucG5nIiwiaWF0IjoxNzU4NTA0NDI2LCJleHAiOjE3OTAwNDA0MjZ9.r_SxeiuSZHQh4tOq3i7AAxzEGFW22wPUd21eH3TfRY8' }}
+            style={styles.breatheAndMoveBackground}
+            imageStyle={styles.breatheAndMoveImage}
+          >
+            <View style={styles.breatheAndMoveOverlay}>
+              <View style={styles.breatheAndMoveContent}>
+                <Text style={styles.breatheAndMoveBrand}>Breathe & Move</Text>
+                <TouchableOpacity 
+                  style={styles.breatheAndMoveButton}
+                  onPress={() => navigation.navigate('BreatheAndMove')}
+                >
+                  <Text style={styles.breatheAndMoveButtonText}>Ver Clases</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ImageBackground>
         </TouchableOpacity>
 
         <View style={styles.section}>
@@ -417,33 +488,72 @@ const styles = StyleSheet.create({
   },
   welcomeSection: {
     backgroundColor: Colors.primary.dark,
-    paddingTop: 24,
-    paddingHorizontal: 24,
-    paddingBottom: 32,
     borderBottomLeftRadius: 25,
     borderBottomRightRadius: 25,
+    minHeight: 280, // Aumentado ~2cm (aprox 75px)
+    overflow: 'hidden',
+  },
+  carouselContainer: {
+    height: 280,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  imageSlider: {
+    flexDirection: 'row',
+    height: '100%',
+  },
+  slideImage: {
+    width: width,
+    height: 280,
+  },
+  backgroundImageStyle: {
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
+    resizeMode: 'cover',
+  },
+  contentOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingTop: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 14, // 3.5mm de margen inferior
+    justifyContent: 'flex-end',
   },
   greeting: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '600',
     color: Colors.text.inverse,
-    marginBottom: 8,
+    marginBottom: 2, // Solo 2px de separación
     letterSpacing: -0.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 15,
     color: Colors.text.inverse,
-    opacity: 0.8,
-    marginBottom: 24,
+    opacity: 0.9,
+    marginBottom: 4, // 0.5mm más antes de los botones
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   quickActions: {
     flexDirection: 'row',
     gap: 16,
+    marginBottom: 0, // Sin margen inferior
+  },
+  welcomeContent: {
+    flex: 1,
+    justifyContent: 'flex-end',
   },
   quickActionButton: {
     flex: 1,
     backgroundColor: Colors.ui.background,
-    paddingVertical: 16,
+    paddingVertical: 14,
     paddingHorizontal: 20,
     borderRadius: 16,
     flexDirection: 'row',
@@ -465,7 +575,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.text.primary,
     marginBottom: 16,
-    paddingHorizontal: 24,
+    paddingHorizontal: 18,
     letterSpacing: -0.3,
   },
   classCard: {
@@ -519,12 +629,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   breatheAndMoveSection: {
-    marginHorizontal: 24,
+    marginHorizontal: 16,
     marginTop: 20,
     marginBottom: 16,
-    backgroundColor: Colors.primary.dark,
     borderRadius: 16,
-    height: 140,
+    height: 156,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: {
@@ -534,6 +643,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
+  },
+  breatheAndMoveBackground: {
+    flex: 1,
+    height: '100%',
+  },
+  breatheAndMoveImage: {
+    borderRadius: 16,
+    resizeMode: 'cover',
+  },
+  breatheAndMoveOverlay: {
+    flex: 1,
   },
   breatheAndMoveContent: {
     flex: 1,
@@ -546,6 +666,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
     marginBottom: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   breatheAndMoveButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.9)',

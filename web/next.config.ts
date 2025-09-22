@@ -1,9 +1,8 @@
 const nextConfig = {
-  experimental: {
-    turbo: {
-      root: '/Users/marianatejada/Documents/GitHub/healing-24-agosto/web'
-    }
-  }
+  turbopack: {
+    // Evita la advertencia de root incorrecto (monorepo con lockfiles múltiples)
+    root: __dirname,
+  },
 };
 
 export default nextConfig;

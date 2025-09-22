@@ -26,11 +26,23 @@
 
 ## 📋 PASOS PARA COMPLETAR LA CORRECCIÓN
 
+### 0️⃣ CONFIGURAR VARIABLES DE ENTORNO CLAVE
+
+Asegúrate de que `web/.env.local` contenga:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...  # Clave service_role (no compartir)
+```
+
+Sin la clave `SUPABASE_SERVICE_ROLE_KEY` las altas de pacientes seguirán enviando correo y no se crearán con confirmación automática.
+
 ### 1️⃣ EJECUTAR EL SCRIPT SQL EN SUPABASE
 
 1. Ve a tu dashboard de Supabase
 2. Abre el **SQL Editor**
-3. Copia TODO el contenido del archivo `web/FIX_DASHBOARD_COMPLETE.sql`
+3. Copia TODO el contenido del archivo `web/FIX_DASHBOARD_ULTRA.sql`
 4. Pégalo y ejecuta
 5. **IMPORTANTE:** Cambia el email en la línea 231:
    ```sql
@@ -105,7 +117,7 @@ npm run dev
 | Hooks de datos | ✅ Corregido | active → is_active |
 | Next.js Config | ✅ Corregido | Warning eliminado |
 | Imports | ✅ Corregido | supabase → createClient |
-| Base de datos | ⏳ Pendiente | Ejecutar FIX_DASHBOARD_COMPLETE.sql |
+| Base de datos | ⏳ Pendiente | Ejecutar FIX_DASHBOARD_ULTRA.sql |
 | Servidor | ✅ Funcionando | Puerto 3000 |
 
 ## 🔄 COMANDOS ÚTILES

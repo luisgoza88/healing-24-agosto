@@ -3,6 +3,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useState } from 'react';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
+import { ThemeProvider } from '@/contexts/ThemeContext';
+import { ToastProvider } from '@/contexts/ToastContext';
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -10,15 +14,16 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 2 * 60 * 1000, // 2 minutos (reducido)
-            gcTime: 5 * 60 * 1000, // 5 minutos (reducido)
+            // Evita refetch agresivo y permite UX fluida
+            staleTime: 60 * 1000,
+            gcTime: 24 * 60 * 60 * 1000,
             retry: 1,
-            refetchOnWindowFocus: false, // ✅ DESACTIVADO - evita refetch excesivo
-            refetchOnMount: false, // ✅ DESACTIVADO - usa cache
-            refetchOnReconnect: true, // Solo al reconectar
+            refetchOnWindowFocus: false,
+            refetchOnMount: false,
+            refetchOnReconnect: true,
           },
           mutations: {
-            retry: 0, // No reintentar mutaciones fallidas
+            retry: 0,
             onError: (error) => {
               console.error('[Mutation Error]', error);
             },
@@ -30,10 +35,20 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       })
   );
 
+  const persister = createSyncStoragePersister({
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+  });
+
   return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-      <ReactQueryDevtools initialIsOpen={false} />
-    </QueryClientProvider>
+    <PersistQueryClientProvider client={queryClient} persistOptions={{ persister, maxAge: 24 * 60 * 60 * 1000 }}>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <ToastProvider>
+            {children}
+          </ToastProvider>
+        </ThemeProvider>
+        <ReactQueryDevtools initialIsOpen={false} />
+      </QueryClientProvider>
+    </PersistQueryClientProvider>
   );
 }

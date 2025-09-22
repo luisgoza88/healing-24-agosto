@@ -91,6 +91,7 @@ export const PackagePaymentScreen = ({ navigation, route }: any) => {
   const [processing, setProcessing] = useState(false);
   const [creditBalance, setCreditBalance] = useState(0);
   const [loadingBalance, setLoadingBalance] = useState(true);
+  const [dbPackageId, setDbPackageId] = useState<string | null>(null);
 
   const selectedPackage = BREATHE_MOVE_PRICING.find(pkg => pkg.id === packageId);
 
@@ -102,7 +103,25 @@ export const PackagePaymentScreen = ({ navigation, route }: any) => {
 
   useEffect(() => {
     loadCreditBalance();
+    loadPackageFromDB();
   }, []);
+
+  const loadPackageFromDB = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('breathe_move_packages')
+        .select('id')
+        .eq('name', selectedPackage.name)
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        setDbPackageId(data.id);
+      }
+    } catch (error) {
+      console.error('Error loading package from DB:', error);
+    }
+  };
 
   const loadCreditBalance = async () => {
     try {
@@ -142,6 +161,11 @@ export const PackagePaymentScreen = ({ navigation, route }: any) => {
       return;
     }
 
+    if (!dbPackageId) {
+      Alert.alert('Error', 'No se pudo cargar la información del paquete');
+      return;
+    }
+
     try {
       setProcessing(true);
       const { data: { user } } = await supabase.auth.getUser();
@@ -175,13 +199,14 @@ export const PackagePaymentScreen = ({ navigation, route }: any) => {
       // Crear el paquete para el usuario
       const expiryDate = calculateExpiryDate();
       
+      // Usar la tabla antigua que existe en la base de datos
       const { data: newPackage, error: packageError } = await supabase
         .from('breathe_move_packages')
         .insert({
           user_id: user.id,
           package_type: selectedPackage.name,
-          classes_included: selectedPackage.classes,
-          classes_remaining: selectedPackage.classes,
+          classes_included: selectedPackage.classes === 'unlimited' ? 999 : selectedPackage.classes,
+          classes_remaining: selectedPackage.classes === 'unlimited' ? 999 : selectedPackage.classes,
           expires_at: expiryDate.toISOString(),
           status: 'active'
         })

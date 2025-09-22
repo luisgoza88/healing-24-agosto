@@ -1,7 +1,25 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { Calendar, Clock, User, Search, Filter, Eye, Edit, X, Plus, Loader2, AlertCircle, CheckCircle, Ban, Trash2 } from 'lucide-react'
+import { 
+  Calendar, 
+  Clock, 
+  User, 
+  Search, 
+  Filter, 
+  Eye, 
+  Edit, 
+  X, 
+  Plus, 
+  Loader2, 
+  AlertCircle, 
+  CheckCircle, 
+  Ban, 
+  Trash2,
+  CreditCard,
+  ChevronLeft,
+  ChevronRight
+} from 'lucide-react'
 import Link from 'next/link'
 import NewAppointmentModal from '@/components/NewAppointmentModal'
 import { useAppointments, useAppointmentStats, useAppointmentServices, useUpdateAppointment, type Appointment } from '@/src/hooks/useAppointments'
@@ -13,16 +31,31 @@ import { createClient, useSupabase } from '@/lib/supabase'
 import { useDebounce } from '@/hooks/useDebounce'
 import { usePrefetchNextPage } from '@/hooks/usePrefetchAppointments'
 import { useInvalidation } from '@/src/hooks/useInvalidation'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { 
+  Table, 
+  TableHeader, 
+  TableBody, 
+  TableRow, 
+  TableHead, 
+  TableCell,
+  TableEmpty,
+  TableLoading 
+} from '@/components/ui/table'
+import Button from '@/components/ui/button'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function AppointmentsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('todos')
   const [dateFilter, setDateFilter] = useState('')
   const [serviceFilter, setServiceFilter] = useState('todos')
-  const [dateRange, setDateRange] = useState(30) // Días hacia atrás
+  const [dateRange, setDateRange] = useState(30)
   const [showNewModal, setShowNewModal] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 50
+  const { showToast } = useToast()
   
   // Debounce search term
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
@@ -66,197 +99,66 @@ export default function AppointmentsPage() {
     }
   }, [currentPage, totalPages, isLoading, prefetchNextPage])
 
-  const getStatusColor = (status: string) => {
+  const getStatusConfig = (status: string) => {
     switch (status) {
-      case 'confirmed': return 'bg-green-100 text-green-800 border border-green-200'
-      case 'pending': return 'bg-yellow-100 text-yellow-800 border border-yellow-200'
-      case 'cancelled': return 'bg-red-100 text-red-800 border border-red-200'
-      case 'completed': return 'bg-blue-100 text-blue-800 border border-blue-200'
-      case 'no_show': return 'bg-gray-100 text-gray-800 border border-gray-200'
-      default: return 'bg-gray-100 text-gray-800 border border-gray-200'
-    }
-  }
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'confirmed': return 'Confirmada'
-      case 'pending': return 'Pendiente'
-      case 'cancelled': return 'Cancelada'
-      case 'completed': return 'Completada'
-      case 'no_show': return 'No asistió'
-      default: return status
-    }
-  }
-
-  const getPaymentStatusColor = (status?: string) => {
-    switch (status) {
-      case 'paid': return 'text-green-600'
-      case 'pending': return 'text-yellow-600'
-      case 'failed': return 'text-red-600'
-      case 'refunded': return 'text-purple-600'
-      case 'cancelled': return 'text-gray-600'
-      default: return 'text-gray-600'
-    }
-  }
-
-  const getPaymentStatusText = (status?: string) => {
-    switch (status) {
-      case 'paid': return 'Pagado'
-      case 'pending': return 'Pendiente'
-      case 'failed': return 'Fallido'
-      case 'refunded': return 'Reembolsado'
-      case 'cancelled': return 'Cancelado'
-      default: return 'Sin pago'
-    }
-  }
-
-  const handleStatusChange = async (appointmentId: string, newStatus: string) => {
-    updateAppointmentMutation.mutate({ 
-      id: appointmentId, 
-      data: { status: newStatus } 
-    })
-  }
-
-  const handleClearFilters = () => {
-    setSearchTerm('')
-    setStatusFilter('todos')
-    setDateFilter('')
-    setServiceFilter('todos')
-    setDateRange(30)
-    setCurrentPage(1)
-  }
-
-  const handleCancelAppointment = async (appointment: Appointment) => {
-    console.log('[handleCancelAppointment] Starting cancellation for appointment:', appointment)
-    
-    if (appointment.status === 'cancelled') {
-      alert('Esta cita ya está cancelada')
-      return
-    }
-
-    // Verificar si la cita fue pagada para generar crédito
-    const wasPaid = appointment.payment_status === 'paid'
-    let creditInfo = null
-
-    console.log('[handleCancelAppointment] Payment status:', appointment.payment_status, 'Was paid:', wasPaid)
-
-    if (wasPaid) {
-      creditInfo = calculateCreditAmount(
-        appointment.total_amount,
-        appointment.appointment_date,
-        appointment.appointment_time
-      )
-      console.log('[handleCancelAppointment] Credit info calculated:', creditInfo)
-    }
-
-    // Mostrar confirmación con información de crédito
-    const confirmMessage = wasPaid 
-      ? `¿Estás seguro de cancelar la cita de ${appointment.patient_name}?\n\n` +
-        `💰 La cita fue pagada: ${formatCurrency(appointment.total_amount)}\n` +
-        `🎫 Se generará un crédito de: ${formatCurrency(creditInfo!.creditAmount)} (${creditInfo!.refundPercentage}%)\n` +
-        `⏰ Política aplicada según tiempo de cancelación\n\n` +
-        `El crédito podrá ser usado en futuras citas.`
-      : `¿Estás seguro de cancelar la cita de ${appointment.patient_name}?`
-
-    if (confirm(confirmMessage)) {
-      try {
-        // Usar transacción para asegurar consistencia
-        if (wasPaid && creditInfo!.creditAmount > 0) {
-          console.log('[handleCancelAppointment] Generating credit for user:', appointment.user_id)
-          console.log('[handleCancelAppointment] Credit amount:', creditInfo!.creditAmount)
-          
-          // Si hay crédito, usar el hook que maneja todo en una transacción
-          await generateCredit.mutate({
-            patientId: appointment.user_id,
-            appointmentId: appointment.id,
-            amount: creditInfo!.creditAmount,
-            description: `Cancelación de cita - Reembolso ${creditInfo!.refundPercentage}%`
-          })
-          
-          console.log('[handleCancelAppointment] Credit generated successfully')
-          
-          // Luego actualizar el estado de la cita
-          const { error } = await supabase
-            .from('appointments')
-            .update({ status: 'cancelled' })
-            .eq('id', appointment.id)
-
-          if (error) {
-            console.error('[handleCancelAppointment] Error updating appointment status:', error)
-            throw error
-          }
-          
-          console.log('[handleCancelAppointment] Appointment status updated to cancelled')
-          
-          alert(
-            `✅ Cita cancelada exitosamente\n\n` +
-            `🎫 Crédito generado: ${formatCurrency(creditInfo!.creditAmount)}\n` +
-            `El paciente podrá usar este crédito en futuras citas.`
-          )
-        } else {
-          // Si no hay crédito, solo cancelar la cita
-          const { error } = await supabase
-            .from('appointments')
-            .update({ status: 'cancelled' })
-            .eq('id', appointment.id)
-
-          if (error) {
-            throw error
-          }
-          
-          const message = wasPaid && creditInfo!.creditAmount === 0
-            ? `Cita cancelada. No se generó crédito debido a la política de cancelación (cancelado muy cerca de la fecha).`
-            : `Cita cancelada exitosamente.`
-          alert(message)
+      case 'confirmed':
+        return {
+          color: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
+          icon: <CheckCircle className="h-4 w-4" />,
+          text: 'Confirmada'
         }
-
-        // ✅ INVALIDACIÓN INTELIGENTE
-        invalidateAppointments()
-      } catch (error: any) {
-        console.error('[handleCancelAppointment] Error:', error)
-        alert('Error al cancelar la cita: ' + (error.message || 'Error inesperado'))
-      }
+      case 'pending':
+        return {
+          color: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20',
+          icon: <Clock className="h-4 w-4" />,
+          text: 'Pendiente'
+        }
+      case 'completed':
+        return {
+          color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+          icon: <CheckCircle className="h-4 w-4" />,
+          text: 'Completada'
+        }
+      case 'cancelled':
+        return {
+          color: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
+          icon: <X className="h-4 w-4" />,
+          text: 'Cancelada'
+        }
+      case 'no_show':
+        return {
+          color: 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20',
+          icon: <Ban className="h-4 w-4" />,
+          text: 'No asistió'
+        }
+      default:
+        return {
+          color: 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20',
+          icon: <Clock className="h-4 w-4" />,
+          text: status
+        }
     }
   }
 
-  const handleDeleteAppointment = async (appointment: Appointment) => {
-    if (confirm(`¿Estás seguro de eliminar permanentemente la cita de ${appointment.patient_name}?`)) {
-      try {
-        // Primero eliminar los pagos relacionados
-        const { error: paymentsError } = await supabase
-          .from('payments')
-          .delete()
-          .eq('appointment_id', appointment.id)
-
-        if (paymentsError) {
-          console.error('Error deleting related payments:', paymentsError)
-          alert('Error al eliminar los pagos relacionados: ' + paymentsError.message)
-          return
-        }
-
-        // Luego eliminar la cita
-        const { error: appointmentError } = await supabase
-          .from('appointments')
-          .delete()
-          .eq('id', appointment.id)
-
-        if (appointmentError) {
-          console.error('Error deleting appointment:', appointmentError)
-          alert('Error al eliminar la cita: ' + appointmentError.message)
-          return
-        }
-
-        alert('Cita eliminada exitosamente')
-        // ✅ INVALIDACIÓN INTELIGENTE
-        invalidateAppointments()
-      } catch (error) {
-        console.error('Error:', error)
-        alert('Error inesperado al eliminar la cita')
-      }
+  const getPaymentStatusConfig = (status?: string) => {
+    switch (status) {
+      case 'paid':
+        return { color: 'text-green-600 dark:text-green-400', text: 'Pagado' }
+      case 'pending':
+        return { color: 'text-yellow-600 dark:text-yellow-400', text: 'Pendiente' }
+      case 'failed':
+        return { color: 'text-red-600 dark:text-red-400', text: 'Fallido' }
+      case 'refunded':
+        return { color: 'text-purple-600 dark:text-purple-400', text: 'Reembolsado' }
+      case 'cancelled':
+        return { color: 'text-gray-600 dark:text-gray-400', text: 'Cancelado' }
+      default:
+        return { color: 'text-gray-600 dark:text-gray-400', text: 'Sin pago' }
     }
   }
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount?: number) => {
+    if (!amount) return '-'
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',
       currency: 'COP',
@@ -264,407 +166,374 @@ export default function AppointmentsPage() {
     }).format(amount)
   }
 
+  const handleStatusUpdate = async (appointmentId: string, newStatus: string) => {
+    try {
+      await updateAppointmentMutation.mutateAsync({
+        id: appointmentId,
+        status: newStatus
+      })
+      showToast('success', 'Estado actualizado correctamente')
+    } catch (error) {
+      console.error('Error updating status:', error)
+      showToast('error', 'Error al actualizar el estado')
+    }
+  }
+
+  const handleGenerateCredit = async (appointment: Appointment) => {
+    if (!confirm('¿Deseas generar un crédito para esta cita cancelada?')) return
+
+    try {
+      const creditAmount = calculateCreditAmount(appointment)
+      
+      await generateCredit.mutateAsync({
+        patientId: appointment.patient_id,
+        amount: creditAmount,
+        description: `Crédito por cita cancelada - ${appointment.service_name}`,
+        appointmentId: appointment.id
+      })
+      
+      showToast('success', 'Crédito generado correctamente')
+    } catch (error) {
+      console.error('Error generating credit:', error)
+      showToast('error', 'Error al generar el crédito')
+    }
+  }
+
   if (error) {
     return (
-      <div className="flex justify-center items-center h-96">
-        <div className="text-center">
-          <p className="text-red-600 text-lg">Error al cargar las citas</p>
-          <button 
-            onClick={() => refetch()}
-            className="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-          >
-            Reintentar
-          </button>
-        </div>
+      <div className="p-6">
+        <Card>
+          <CardContent className="text-center py-12">
+            <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+            <p className="text-foreground">Error al cargar las citas</p>
+            <Button 
+              onClick={() => refetch()} 
+              className="mt-4"
+              leftIcon={<Loader2 className="w-4 h-4" />}
+            >
+              Reintentar
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     )
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">Citas</h1>
-            <p className="text-sm text-gray-600">
-              Mostrando: {dateRange === 9999 ? 'Todas las citas' : `Últimos ${dateRange} días`} 
-              ({appointments.length} resultados)
-            </p>
-          </div>
-          <button
-            onClick={() => setShowNewModal(true)}
-            className="bg-gradient-to-r from-green-600 to-green-500 text-white px-5 py-2.5 rounded-lg hover:from-green-700 hover:to-green-600 transform hover:scale-105 transition-all duration-200 flex items-center space-x-2 shadow-md hover:shadow-lg"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Nueva Cita</span>
-          </button>
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex justify-between items-center"
+      >
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Citas</h1>
+          <p className="text-muted-foreground">Gestiona las citas de tus pacientes</p>
         </div>
+        <Button
+          onClick={() => setShowNewModal(true)}
+          leftIcon={<Plus className="h-4 w-4" />}
+        >
+          Nueva Cita
+        </Button>
+      </motion.div>
 
-        {/* Estadísticas rápidas */}
-        {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white rounded-lg shadow-md hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 p-4 border border-gray-100">
-              <div className="flex items-center justify-between">
+      {/* Stats */}
+      {stats && (
+        <div className="grid gap-4 md:grid-cols-4">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <Card>
+              <CardContent className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Citas Hoy</p>
-                  <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-500 bg-clip-text text-transparent">{stats.today}</p>
+                  <p className="text-sm font-medium text-muted-foreground">Total</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.total}</p>
                 </div>
-                <div className="p-2 bg-blue-50 rounded-lg">
-                  <Calendar className="w-6 h-6 text-blue-500" />
+                <Calendar className="h-8 w-8 text-primary" />
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <Card>
+              <CardContent className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Confirmadas</p>
+                  <p className="text-2xl font-bold text-green-600">{stats.confirmed}</p>
                 </div>
-              </div>
+                <CheckCircle className="h-8 w-8 text-green-500" />
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <Card>
+              <CardContent className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Pendientes</p>
+                  <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
+                </div>
+                <Clock className="h-8 w-8 text-yellow-500" />
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
+            <Card>
+              <CardContent className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Completadas</p>
+                  <p className="text-2xl font-bold text-blue-600">{stats.completed}</p>
+                </div>
+                <CheckCircle className="h-8 w-8 text-blue-500" />
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Filters */}
+      <Card padding="sm">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
+              <input
+                type="text"
+                placeholder="Buscar por paciente, profesional o servicio..."
+                className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-            <div className="bg-white rounded-lg shadow-md hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 p-4 border border-gray-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Completadas Hoy</p>
-                  <p className="text-2xl font-bold bg-gradient-to-r from-green-600 to-green-500 bg-clip-text text-transparent">{stats.completedToday}</p>
-                </div>
-                <div className="p-2 bg-green-50 rounded-lg">
-                  <CheckCircle className="w-6 h-6 text-green-500" />
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-lg shadow-md hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 p-4 border border-gray-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Pendientes</p>
-                  <p className="text-2xl font-bold bg-gradient-to-r from-yellow-600 to-yellow-500 bg-clip-text text-transparent">{stats.pending}</p>
-                </div>
-                <div className="p-2 bg-yellow-50 rounded-lg">
-                  <Clock className="w-6 h-6 text-yellow-500" />
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-lg shadow-md hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 p-4 border border-gray-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Mañana</p>
-                  <p className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-purple-500 bg-clip-text text-transparent">{stats.tomorrow}</p>
-                </div>
-                <div className="p-2 bg-purple-50 rounded-lg">
-                  <Calendar className="w-6 h-6 text-purple-500" />
-                </div>
-              </div>
+          </div>
+          
+          <div className="flex gap-2">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200"
+            >
+              <option value="todos">Todos los estados</option>
+              <option value="pending">Pendiente</option>
+              <option value="confirmed">Confirmada</option>
+              <option value="completed">Completada</option>
+              <option value="cancelled">Cancelada</option>
+              <option value="no_show">No asistió</option>
+            </select>
+
+            <select
+              value={serviceFilter}
+              onChange={(e) => setServiceFilter(e.target.value)}
+              className="px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200"
+            >
+              <option value="todos">Todos los servicios</option>
+              {services.map(service => (
+                <option key={service} value={service}>{service}</option>
+              ))}
+            </select>
+
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="px-4 py-2 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all duration-200"
+            />
+          </div>
+        </div>
+      </Card>
+
+      {/* Table */}
+      <Card padding="none">
+        <Table>
+          <TableHeader>
+            <TableRow hover={false}>
+              <TableHead>Fecha y Hora</TableHead>
+              <TableHead>Paciente</TableHead>
+              <TableHead>Profesional</TableHead>
+              <TableHead>Servicio</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead>Pago</TableHead>
+              <TableHead align="right">Acciones</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableLoading rows={5} columns={7} />
+            ) : paginatedAppointments.length === 0 ? (
+              <TableEmpty 
+                message="No se encontraron citas" 
+                icon={<Calendar className="h-12 w-12" />}
+              />
+            ) : (
+              <AnimatePresence mode="popLayout">
+                {paginatedAppointments.map((appointment, index) => {
+                  const statusConfig = getStatusConfig(appointment.status)
+                  const paymentConfig = getPaymentStatusConfig(appointment.payment_status)
+                  
+                  return (
+                    <motion.tr
+                      key={appointment.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      transition={{ duration: 0.2, delay: index * 0.02 }}
+                      className="border-b border-border hover:bg-muted/50 transition-colors"
+                    >
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="font-medium text-foreground">
+                              {format(new Date(appointment.appointment_date), 'dd MMM yyyy', { locale: es })}
+                            </p>
+                            <p className="text-sm text-muted-foreground flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {appointment.appointment_time}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-foreground">{appointment.patient_name}</span>
+                        </div>
+                      </TableCell>
+
+                      <TableCell>
+                        <span className="text-foreground">{appointment.professional_name}</span>
+                      </TableCell>
+
+                      <TableCell>
+                        <span className="text-sm text-foreground">{appointment.service_name}</span>
+                        <p className="text-xs text-muted-foreground">
+                          {formatCurrency(appointment.service_price)}
+                        </p>
+                      </TableCell>
+
+                      <TableCell>
+                        <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${statusConfig.color}`}>
+                          {statusConfig.icon}
+                          {statusConfig.text}
+                        </div>
+                      </TableCell>
+
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <CreditCard className={`h-4 w-4 ${paymentConfig.color}`} />
+                          <span className={`text-sm font-medium ${paymentConfig.color}`}>
+                            {paymentConfig.text}
+                          </span>
+                        </div>
+                      </TableCell>
+
+                      <TableCell align="right">
+                        <div className="flex items-center justify-end gap-1">
+                          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
+                            <Link
+                              href={`/dashboard/appointments/${appointment.id}`}
+                              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent/10 rounded transition-all duration-200"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Link>
+                          </motion.div>
+                          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
+                            <Link
+                              href={`/dashboard/appointments/${appointment.id}/edit`}
+                              className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded transition-all duration-200"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Link>
+                          </motion.div>
+                          
+                          {appointment.status === 'pending' && (
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => handleStatusUpdate(appointment.id, 'confirmed')}
+                              className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-all duration-200"
+                              title="Confirmar cita"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                            </motion.button>
+                          )}
+                          
+                          {appointment.status === 'cancelled' && !appointment.credit_generated && (
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => handleGenerateCredit(appointment)}
+                              className="p-1.5 text-purple-600 hover:bg-purple-50 rounded transition-all duration-200"
+                              title="Generar crédito"
+                            >
+                              <CreditCard className="h-4 w-4" />
+                            </motion.button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </motion.tr>
+                  )
+                })}
+              </AnimatePresence>
+            )}
+          </TableBody>
+        </Table>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-border">
+            <p className="text-sm text-muted-foreground">
+              Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, appointments.length)} de {appointments.length} citas
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                leftIcon={<ChevronLeft className="h-4 w-4" />}
+              >
+                Anterior
+              </Button>
+              <span className="text-sm text-foreground">
+                Página {currentPage} de {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                rightIcon={<ChevronRight className="h-4 w-4" />}
+              >
+                Siguiente
+              </Button>
             </div>
           </div>
         )}
-        
-        {/* Filtros */}
-        <div className="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 mb-6 space-y-4 border border-gray-100">
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Buscar por paciente, profesional..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-3 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              />
-            </div>
-            
-            <div className="relative">
-              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="pl-10 pr-3 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 appearance-none"
-              >
-                <option value="todos">Todos los estados</option>
-                <option value="confirmed">Confirmada</option>
-                <option value="pending">Pendiente</option>
-                <option value="completed">Completada</option>
-                <option value="cancelled">Cancelada</option>
-                <option value="no_show">No asistió</option>
-              </select>
-            </div>
-            
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <select
-                value={serviceFilter}
-                onChange={(e) => setServiceFilter(e.target.value)}
-                className="pl-10 pr-3 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 appearance-none"
-              >
-                <option value="todos">Todos los servicios</option>
-                {services.map(service => (
-                  <option key={service.id} value={service.id}>
-                    {service.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input
-                type="date"
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
-                className="pl-10 pr-3 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              />
-            </div>
-            
-            <div className="relative">
-              <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <select
-                value={dateRange}
-                onChange={(e) => setDateRange(Number(e.target.value))}
-                className="pl-10 pr-3 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 appearance-none"
-              >
-                <option value={7}>Últimos 7 días</option>
-                <option value={30}>Últimos 30 días</option>
-                <option value={90}>Últimos 3 meses</option>
-                <option value={180}>Últimos 6 meses</option>
-                <option value={365}>Último año</option>
-                <option value={730}>Últimos 2 años</option>
-                <option value={9999}>Todas las citas</option>
-              </select>
-            </div>
-            
-            <button
-              onClick={handleClearFilters}
-              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transform hover:scale-105 transition-all duration-200"
-            >
-              Limpiar filtros
-            </button>
-          </div>
-          
-          
-          {/* Indicador de búsqueda activa */}
-          {searchTerm && (
-            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800">
-                Buscando: <strong>"{searchTerm}"</strong> en {appointments.length} citas encontradas
-                {dateRange !== 9999 && (
-                  <span className="ml-2 text-blue-600">
-                    (mostrando últimos {dateRange} días - 
-                    <button 
-                      onClick={() => setDateRange(9999)} 
-                      className="ml-1 underline font-medium hover:text-blue-800"
-                    >
-                      ver todas las citas
-                    </button>)
-                  </span>
-                )}
-              </p>
-            </div>
-          )}
-        </div>
+      </Card>
 
-
-        {/* Tabla de citas */}
-        <div className="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden border border-gray-100">
-          <div className="overflow-x-auto">
-            {isLoading ? (
-              <div className="p-8 text-center">
-                <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-green-600" />
-                <p className="text-gray-600">Cargando citas...</p>
-              </div>
-            ) : appointments.length === 0 ? (
-              <div className="p-8 text-center">
-                <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600">No se encontraron citas con los filtros aplicados</p>
-              </div>
-            ) : (
-              <>
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Fecha y Hora
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Paciente
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Profesional
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Servicio
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Estado
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Pago
-                      </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Acciones
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {paginatedAppointments.map((appointment) => (
-                      <tr key={appointment.id} className="group hover:bg-blue-50 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 border-b border-gray-100 cursor-pointer">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <Calendar className="w-5 h-5 text-gray-400 mr-2" />
-                            <div>
-                              <div className="text-sm font-medium text-gray-900">
-                                {format(new Date(appointment.appointment_date + 'T00:00:00'), 'dd/MM/yyyy', { locale: es })}
-                              </div>
-                              <div className="text-sm text-gray-500 flex items-center">
-                                <Clock className="w-4 h-4 mr-1" />
-                                {appointment.appointment_time.slice(0, 5)} hrs
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm font-medium text-gray-900">{appointment.patient_name}</div>
-                          <div className="text-sm text-gray-500">{appointment.patient_email}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{appointment.professional_name}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{appointment.service}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs leading-5 font-semibold rounded-full ${getStatusColor(appointment.status)}`}>
-                            {getStatusText(appointment.status)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">
-                              {formatCurrency(appointment.total_amount)}
-                            </div>
-                            <div className={`text-xs ${getPaymentStatusColor(appointment.payment_status)}`}>
-                              {getPaymentStatusText(appointment.payment_status)}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                          <div className="flex justify-center space-x-1 opacity-70 group-hover:opacity-100 transition-opacity duration-300">
-                            <Link
-                              href={`/dashboard/appointments/${appointment.id}`}
-                              className="text-green-600 hover:text-white hover:bg-green-600 hover:shadow-lg hover:scale-110 p-2 rounded-lg transition-all duration-200 transform"
-                              title="Ver detalles"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Link>
-                            <Link
-                              href={`/dashboard/appointments/${appointment.id}/edit`}
-                              className="text-blue-600 hover:text-white hover:bg-blue-600 hover:shadow-lg hover:scale-110 p-2 rounded-lg transition-all duration-200 transform"
-                              title="Editar"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Link>
-                            {appointment.status !== 'cancelled' && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleCancelAppointment(appointment);
-                                }}
-                                className="text-orange-600 hover:text-white hover:bg-orange-600 hover:shadow-lg hover:scale-110 p-2 rounded-lg transition-all duration-200 transform"
-                                title="Cancelar cita"
-                              >
-                                <Ban className="w-4 h-4" />
-                              </button>
-                            )}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteAppointment(appointment);
-                              }}
-                              className="text-red-600 hover:text-white hover:bg-red-600 hover:shadow-lg hover:scale-110 p-2 rounded-lg transition-all duration-200 transform"
-                              title="Eliminar cita permanentemente"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                {/* Paginación */}
-                {totalPages > 1 && (
-                  <div className="bg-gray-50 px-4 py-3 flex items-center justify-between border-t">
-                    <div className="flex-1 flex justify-between sm:hidden">
-                      <button
-                        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                        disabled={currentPage === 1}
-                        className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                      >
-                        Anterior
-                      </button>
-                      <button
-                        onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                        disabled={currentPage === totalPages}
-                        className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                      >
-                        Siguiente
-                      </button>
-                    </div>
-                    <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-sm text-gray-700">
-                          Mostrando <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> a{' '}
-                          <span className="font-medium">
-                            {Math.min(currentPage * itemsPerPage, appointments.length)}
-                          </span>{' '}
-                          de <span className="font-medium">{appointments.length}</span> resultados
-                        </p>
-                      </div>
-                      <div>
-                        <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                          <button
-                            onClick={() => setCurrentPage(1)}
-                            disabled={currentPage === 1}
-                            className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                          >
-                            Primera
-                          </button>
-                          <button
-                            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                            disabled={currentPage === 1}
-                            className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                          >
-                            ←
-                          </button>
-                          <span className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
-                            Página {currentPage} de {totalPages}
-                          </span>
-                          <button
-                            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                            disabled={currentPage === totalPages}
-                            className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                          >
-                            →
-                          </button>
-                          <button
-                            onClick={() => setCurrentPage(totalPages)}
-                            disabled={currentPage === totalPages}
-                            className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                          >
-                            Última
-                          </button>
-                        </nav>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Modal para nueva cita */}
       {showNewModal && (
-        <NewAppointmentModal 
+        <NewAppointmentModal
           isOpen={showNewModal}
-          onClose={() => setShowNewModal(false)} 
-          onSuccess={() => {
-            setShowNewModal(false);
-            // ✅ INVALIDACIÓN INTELIGENTE
-            invalidateAppointments();
-          }}
+          onClose={() => setShowNewModal(false)}
         />
       )}
     </div>

@@ -101,7 +101,7 @@ async function runSQLFixes() {
     console.log('✨ ¡Proceso completado!');
     console.log('\nNOTA: Algunas operaciones como crear funciones SQL o modificar columnas');
     console.log('requieren ejecutarse directamente en el SQL Editor de Supabase.');
-    console.log('\nPor favor, ejecuta el archivo FIX_DASHBOARD_COMPLETE.sql en el SQL Editor para:');
+    console.log('\nPor favor, ejecuta el archivo FIX_DASHBOARD_ULTRA.sql en el SQL Editor para:');
     console.log('- Renombrar columna active → is_active en professionals');
     console.log('- Crear funciones is_admin y get_user_roles');
     console.log('- Configurar políticas RLS');

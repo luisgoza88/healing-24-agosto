@@ -81,3 +81,16 @@ tmp/
 *.log
 *.bak
 *.tmp
+
+# Tailwind Dashboard - Excluir plantilla del repositorio
+TAILWIND DASHBOARD/
+
+# Archive files
+*.fig
+*.sketch
+*.xd
+*.zip
+*.rar
+
+# Large binary files
+*.node

@@ -4,8 +4,8 @@ import { ServiceIcon } from './ServiceIcon';
 import { Colors } from '../constants/colors';
 
 const { width } = Dimensions.get('window');
-const CARD_MARGIN = 8;
-const CONTAINER_PADDING = 24;
+const CARD_MARGIN = 4;
+const CONTAINER_PADDING = 18;
 const CARD_WIDTH = (width - CONTAINER_PADDING * 2 - CARD_MARGIN * 2) / 2;
 
 interface Service {
@@ -40,19 +40,28 @@ export const ServiceGrid: React.FC<ServiceGridProps> = ({ services, onServicePre
         activeOpacity={0.8}
         onPress={() => onServicePress?.(service)}
       >
-        <View style={styles.iconContainer}>
-          <ServiceIcon 
-            serviceId={service.id} 
-            size={28} 
-            color="#FFFFFF"
-            backgroundColor="rgba(255,255,255,0.2)"
-          />
-        </View>
-        <View style={styles.textContainer}>
-          <Text style={styles.serviceName}>{service.name}</Text>
-          <Text style={styles.serviceDescription} numberOfLines={2}>
-            {service.description}
-          </Text>
+        <View style={styles.cardContent}>
+          <View style={styles.iconContainer}>
+            <ServiceIcon 
+              serviceId={service.id} 
+              size={37} 
+              color="#FFFFFF"
+              backgroundColor="rgba(255,255,255,0.2)"
+            />
+          </View>
+          <View style={styles.textContainer}>
+            <Text 
+              style={[
+                styles.serviceName,
+                service.id === 'medicina-regenerativa' && styles.serviceNameSmall
+              ]} 
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+            >
+              {service.name}
+            </Text>
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -77,28 +86,37 @@ const styles = StyleSheet.create({
   },
   serviceCard: {
     width: CARD_WIDTH,
-    padding: 16,
     borderRadius: 20,
     marginBottom: 16,
-    minHeight: 125,
+    height: 115, // Altura fija para todos
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
   },
+  cardContent: {
+    flex: 1,
+    padding: 16,
+    justifyContent: 'space-between',
+  },
   iconContainer: {
-    marginBottom: 12,
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   textContainer: {
-    flex: 1,
+    marginBottom: 4, // 1mm aprox desde el borde inferior
   },
   serviceName: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: '#FFFFFF',
-    marginBottom: 3,
-    lineHeight: 18,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  serviceNameSmall: {
+    fontSize: 13,
   },
   serviceDescription: {
     fontSize: 11,

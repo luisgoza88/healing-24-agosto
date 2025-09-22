@@ -144,7 +144,8 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
       
       // Calcular montos
       const totalAmount = subService.price;
-      const creditsToPay = selectedMethod === 'credits' ? Math.min(useCreditsAmount, totalAmount) : 0;
+      const creditsToPay = selectedMethod === 'credits' ? totalAmount : 
+                          selectedMethod.startsWith('credits_plus_') ? Math.min(useCreditsAmount, totalAmount) : 0;
       const cashToPay = totalAmount - creditsToPay;
 
       // Verificar que el appointmentId sea válido
@@ -167,9 +168,12 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
       };
 
       // Si es pago con créditos completo
+      console.log('[PaymentMethodScreen] Payment check - selectedMethod:', selectedMethod, 'creditsToPay:', creditsToPay, 'totalAmount:', totalAmount);
       if (selectedMethod === 'credits' && creditsToPay >= totalAmount) {
+        console.log('[PaymentMethodScreen] Using credits for payment - userId:', user.id, 'appointmentId:', appointmentId, 'amount:', totalAmount);
         const creditUsed = await useCreditsForAppointment(user.id, appointmentId, totalAmount);
         
+        console.log('[PaymentMethodScreen] Credit use result:', creditUsed);
         if (!creditUsed) {
           throw new Error('No se pudieron usar los créditos. Verifica tu saldo.');
         }
@@ -272,7 +276,16 @@ export const PaymentMethodScreen: React.FC<PaymentMethodScreenProps> = ({
       Alert.alert(
         selectedMethod === 'test_payment' ? '¡Pago de prueba exitoso!' : '¡Pago exitoso!',
         successMessage,
-        [{ text: 'OK', onPress: onSuccess }]
+        [{ 
+          text: 'OK', 
+          onPress: () => {
+            // Recargar el balance de créditos si se usaron
+            if (creditsToPay > 0) {
+              loadCreditBalance();
+            }
+            onSuccess();
+          }
+        }]
       );
     } catch (error) {
       console.error('Error processing payment:', error);

@@ -38,7 +38,7 @@ El dashboard está corriendo correctamente en: **http://localhost:3000**
 
 1. Abre tu dashboard de Supabase: https://app.supabase.com
 2. Ve al **SQL Editor**
-3. Abre el archivo `web/FIX_DASHBOARD_COMPLETE.sql`
+3. Abre el archivo `web/FIX_DASHBOARD_ULTRA.sql`
 4. **IMPORTANTE:** En la línea 231, cambia el email:
    ```sql
    UPDATE profiles 
@@ -47,6 +47,8 @@ El dashboard está corriendo correctamente en: **http://localhost:3000**
    ```
 5. Copia TODO el contenido y pégalo en el SQL Editor
 6. Haz clic en **Run**
+
+> 💡 **Recuerda**: agrega `SUPABASE_SERVICE_ROLE_KEY` en `web/.env.local` antes de crear pacientes desde el dashboard. Sin esa clave, Supabase enviará correos de confirmación y no marcará al usuario como verificado automáticamente.
 
 ## 🎯 VERIFICACIÓN RÁPIDA
 
@@ -103,7 +105,7 @@ Una vez ejecutes el SQL, todo funcionará:
 ---
 
 **Archivos de referencia:**
-- Script SQL: `web/FIX_DASHBOARD_COMPLETE.sql`
+- Script SQL: `web/FIX_DASHBOARD_ULTRA.sql`
 - Documentación completa: `web/SOLUCION_DASHBOARD_COMPLETA.md`
 - Este resumen: `web/DASHBOARD_FIXED_STATUS.md`
 

@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ChevronLeft, Calendar, Clock, CreditCard, Users, AlertCircle, Loader2 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { ChevronLeft, Calendar, Clock, CreditCard, Users, AlertCircle, Loader2, BarChart3 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useSupabase } from '@/lib/supabase';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
+import Button from '@/components/ui/button';
+import ServiceDashboard from '@/components/ServiceDashboard';
 
 interface SubService {
   id: string;
@@ -54,6 +57,7 @@ export default function ServiceDetailPage() {
   const [service, setService] = useState<Service | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showDashboard, setShowDashboard] = useState(false);
 
   useEffect(() => {
     loadServiceDetails();
@@ -131,107 +135,145 @@ export default function ServiceDetailPage() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Header con navegación */}
-      <div className="mb-6">
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-4"
+      >
         <Link
           href="/dashboard/services"
-          className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4"
+          className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors"
         >
           <ChevronLeft className="h-4 w-4 mr-1" />
           Volver a servicios
         </Link>
         
-        <div className="flex items-start justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{service.name}</h1>
+            <h1 className="text-3xl font-bold text-foreground">{service.name}</h1>
             {service.category_name && (
-              <p className="text-lg text-gray-600 mt-1">{service.category_name}</p>
+              <p className="text-lg text-muted-foreground mt-1">{service.category_name}</p>
             )}
             {service.description && (
-              <p className="text-gray-700 mt-3 max-w-3xl">{service.description}</p>
+              <p className="text-muted-foreground mt-3 max-w-3xl">{service.description}</p>
             )}
           </div>
+          <Button
+            variant="outline"
+            onClick={() => setShowDashboard(!showDashboard)}
+            leftIcon={<BarChart3 className="h-4 w-4" />}
+          >
+            {showDashboard ? 'Ver servicios' : 'Ver dashboard'}
+          </Button>
         </div>
-      </div>
+      </motion.div>
 
-      {/* Lista de subservicios */}
-      {service.sub_services && service.sub_services.length > 0 ? (
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            Selecciona un servicio específico
-          </h2>
-          
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {service.sub_services.map((subService) => (
-              <Card
-                key={subService.id}
-                className="hover:shadow-lg transition-shadow cursor-pointer border-gray-200"
-                onClick={() => handleSubServiceClick(subService)}
-              >
-                <CardHeader>
-                  <CardTitle className="text-lg">{subService.name}</CardTitle>
-                  {subService.description && (
-                    <CardDescription>{subService.description}</CardDescription>
-                  )}
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center text-gray-600">
-                        <Clock className="h-4 w-4 mr-2" />
-                        <span className="text-sm">{formatDuration(subService.duration_minutes)}</span>
-                      </div>
-                      <div className="flex items-center text-gray-600">
-                        <CreditCard className="h-4 w-4 mr-2" />
-                        <span className="text-sm font-medium">{formatCurrency(subService.price)}</span>
-                      </div>
+      {/* Dashboard or Services */}
+      {showDashboard ? (
+        <ServiceDashboard
+          serviceId={service.id}
+          serviceName={service.name}
+          serviceCode={service.code}
+        />
+      ) : (
+        <>
+          {/* Lista de subservicios */}
+          {service.sub_services && service.sub_services.length > 0 ? (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="space-y-4"
+            >
+              <h2 className="text-xl font-semibold text-foreground mb-4">
+                Selecciona un servicio específico
+              </h2>
+              
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {service.sub_services.map((subService, index) => (
+                  <motion.div
+                    key={subService.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    <Card
+                      className="hover:shadow-lg transition-all cursor-pointer hover:-translate-y-1"
+                      onClick={() => handleSubServiceClick(subService)}
+                    >
+                      <CardHeader>
+                        <CardTitle className="text-lg">{subService.name}</CardTitle>
+                        {subService.description && (
+                          <p className="text-sm text-muted-foreground">{subService.description}</p>
+                        )}
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center text-muted-foreground">
+                              <Clock className="h-4 w-4 mr-2" />
+                              <span className="text-sm">{formatDuration(subService.duration_minutes)}</span>
+                            </div>
+                            <div className="flex items-center text-foreground">
+                              <CreditCard className="h-4 w-4 mr-2 text-muted-foreground" />
+                              <span className="text-sm font-medium">{formatCurrency(subService.price)}</span>
+                            </div>
+                          </div>
+                          
+                          {subService.price_note && (
+                            <p className="text-xs text-muted-foreground italic">{subService.price_note}</p>
+                          )}
+                          
+                          {subService.max_capacity && (
+                            <div className="flex items-center text-muted-foreground">
+                              <Users className="h-4 w-4 mr-2" />
+                              <span className="text-sm">Capacidad máxima: {subService.max_capacity}</span>
+                            </div>
+                          )}
+                          
+                          <Button className="w-full mt-3" leftIcon={<Calendar className="h-4 w-4" />}>
+                            Ver calendario
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
+            >
+              <Card className="border-yellow-500/20 bg-yellow-500/10">
+                <CardContent className="p-6">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5" />
+                    <div>
+                      <p className="text-yellow-800 dark:text-yellow-300 font-medium">
+                        Este servicio no tiene subservicios configurados
+                      </p>
+                      <p className="text-yellow-700 dark:text-yellow-400 text-sm mt-1">
+                        Contacta al administrador para configurar los subservicios disponibles.
+                      </p>
+                      <Button
+                        onClick={() => router.push(`/dashboard/appointments/new?serviceId=${service.id}`)}
+                        className="mt-3"
+                        leftIcon={<Calendar className="h-4 w-4" />}
+                      >
+                        Ir al calendario general
+                      </Button>
                     </div>
-                    
-                    {subService.price_note && (
-                      <p className="text-xs text-gray-500 italic">{subService.price_note}</p>
-                    )}
-                    
-                    {subService.max_capacity && (
-                      <div className="flex items-center text-gray-600">
-                        <Users className="h-4 w-4 mr-2" />
-                        <span className="text-sm">Capacidad máxima: {subService.max_capacity}</span>
-                      </div>
-                    )}
-                    
-                    <button className="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
-                      <Calendar className="h-4 w-4" />
-                      Ver calendario
-                    </button>
                   </div>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="p-6">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
-              <div>
-                <p className="text-amber-800 font-medium">
-                  Este servicio no tiene subservicios configurados
-                </p>
-                <p className="text-amber-700 text-sm mt-1">
-                  Contacta al administrador para configurar los subservicios disponibles.
-                </p>
-                <button
-                  onClick={() => router.push(`/dashboard/appointments/new?serviceId=${service.id}`)}
-                  className="mt-3 flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
-                >
-                  <Calendar className="h-4 w-4" />
-                  Ir al calendario general
-                </button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </motion.div>
+          )}
+        </>
       )}
     </div>
   );
