@@ -8,7 +8,8 @@ import {
   Dimensions,
   Alert,
   ImageBackground,
-  Animated
+  Animated,
+  Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -29,11 +30,10 @@ import { PaymentMethodScreen } from '../payment/PaymentMethodScreen';
 
 const { width } = Dimensions.get('window');
 
-const backgroundImages = [
-  'https://vgwyhegpymqbljqtskra.supabase.co/storage/v1/object/sign/FOTOS%20DESLIZABLES/Captura%20de%20pantalla%202025-09-21%20a%20la(s)%207.50.48%20p.m..png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81YWEyOTI0YS1mNmRjLTQ0NjEtOTRiZC0yMDc2ZDRkZWY5OGYiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJGT1RPUyBERVNMSVpBQkxFUy9DYXB0dXJhIGRlIHBhbnRhbGxhIDIwMjUtMDktMjEgYSBsYShzKSA3LjUwLjQ4IHAubS4ucG5nIiwiaWF0IjoxNzU4NTAyNjg5LCJleHAiOjE5MTYxODI2ODl9.2wweNUuusHNlcvFBn1DPCFymnAASY-UjXeSTe-WIrNo',
-  'https://vgwyhegpymqbljqtskra.supabase.co/storage/v1/object/sign/FOTOS%20DESLIZABLES/Captura%20de%20pantalla%202025-09-21%20a%20la(s)%207.51.24%20p.m..png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81YWEyOTI0YS1mNmRjLTQ0NjEtOTRiZC0yMDc2ZDRkZWY5OGYiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJGT1RPUyBERVNMSVpBQkxFUy9DYXB0dXJhIGRlIHBhbnRhbGxhIDIwMjUtMDktMjEgYSBsYShzKSA3LjUxLjI0IHAubS4ucG5nIiwiaWF0IjoxNzU4NTAyNjk4LCJleHAiOjE3OTAwMzg2OTh9.so27EUodU_RQlf-4_4aayJFoINUdGv8a4AGxuQlIDPQ',
-  'https://vgwyhegpymqbljqtskra.supabase.co/storage/v1/object/sign/FOTOS%20DESLIZABLES/Captura%20de%20pantalla%202025-09-21%20a%20la(s)%207.52.40%20p.m..png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81YWEyOTI0YS1mNmRjLTQ0NjEtOTRiZC0yMDc2ZDRkZWY5OGYiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJGT1RPUyBERVNMSVpBQkxFUy9DYXB0dXJhIGRlIHBhbnRhbGxhIDIwMjUtMDktMjEgYSBsYShzKSA3LjUyLjQwIHAubS4ucG5nIiwiaWF0IjoxNzU4NTAyNzA3LCJleHAiOjE3OTAwMzg3MDd9.n7v814-98SFa2tQZe2yw9HHU7T3_T1QPtXy8Fg9NTK8'
-];
+import { CAROUSEL_IMAGES, BREATHE_AND_MOVE_IMAGE, preloadImages } from '../../utils/imageCache';
+import { CachedImage } from '../../components/CachedImage';
+
+const backgroundImages = CAROUSEL_IMAGES;
 
 export const HomeScreen = ({ navigation }: any) => {
   const [selectedService, setSelectedService] = useState<string | null>(null);
@@ -55,9 +55,11 @@ export const HomeScreen = ({ navigation }: any) => {
   const scrollX = useRef(new Animated.Value(0)).current;
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  // Cargar información del usuario
+  // Cargar información del usuario y precargar imágenes
   useEffect(() => {
     loadUserInfo();
+    // Precargar todas las imágenes críticas al montar el componente
+    preloadImages();
   }, []);
 
   const loadUserInfo = async () => {
@@ -394,11 +396,12 @@ export const HomeScreen = ({ navigation }: any) => {
               ]}
             >
               {images.map((image, index) => (
-                <ImageBackground
+                <CachedImage
                   key={index}
-                  source={{ uri: image }}
+                  uri={image}
                   style={styles.slideImage}
-                  imageStyle={styles.backgroundImageStyle}
+                  priority="high"
+                  resizeMode="cover"
                 />
               ))}
             </Animated.View>
@@ -435,11 +438,12 @@ export const HomeScreen = ({ navigation }: any) => {
           onPress={() => navigation.navigate('BreatheAndMove')}
           activeOpacity={0.9}
         >
-          <ImageBackground
-            source={{ uri: 'https://vgwyhegpymqbljqtskra.supabase.co/storage/v1/object/sign/FOTOS%20DESLIZABLES/Captura%20de%20pantalla%202025-09-21%20a%20la(s)%208.26.33%20p.m..png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81YWEyOTI0YS1mNmRjLTQ0NjEtOTRiZC0yMDc2ZDRkZWY5OGYiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJGT1RPUyBERVNMSVpBQkxFUy9DYXB0dXJhIGRlIHBhbnRhbGxhIDIwMjUtMDktMjEgYSBsYShzKSA4LjI2LjMzIHAubS4ucG5nIiwiaWF0IjoxNzU4NTA0NDI2LCJleHAiOjE3OTAwNDA0MjZ9.r_SxeiuSZHQh4tOq3i7AAxzEGFW22wPUd21eH3TfRY8' }}
-            style={styles.breatheAndMoveBackground}
-            imageStyle={styles.breatheAndMoveImage}
-          >
+          <View style={styles.breatheAndMoveBackground}>
+            <Image
+              source={{ uri: BREATHE_AND_MOVE_IMAGE }}
+              style={[StyleSheet.absoluteFillObject, styles.breatheAndMoveImage]}
+              resizeMode="cover"
+            />
             <View style={styles.breatheAndMoveOverlay}>
               <View style={styles.breatheAndMoveContent}>
                 <Text style={styles.breatheAndMoveBrand}>Breathe & Move</Text>
@@ -451,7 +455,7 @@ export const HomeScreen = ({ navigation }: any) => {
                 </TouchableOpacity>
               </View>
             </View>
-          </ImageBackground>
+          </View>
         </TouchableOpacity>
 
         <View style={styles.section}>

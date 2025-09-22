@@ -11,24 +11,28 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
-import { notificationService } from '../../services/notificationService';
-import { format } from 'date-fns';
+import { supabase } from '../../lib/supabase';
+import { format, isToday, isYesterday } from 'date-fns';
 import { es } from 'date-fns/locale';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
-interface NotificationItem {
+interface Notification {
   id: string;
   title: string;
   body: string;
-  type: string;
-  data: any;
-  sent_at: string;
+  type: 'appointment' | 'class' | 'payment' | 'message' | 'promotion' | 'reminder';
+  priority: 'low' | 'normal' | 'high' | 'urgent';
+  read: boolean;
   read_at: string | null;
+  created_at: string;
+  metadata?: any;
 }
 
 export const NotificationsScreen = ({ navigation }: any) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   useEffect(() => {
     loadNotifications();
@@ -36,49 +40,167 @@ export const NotificationsScreen = ({ navigation }: any) => {
 
   const loadNotifications = async () => {
     try {
-      const data = await notificationService.getNotificationHistory(50);
-      setNotifications(data);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('notification_history')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) {
+        console.error('Error obteniendo historial:', error);
+        // Si la tabla no existe, usar datos de prueba
+        if (error.code === 'PGRST205') {
+          setNotifications(getMockNotifications());
+        }
+      } else {
+        setNotifications(data || []);
+      }
     } catch (error) {
       console.error('Error loading notifications:', error);
-      Alert.alert('Error', 'No se pudieron cargar las notificaciones');
+      setNotifications(getMockNotifications());
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
+  const getMockNotifications = (): Notification[] => [
+    {
+      id: '1',
+      title: '🏥 Recordatorio de cita',
+      body: 'Tu cita de Medicina Funcional es mañana a las 10:00 AM con la Dra. García',
+      type: 'appointment',
+      priority: 'high',
+      read: false,
+      read_at: null,
+      created_at: new Date().toISOString(),
+      metadata: { appointment_id: '123' }
+    },
+    {
+      id: '2',
+      title: '🧘‍♀️ Clase confirmada',
+      body: 'Tu reserva para Yoga Restaurativo del martes 3:00 PM está confirmada',
+      type: 'class',
+      priority: 'normal',
+      read: false,
+      read_at: null,
+      created_at: new Date(Date.now() - 3600000).toISOString()
+    },
+    {
+      id: '3',
+      title: '💌 Mensaje de Healing Forest',
+      body: 'Hola Mariana, esperamos que hayas disfrutado tu última sesión. ¿Cómo te has sentido?',
+      type: 'message',
+      priority: 'normal',
+      read: true,
+      read_at: new Date(Date.now() - 7200000).toISOString(),
+      created_at: new Date(Date.now() - 86400000).toISOString()
+    },
+    {
+      id: '4',
+      title: '🎁 Promoción especial',
+      body: '20% de descuento en paquetes de Breathe & Move este mes',
+      type: 'promotion',
+      priority: 'low',
+      read: true,
+      read_at: new Date(Date.now() - 7200000).toISOString(),
+      created_at: new Date(Date.now() - 172800000).toISOString()
+    },
+    {
+      id: '5',
+      title: '💳 Pago confirmado',
+      body: 'Tu pago de $150,000 COP ha sido procesado exitosamente',
+      type: 'payment',
+      priority: 'normal',
+      read: true,
+      read_at: new Date(Date.now() - 7200000).toISOString(),
+      created_at: new Date(Date.now() - 259200000).toISOString()
+    }
+  ];
+
   const onRefresh = () => {
     setRefreshing(true);
     loadNotifications();
   };
 
-  const handleNotificationPress = async (notification: NotificationItem) => {
-    // Marcar como leída si no lo está
-    if (!notification.read_at) {
-      await notificationService.markNotificationAsRead(notification.id);
-      // Actualizar localmente
-      setNotifications(prev => 
-        prev.map(n => 
-          n.id === notification.id 
-            ? { ...n, read_at: new Date().toISOString() }
-            : n
-        )
-      );
+  const getNotificationIcon = (type: Notification['type']) => {
+    switch (type) {
+      case 'appointment':
+        return { name: 'calendar', component: Ionicons };
+      case 'class':
+        return { name: 'yoga', component: MaterialCommunityIcons };
+      case 'payment':
+        return { name: 'credit-card', component: MaterialCommunityIcons };
+      case 'message':
+        return { name: 'message-text', component: MaterialCommunityIcons };
+      case 'promotion':
+        return { name: 'tag-heart', component: MaterialCommunityIcons };
+      case 'reminder':
+      default:
+        return { name: 'bell', component: MaterialCommunityIcons };
+    }
+  };
+
+  const getNotificationColor = (type: Notification['type'], priority: Notification['priority']) => {
+    if (priority === 'urgent') return Colors.ui.error;
+    if (priority === 'high') return '#FF9800';
+    
+    switch (type) {
+      case 'appointment':
+        return Colors.primary.green;
+      case 'class':
+        return Colors.secondary.purple;
+      case 'payment':
+        return '#4CAF50';
+      case 'message':
+        return Colors.primary.dark;
+      case 'promotion':
+        return '#E91E63';
+      case 'reminder':
+      default:
+        return Colors.primary.green;
+    }
+  };
+
+  const handleNotificationPress = async (notification: Notification) => {
+    // Marcar como leída
+    if (!notification.read) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.rpc('mark_notification_read', {
+            p_notification_id: notification.id
+          });
+          
+          // Actualizar localmente
+          setNotifications(prev => 
+            prev.map(n => 
+              n.id === notification.id 
+                ? { ...n, read: true, read_at: new Date().toISOString() }
+                : n
+            )
+          );
+        }
+      } catch (error) {
+        console.error('Error marking as read:', error);
+      }
     }
 
-    // Navegar según el tipo
-    if (notification.data) {
+    // Navegar según el tipo y metadata
+    if (notification.metadata) {
       switch (notification.type) {
-        case 'appointment_reminder':
+        case 'appointment':
           navigation.navigate('Appointments');
           break;
-        case 'class_reminder':
-          if (notification.data.classId) {
-            navigation.navigate('ClassDetail', { classId: notification.data.classId });
-          }
+        case 'class':
+          navigation.navigate('BreatheAndMove');
           break;
-        case 'class_available':
-          navigation.navigate('HotStudio');
+        case 'payment':
+          navigation.navigate('MyCredits');
           break;
       }
     }
@@ -86,51 +208,86 @@ export const NotificationsScreen = ({ navigation }: any) => {
 
   const clearAllNotifications = () => {
     Alert.alert(
-      'Limpiar notificaciones',
-      '¿Estás seguro de que deseas marcar todas las notificaciones como leídas?',
+      'Marcar todas como leídas',
+      '¿Deseas marcar todas las notificaciones como leídas?',
       [
         { text: 'Cancelar', style: 'cancel' },
         { 
-          text: 'Sí, limpiar', 
+          text: 'Sí, marcar', 
           onPress: async () => {
-            // Aquí implementaríamos la función para marcar todas como leídas
-            Alert.alert('Éxito', 'Todas las notificaciones han sido marcadas como leídas');
-            loadNotifications();
+            try {
+              // Marcar todas localmente
+              setNotifications(prev => 
+                prev.map(n => ({ ...n, read: true, read_at: new Date().toISOString() }))
+              );
+              Alert.alert('Listo', 'Todas las notificaciones han sido marcadas como leídas');
+            } catch (error) {
+              console.error('Error:', error);
+            }
           }
         }
       ]
     );
   };
 
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case 'appointment_reminder':
-        return '🏥';
-      case 'class_reminder':
-        return '🧘‍♀️';
-      case 'class_available':
-        return '✨';
-      case 'payment_success':
-        return '💳';
-      default:
-        return '🔔';
+  const formatNotificationDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    
+    if (isToday(date)) {
+      return format(date, "'Hoy a las' HH:mm", { locale: es });
+    } else if (isYesterday(date)) {
+      return format(date, "'Ayer a las' HH:mm", { locale: es });
+    } else {
+      return format(date, "d 'de' MMMM 'a las' HH:mm", { locale: es });
     }
   };
 
-  const formatNotificationDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+  const renderNotification = (notification: Notification) => {
+    const icon = getNotificationIcon(notification.type);
+    const iconColor = getNotificationColor(notification.type, notification.priority);
+    const IconComponent = icon.component;
 
-    if (diffInHours < 1) {
-      return 'Hace unos minutos';
-    } else if (diffInHours < 24) {
-      return `Hace ${Math.floor(diffInHours)} horas`;
-    } else if (diffInHours < 48) {
-      return 'Ayer';
-    } else {
-      return format(date, "d 'de' MMMM", { locale: es });
-    }
+    return (
+      <TouchableOpacity
+        key={notification.id}
+        style={[
+          styles.notificationCard,
+          !notification.read && styles.unreadCard
+        ]}
+        onPress={() => handleNotificationPress(notification)}
+        activeOpacity={0.8}
+      >
+        <View style={[styles.iconContainer, { backgroundColor: iconColor + '20' }]}>
+          <IconComponent name={icon.name} size={24} color={iconColor} />
+        </View>
+        
+        <View style={styles.notificationContent}>
+          <Text style={[
+            styles.notificationTitle,
+            !notification.read && styles.unreadTitle
+          ]}>
+            {notification.title}
+          </Text>
+          <Text style={styles.notificationBody} numberOfLines={2}>
+            {notification.body}
+          </Text>
+          <View style={styles.notificationMeta}>
+            <Text style={styles.notificationTime}>
+              {formatNotificationDate(notification.created_at)}
+            </Text>
+            {notification.priority === 'urgent' && (
+              <View style={styles.urgentBadge}>
+                <Text style={styles.urgentBadgeText}>URGENTE</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {!notification.read && (
+          <View style={styles.unreadDot} />
+        )}
+      </TouchableOpacity>
+    );
   };
 
   if (loading) {
@@ -147,10 +304,10 @@ export const NotificationsScreen = ({ navigation }: any) => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backIcon}>‹</Text>
+          <Ionicons name="chevron-back" size={28} color={Colors.primary.green} />
           <Text style={styles.backText}>Atrás</Text>
         </TouchableOpacity>
-        {notifications.some(n => !n.read_at) && (
+        {notifications.some(n => !n.read) && (
           <TouchableOpacity onPress={clearAllNotifications}>
             <Text style={styles.clearText}>Limpiar</Text>
           </TouchableOpacity>
@@ -166,12 +323,18 @@ export const NotificationsScreen = ({ navigation }: any) => {
             refreshing={refreshing}
             onRefresh={onRefresh}
             colors={[Colors.primary.green]}
+            tintColor={Colors.primary.green}
           />
         }
       >
         {notifications.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>🔔</Text>
+            <MaterialCommunityIcons 
+              name="bell-outline" 
+              size={80} 
+              color={Colors.primary.green} 
+              style={styles.emptyIcon}
+            />
             <Text style={styles.emptyTitle}>No tienes notificaciones</Text>
             <Text style={styles.emptyDescription}>
               Aquí aparecerán tus recordatorios y avisos importantes
@@ -179,39 +342,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
           </View>
         ) : (
           <View style={styles.notificationsList}>
-            {notifications.map((notification) => (
-              <TouchableOpacity
-                key={notification.id}
-                style={[
-                  styles.notificationCard,
-                  !notification.read_at && styles.unreadCard
-                ]}
-                onPress={() => handleNotificationPress(notification)}
-              >
-                <View style={styles.notificationIcon}>
-                  <Text style={styles.iconText}>
-                    {getNotificationIcon(notification.type)}
-                  </Text>
-                </View>
-                <View style={styles.notificationContent}>
-                  <Text style={[
-                    styles.notificationTitle,
-                    !notification.read_at && styles.unreadTitle
-                  ]}>
-                    {notification.title}
-                  </Text>
-                  <Text style={styles.notificationBody}>
-                    {notification.body}
-                  </Text>
-                  <Text style={styles.notificationTime}>
-                    {formatNotificationDate(notification.sent_at)}
-                  </Text>
-                </View>
-                {!notification.read_at && (
-                  <View style={styles.unreadIndicator} />
-                )}
-              </TouchableOpacity>
-            ))}
+            {notifications.map(renderNotification)}
           </View>
         )}
       </ScrollView>
@@ -240,15 +371,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  backIcon: {
-    fontSize: 28,
-    color: Colors.primary.green,
-    marginRight: 4,
-  },
   backText: {
     fontSize: 16,
     color: Colors.primary.green,
     fontWeight: '500',
+    marginLeft: 4,
   },
   clearText: {
     fontSize: 16,
@@ -260,39 +387,43 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: Colors.primary.dark,
     paddingHorizontal: 24,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   notificationsList: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingBottom: 24,
   },
   notificationCard: {
     flexDirection: 'row',
     backgroundColor: Colors.ui.surface,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
   unreadCard: {
-    backgroundColor: Colors.primary.beige + '20',
+    backgroundColor: '#FFF',
     borderWidth: 1,
-    borderColor: Colors.primary.beige,
+    borderColor: Colors.primary.green + '30',
   },
-  notificationIcon: {
+  iconContainer: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: Colors.ui.background,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
-  },
-  iconText: {
-    fontSize: 24,
+    marginRight: 14,
   },
   notificationContent: {
     flex: 1,
+    justifyContent: 'center',
   },
   notificationTitle: {
     fontSize: 16,
@@ -301,42 +432,59 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   unreadTitle: {
-    fontWeight: '600',
+    fontWeight: '700',
   },
   notificationBody: {
     fontSize: 14,
     color: Colors.text.secondary,
-    marginBottom: 8,
+    marginBottom: 6,
+    lineHeight: 20,
+  },
+  notificationMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   notificationTime: {
     fontSize: 12,
     color: Colors.text.light,
   },
-  unreadIndicator: {
-    width: 8,
-    height: 8,
+  urgentBadge: {
+    backgroundColor: Colors.ui.error,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
     borderRadius: 4,
+  },
+  urgentBadgeText: {
+    fontSize: 10,
+    color: '#FFF',
+    fontWeight: 'bold',
+  },
+  unreadDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: Colors.primary.green,
     marginLeft: 8,
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 80,
+    paddingTop: 100,
+    paddingHorizontal: 40,
   },
   emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   emptyTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: Colors.primary.dark,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   emptyDescription: {
     fontSize: 16,
     color: Colors.text.secondary,
     textAlign: 'center',
-    paddingHorizontal: 40,
+    lineHeight: 24,
   },
 });

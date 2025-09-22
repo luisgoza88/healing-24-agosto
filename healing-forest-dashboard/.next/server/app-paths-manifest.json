@@ -1,0 +1,4 @@
+{
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/(admin)/breathe-move/page": "app/(admin)/breathe-move/page.js"
+}

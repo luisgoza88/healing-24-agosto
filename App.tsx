@@ -34,6 +34,7 @@ import { MyPackagesScreen } from './src/screens/breatheandmove/MyPackagesScreen'
 // Initialize functions removed - managed by backend/admin
 import { initSentry, setUser as setSentryUser } from './src/config/sentry';
 import * as Sentry from '@sentry/react-native';
+import { preloadImages } from './src/utils/imageCache';
 
 // Inicializar Sentry antes de cualquier otra cosa
 initSentry();
@@ -96,6 +97,9 @@ function App() {
         setSentryUser(null);
       }
     });
+
+    // Precargar imágenes cuando la app inicia
+    preloadImages();
 
     return () => subscription.unsubscribe();
   }, []);
