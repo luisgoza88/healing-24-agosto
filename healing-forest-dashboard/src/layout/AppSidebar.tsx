@@ -39,6 +39,9 @@ const navItems: NavItem[] = [
   { name: "Gestión de Pacientes", icon: <UserCircleIcon />, path: "/pacientes" },
   { name: "Membresías y Paquetes", icon: <BoxCubeIcon />, path: "/memberships" },
   { name: "Breathe & Move", icon: <BoxCubeIcon />, path: "/breathe-move" },
+  { name: "Sueroterapia", icon: <BoxCubeIcon />, path: "/sueroterapia" },
+  { name: "Consultorios", icon: <BoxCubeIcon />, path: "/consultorios" },
+  { name: "Cámara Hiperbárica", icon: <BoxCubeIcon />, path: "/camara-hiperbarica" },
   { name: "Reportes y Analytics", icon: <PieChartIcon />, path: "/reports" },
   { name: "Configuración", icon: <PlugInIcon />, path: "/settings" },
 ];

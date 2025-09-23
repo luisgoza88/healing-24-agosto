@@ -16,6 +16,8 @@ export interface Appointment {
   payment_status?: string;
   payment_method?: string;
   payment_reference?: string;
+  consultation_room_id?: string; // Para citas de consultorio
+  hyperbaric_chamber_id?: string; // Para citas de cámara hiperbárica
 }
 
 // Crear una nueva cita

@@ -8,6 +8,7 @@ export const SERVICE_ID_MAPPING: Record<string, string> = {
   'faciales': '9d35276b-41f2-411b-a592-3dd531931c51',
   'masajes': '38e81852-e43c-4847-9d9c-8a3750138a51',
   'drips': 'c4a5e8f2-9b3d-4e1a-8f7c-2d9a3b4c5e6f',
+  'camara-hiperbarica': '7d79f5ac-7912-4cda-b482-3e20371d26f9',
   'otros': 'temp-otros'
 };
 

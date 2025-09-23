@@ -58,12 +58,14 @@ const getClassIcon = (className: string) => {
 interface Appointment {
   id: string;
   appointment_date: string;
+  appointment_time: string; // Agregado el campo appointment_time
   status: string;
   total_amount: number;
   notes: string;
   service_id: string;
   professional_id: string;
   created_at: string;
+  hyperbaric_chamber_id?: string; // Campo para identificar citas de cámara hiperbárica
   professional?: {
     name: string;
     avatar?: string;
@@ -101,14 +103,38 @@ export const AppointmentsScreen = ({ navigation }: any) => {
   const loadAppointments = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        console.log('No user found');
+        return;
+      }
+
+      console.log('Loading appointments for user:', user.id);
 
       // First load regular appointments
       const { data: appointmentsData, error: appointmentsError } = await supabase
         .from('appointments')
-        .select('*')
+        .select(`
+          id,
+          user_id,
+          service_id,
+          sub_service_id,
+          professional_id,
+          appointment_date,
+          appointment_time,
+          end_time,
+          status,
+          total_amount,
+          duration,
+          notes,
+          created_at,
+          updated_at,
+          hyperbaric_chamber_id
+        `)
         .eq('user_id', user.id)
-        .order('appointment_date', { ascending: false });
+        .order('appointment_date', { ascending: true })
+        .order('appointment_time', { ascending: true });
+
+      console.log('Appointments query result:', { appointmentsData, appointmentsError });
 
       if (appointmentsError) throw appointmentsError;
 
@@ -138,7 +164,7 @@ export const AppointmentsScreen = ({ navigation }: any) => {
           )
         `)
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: true });
 
       let allAppointments: Appointment[] = [];
 
@@ -147,28 +173,78 @@ export const AppointmentsScreen = ({ navigation }: any) => {
         const regularAppointments = await Promise.all(appointmentsData.map(async (apt) => {
           const serviceId = apt.service_id;
           const constantServiceId = getServiceConstantId(serviceId);
-          const serviceData = SERVICES.find(s => s.id === constantServiceId);
-          const subService = serviceData?.subServices?.find(ss => ss.id === apt.sub_service_id);
+          let serviceData = SERVICES.find(s => s.id === constantServiceId);
+          
+          // If service is not found in constants, fetch from database
+          if (!serviceData || constantServiceId === 'otros') {
+            const { data: dbService } = await supabase
+              .from('services')
+              .select('id, name, code, base_price, duration_minutes')
+              .eq('id', serviceId)
+              .single();
+              
+            if (dbService) {
+              serviceData = {
+                id: dbService.code || serviceId,
+                name: dbService.name,
+                color: '#1F2E3B',
+                icon: 'medical-services',
+                description: dbService.name,
+                subServices: [{
+                  id: 'default',
+                  name: dbService.name,
+                  duration: dbService.duration_minutes || 60,
+                  price: Number(dbService.base_price) || 0
+                }]
+              };
+            }
+          }
+          
+          // Detectar si es Cámara Hiperbárica por hyperbaric_chamber_id
+          let subService = serviceData?.subServices?.find(ss => ss.id === apt.sub_service_id);
+          
+          // Si tiene hyperbaric_chamber_id, es Cámara Hiperbárica
+          if (apt.hyperbaric_chamber_id) {
+            // Sobreescribir el servicio para que aparezca como Cámara Hiperbárica
+            serviceData = {
+              id: 'camara-hiperbarica',
+              name: 'Cámara Hiperbárica',
+              color: '#1F2E3B',
+              icon: 'heart-pulse',
+              description: 'Oxigenoterapia hiperbárica',
+              subServices: [{
+                id: 'camara-hiperbarica-sesion',
+                name: 'Sesión de 60 minutos',
+                duration: 60,
+                price: 180000
+              }]
+            };
+            subService = serviceData.subServices[0];
+          } else if (!subService) {
+            subService = serviceData?.subServices?.[0];
+          }
           
           // Try to load professional data separately
           let professional = { name: 'Profesional' };
           if (apt.professional_id) {
             const { data: profData } = await supabase
               .from('professionals')
-              .select('name')
+              .select('full_name')
               .eq('id', apt.professional_id)
               .single();
             if (profData) {
-              professional = profData;
+              professional = { name: profData.full_name };
             }
           }
           
-          return {
+          const processedApt = {
             ...apt,
             professional,
             service: serviceData,
             subService: subService
           };
+          console.log('Processed appointment:', processedApt.id, 'service:', serviceData?.name, 'date:', processedApt.appointment_date, 'time:', processedApt.appointment_time);
+          return processedApt;
         }));
         allAppointments = [...regularAppointments];
       }
@@ -208,11 +284,24 @@ export const AppointmentsScreen = ({ navigation }: any) => {
         allAppointments = [...allAppointments, ...classAppointments];
       }
 
-      // Sort all appointments by date
-      allAppointments.sort((a, b) => 
-        new Date(b.appointment_date).getTime() - new Date(a.appointment_date).getTime()
-      );
+      // Sort all appointments by date and time (ascending - más cercana primero)
+      allAppointments.sort((a, b) => {
+        // Comparar por fecha
+        const dateA = new Date(a.appointment_date).getTime();
+        const dateB = new Date(b.appointment_date).getTime();
+        
+        if (dateA !== dateB) {
+          return dateA - dateB; // Fecha más cercana primero
+        }
+        
+        // Si las fechas son iguales, comparar por hora
+        const timeA = a.appointment_time || a.class?.start_time || '00:00';
+        const timeB = b.appointment_time || b.class?.start_time || '00:00';
+        
+        return timeA.localeCompare(timeB);
+      });
 
+      console.log('Final appointments to display:', allAppointments.length, allAppointments);
       setAppointments(allAppointments);
     } catch (error) {
       console.error('Error loading appointments:', error);
@@ -296,9 +385,21 @@ export const AppointmentsScreen = ({ navigation }: any) => {
 
               Alert.alert('Éxito', 'Cita cancelada correctamente');
               await loadAppointments();
-            } catch (error) {
+            } catch (error: any) {
               console.error('Error cancelling appointment:', error);
-              Alert.alert('Error', 'No se pudo cancelar la cita');
+              
+              // Manejar errores específicos del backend
+              if (error.code === 'P0001') {
+                // Error de validación del backend
+                const errorMessage = error.message || 'No se pudo cancelar la cita';
+                Alert.alert('No se puede cancelar', errorMessage);
+              } else if (error.code === 'PGRST116') {
+                // Error de permisos
+                Alert.alert('Error', 'No tienes permisos para cancelar esta cita');
+              } else {
+                // Error genérico
+                Alert.alert('Error', 'No se pudo cancelar la cita. Por favor intenta nuevamente.');
+              }
             }
           }
         }
@@ -307,34 +408,81 @@ export const AppointmentsScreen = ({ navigation }: any) => {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    console.log('formatDate called with:', dateString);
+    
+    // Crear fecha sin zona horaria para evitar conversiones automáticas
+    const parts = dateString.split('-');
+    const year = parseInt(parts[0]);
+    const month = parseInt(parts[1]) - 1; // Los meses en JavaScript van de 0-11
+    const dayOfMonth = parseInt(parts[2]);
+    
+    const date = new Date(year, month, dayOfMonth);
+    console.log('Created date object:', date);
+    
     const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
     const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
     
     const day = days[date.getDay()];
     const dayNum = date.getDate();
-    const month = months[date.getMonth()];
+    const monthName = months[date.getMonth()];
     
-    return { day, dayNum, month };
+    console.log('formatDate result:', { day, dayNum, month: monthName });
+    return { day, dayNum, month: monthName };
   };
 
-  const formatTime = (timeString: string) => {
-    const [hours, minutes] = timeString.split(':');
+  const formatTime = (timeString: string | null | undefined) => {
+    console.log('formatTime called with:', timeString, 'type:', typeof timeString);
+    if (!timeString || timeString === null || timeString === undefined) {
+      console.log('No valid timeString provided, returning default');
+      return 'Hora no disponible';
+    }
+    
+    // Limpiar el string y asegurar que tenga el formato correcto
+    const cleanTime = timeString.toString().trim();
+    const [hours, minutes] = cleanTime.split(':');
+    
+    if (!hours || !minutes) {
+      console.log('Invalid time format:', cleanTime);
+      return 'Formato inválido';
+    }
+    
     const hour = parseInt(hours);
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
-    return `${displayHour}:${minutes} ${ampm}`;
+    const result = `${displayHour}:${minutes} ${ampm}`;
+    console.log('formatTime result:', result);
+    return result;
   };
 
-  const isUpcoming = (dateString: string) => {
-    return new Date(dateString) > new Date();
+  const isUpcoming = (dateString: string, timeString?: string) => {
+    // Si hay tiempo, combinar fecha y hora para comparación precisa
+    if (timeString) {
+      const appointmentDateTime = new Date(`${dateString}T${timeString}`);
+      const now = new Date();
+      console.log('Comparing appointment:', appointmentDateTime, 'vs now:', now, 'isUpcoming:', appointmentDateTime > now);
+      return appointmentDateTime > now;
+    }
+    
+    // Si no hay tiempo, solo comparar fechas
+    const appointmentDate = new Date(dateString);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time to start of day
+    appointmentDate.setHours(0, 0, 0, 0); // Reset time to start of day
+    return appointmentDate >= today;
   };
 
   const filteredAppointments = appointments.filter(apt => {
     if (activeTab === 'upcoming') {
-      return isUpcoming(apt.appointment_date) && apt.status !== 'cancelled';
+      // Para citas regulares, usar appointment_time. Para clases, usar el tiempo de la clase
+      const timeToCheck = apt.isHotStudioClass && apt.class ? apt.class.start_time : apt.appointment_time;
+      const upcoming = isUpcoming(apt.appointment_date, timeToCheck);
+      const notCancelled = apt.status !== 'cancelled';
+      console.log('Filtering appointment:', apt.id, 'upcoming:', upcoming, 'notCancelled:', notCancelled);
+      return upcoming && notCancelled;
     } else {
-      return (!isUpcoming(apt.appointment_date) || apt.status === 'cancelled');
+      // Para citas regulares, usar appointment_time. Para clases, usar el tiempo de la clase
+      const timeToCheck = apt.isHotStudioClass && apt.class ? apt.class.start_time : apt.appointment_time;
+      return (!isUpcoming(apt.appointment_date, timeToCheck) || apt.status === 'cancelled');
     }
   });
 
@@ -344,13 +492,75 @@ export const AppointmentsScreen = ({ navigation }: any) => {
       const classColor = getClassColor(appointment.class.class_type?.name || '');
       
       return (
+        <View key={appointment.id} style={styles.appointmentCard}>
+          <TouchableOpacity
+            style={styles.appointmentContent}
+            onPress={() => {
+            // TODO: Implementar pantalla de detalles
+            // navigation.navigate('AppointmentDetail', { appointment })
+          }}
+          >
+            <View style={styles.dateContainer}>
+              <Text style={styles.dayText}>{day}</Text>
+              <Text style={styles.dayNumText}>{dayNum}</Text>
+              <Text style={styles.monthText}>{month}</Text>
+            </View>
+            
+            <View style={styles.appointmentInfo}>
+              <View style={styles.appointmentHeader}>
+                <View style={styles.serviceIconContainer}>
+                  <Ionicons name="body" size={24} color={Colors.primary.dark} />
+                </View>
+                <View style={styles.headerTextContainer}>
+                  <Text style={styles.serviceName}>Breathe & Move</Text>
+                  <Text style={styles.subServiceName}>{appointment.class.class_type?.name || 'Clase'}</Text>
+                </View>
+              </View>
+              
+              <View style={styles.appointmentDetails}>
+                <View style={styles.detailRow}>
+                  <MaterialCommunityIcons name="clock-outline" size={16} color={Colors.text.secondary} />
+                  <Text style={styles.detailText}>
+                    {formatTime(appointment.class.start_time)} - {formatTime(appointment.class.end_time)}
+                  </Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <MaterialCommunityIcons name="account" size={16} color={Colors.text.secondary} />
+                  <Text style={styles.detailText}>{appointment.class.instructor?.name}</Text>
+                </View>
+              </View>
+              
+              {appointment.status === 'cancelled' && (
+                <View style={styles.cancelledBadge}>
+                  <Text style={styles.cancelledText}>Cancelada</Text>
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+          
+          {activeTab === 'upcoming' && appointment.status !== 'cancelled' && (
+            <TouchableOpacity
+              style={styles.cancelButtonBottom}
+              onPress={() => handleCancelAppointment(appointment)}
+            >
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      );
+    }
+
+    // Regular appointment rendering
+    const { day, dayNum, month } = formatDate(appointment.appointment_date);
+    
+    return (
+      <View key={appointment.id} style={styles.appointmentCard}>
         <TouchableOpacity
-          key={appointment.id}
-          style={styles.appointmentCard}
+          style={styles.appointmentContent}
           onPress={() => {
-          // TODO: Implementar pantalla de detalles
-          // navigation.navigate('AppointmentDetail', { appointment })
-        }}
+            // TODO: Implementar pantalla de detalles
+            // navigation.navigate('AppointmentDetail', { appointment })
+          }}
         >
           <View style={styles.dateContainer}>
             <Text style={styles.dayText}>{day}</Text>
@@ -360,12 +570,18 @@ export const AppointmentsScreen = ({ navigation }: any) => {
           
           <View style={styles.appointmentInfo}>
             <View style={styles.appointmentHeader}>
-              <View style={[styles.classTypeBadge, { backgroundColor: classColor }]}>
-                {getClassIcon(appointment.class.class_type?.name || '')}
-              </View>
+              {appointment.service && (
+                <View style={styles.serviceIconContainer}>
+                  <ServiceIcon 
+                    serviceId={appointment.service.id} 
+                    size={24}
+                    color={Colors.primary.dark}
+                  />
+                </View>
+              )}
               <View style={styles.headerTextContainer}>
-                <Text style={styles.serviceName}>Breathe & Move</Text>
-                <Text style={styles.subServiceName}>{appointment.class.class_type?.name}</Text>
+                <Text style={styles.serviceName}>{appointment.service?.name || 'Servicio'}</Text>
+                <Text style={styles.subServiceName}>{appointment.subService?.name || ''}</Text>
               </View>
             </View>
             
@@ -373,13 +589,24 @@ export const AppointmentsScreen = ({ navigation }: any) => {
               <View style={styles.detailRow}>
                 <MaterialCommunityIcons name="clock-outline" size={16} color={Colors.text.secondary} />
                 <Text style={styles.detailText}>
-                  {formatTime(appointment.class.start_time)} - {formatTime(appointment.class.end_time)}
+                  {(() => {
+                    console.log('Rendering appointment time for:', appointment.id, 'appointment_time:', appointment.appointment_time);
+                    return formatTime(appointment.appointment_time);
+                  })()}
                 </Text>
               </View>
               <View style={styles.detailRow}>
-                <MaterialCommunityIcons name="account" size={16} color={Colors.text.secondary} />
-                <Text style={styles.detailText}>{appointment.class.instructor?.name}</Text>
+                <MaterialCommunityIcons name="doctor" size={16} color={Colors.text.secondary} />
+                <Text style={styles.detailText}>{appointment.professional?.name || 'Profesional'}</Text>
               </View>
+              {appointment.total_amount > 0 && (
+                <View style={styles.detailRow}>
+                  <MaterialCommunityIcons name="cash" size={16} color={Colors.text.secondary} />
+                  <Text style={styles.detailText}>
+                    ${appointment.total_amount.toLocaleString('es-CO')}
+                  </Text>
+                </View>
+              )}
             </View>
             
             {appointment.status === 'cancelled' && (
@@ -388,90 +615,17 @@ export const AppointmentsScreen = ({ navigation }: any) => {
               </View>
             )}
           </View>
-          
-          {activeTab === 'upcoming' && appointment.status !== 'cancelled' && (
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => handleCancelAppointment(appointment)}
-            >
-              <Text style={styles.cancelButtonText}>Cancelar</Text>
-            </TouchableOpacity>
-          )}
         </TouchableOpacity>
-      );
-    }
-
-    // Regular appointment rendering
-    const { day, dayNum, month } = formatDate(appointment.appointment_date);
-    const time = appointment.appointment_date.split('T')[1]?.substring(0, 5) || '00:00';
-    
-    return (
-      <TouchableOpacity
-        key={appointment.id}
-        style={styles.appointmentCard}
-        onPress={() => {
-          // TODO: Implementar pantalla de detalles
-          // navigation.navigate('AppointmentDetail', { appointment })
-        }}
-      >
-        <View style={styles.dateContainer}>
-          <Text style={styles.dayText}>{day}</Text>
-          <Text style={styles.dayNumText}>{dayNum}</Text>
-          <Text style={styles.monthText}>{month}</Text>
-        </View>
-        
-        <View style={styles.appointmentInfo}>
-          <View style={styles.appointmentHeader}>
-            {appointment.service && (
-              <View style={styles.serviceIconContainer}>
-                <ServiceIcon 
-                  serviceId={appointment.service.id} 
-                  size={24}
-                  color={Colors.primary.dark}
-                />
-              </View>
-            )}
-            <View style={styles.headerTextContainer}>
-              <Text style={styles.serviceName}>{appointment.service?.name || 'Servicio'}</Text>
-              <Text style={styles.subServiceName}>{appointment.subService?.name || ''}</Text>
-            </View>
-          </View>
-          
-          <View style={styles.appointmentDetails}>
-            <View style={styles.detailRow}>
-              <MaterialCommunityIcons name="clock-outline" size={16} color={Colors.text.secondary} />
-              <Text style={styles.detailText}>{formatTime(time)}</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <MaterialCommunityIcons name="doctor" size={16} color={Colors.text.secondary} />
-              <Text style={styles.detailText}>{appointment.professional?.name || 'Profesional'}</Text>
-            </View>
-            {appointment.total_amount > 0 && (
-              <View style={styles.detailRow}>
-                <MaterialCommunityIcons name="cash" size={16} color={Colors.text.secondary} />
-                <Text style={styles.detailText}>
-                  ${appointment.total_amount.toLocaleString('es-CO')}
-                </Text>
-              </View>
-            )}
-          </View>
-          
-          {appointment.status === 'cancelled' && (
-            <View style={styles.cancelledBadge}>
-              <Text style={styles.cancelledText}>Cancelada</Text>
-            </View>
-          )}
-        </View>
         
         {activeTab === 'upcoming' && appointment.status !== 'cancelled' && (
           <TouchableOpacity
-            style={styles.cancelButton}
+            style={styles.cancelButtonBottom}
             onPress={() => handleCancelAppointment(appointment)}
           >
             <Text style={styles.cancelButtonText}>Cancelar</Text>
           </TouchableOpacity>
         )}
-      </TouchableOpacity>
+      </View>
     );
   };
 
@@ -603,14 +757,16 @@ const styles = StyleSheet.create({
   appointmentCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 16,
     marginBottom: 12,
-    flexDirection: 'row',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 3.84,
     elevation: 2,
+  },
+  appointmentContent: {
+    flexDirection: 'row',
+    padding: 16,
   },
   dateContainer: {
     width: 60,
@@ -695,6 +851,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.ui.error,
     fontWeight: '600',
+  },
+  cancelButtonBottom: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.ui.border,
+    backgroundColor: '#FFFFFF',
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    alignItems: 'center',
   },
   cancelledBadge: {
     position: 'absolute',

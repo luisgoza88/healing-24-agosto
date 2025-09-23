@@ -6,10 +6,10 @@ export const SERVICES = [
     icon: 'medical-bag',
     description: 'Consultas especializadas y péptidos',
     subServices: [
-      { name: 'Consulta funcional – primera vez', duration: 75, price: 300000 },
-      { name: 'Consulta funcional – seguimiento', duration: 30, price: 150000 },
-      { name: 'Consulta péptidos', duration: 60, price: 200000 },
-      { name: 'Consulta células madre', duration: 60, price: 200000 },
+      { id: 'consulta-funcional-primera', name: 'Consulta funcional – primera vez', duration: 75, price: 300000 },
+      { id: 'consulta-funcional-seguimiento', name: 'Consulta funcional – seguimiento', duration: 30, price: 150000 },
+      { id: 'consulta-peptidos', name: 'Consulta péptidos', duration: 60, price: 200000 },
+      { id: 'consulta-celulas-madre', name: 'Consulta células madre', duration: 60, price: 200000 },
     ]
   },
   {
@@ -30,10 +30,10 @@ export const SERVICES = [
     icon: 'dna',
     description: 'Terapias antiedad y bienestar',
     subServices: [
-      { name: 'Baño helado', duration: 30, price: 80000 },
-      { name: 'Sauna infrarrojo', duration: 45, price: 130000 },
-      { name: 'Baño helado + sauna infrarrojo', duration: 60, price: 190000 },
-      { name: 'Cámara hiperbárica', duration: 60, price: 180000 },
+      { id: 'bano-helado', name: 'Baño helado', duration: 30, price: 80000 },
+      { id: 'sauna-infrarrojo', name: 'Sauna infrarrojo', duration: 45, price: 130000 },
+      { id: 'bano-helado-sauna', name: 'Baño helado + sauna infrarrojo', duration: 60, price: 190000 },
+      { id: 'camara-hiperbarica-regen', name: 'Cámara hiperbárica', duration: 60, price: 180000 },
     ]
   },
   {
@@ -83,6 +83,16 @@ export const SERVICES = [
     icon: 'heart-pulse',
     description: 'Servicios de bienestar integral',
     subServices: []
+  },
+  {
+    id: 'camara-hiperbarica',
+    name: 'Cámara Hiperbárica',
+    color: '#1F2E3B',
+    icon: 'heart-pulse',
+    description: 'Oxigenoterapia hiperbárica',
+    subServices: [
+      { id: 'camara-hiperbarica-sesion', name: 'Sesión de 60 minutos', duration: 60, price: 180000 },
+    ]
   },
 ]
 

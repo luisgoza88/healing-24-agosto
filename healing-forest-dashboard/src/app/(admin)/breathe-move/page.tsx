@@ -52,6 +52,25 @@ interface ClassRegistration {
 }
 
 
+// Mapeo de colores por tipo de clase
+const getClassColor = (className: string): string => {
+  const colorMap: Record<string, string> = {
+    'MoonRelief': '#1F2E3B',
+    'WildPower': '#B8604D',
+    'GutReboot': '#879794',
+    'FireRush': '#5E3532',
+    'BloomBeat': '#ECD0B6',
+    'WindMove': '#B2B8B0',
+    'ForestFire': '#3E5444',
+    'StoneBarre': '#879794',
+    'OmRoot': '#3E5444',
+    'HazeRocket': '#61473B',
+    'WindFlow': '#879794',
+    'WaveMind': '#61473B'
+  }
+  return colorMap[className] || '#6B7280'
+}
+
 export default function BreatheAndMovePage() {
   const [classes, setClasses] = useState<BreatheAndMoveClass[]>([])
   const [loading, setLoading] = useState(true)
@@ -75,21 +94,14 @@ export default function BreatheAndMovePage() {
     
     try {
       // Fetch classes for the week
-      const { data: classesData, error } = await supabase
+      const { data: classesData, error: classesError } = await supabase
         .from('breathe_move_classes')
         .select(`
           *,
-          registrations:breathe_move_registrations(
+          registrations:breathe_move_enrollments(
             id,
             user_id,
-            status,
-            profiles:user_id(
-              id,
-              full_name,
-              first_name,
-              last_name,
-              phone
-            )
+            status
           )
         `)
         .gte('class_date', format(weekStart, 'yyyy-MM-dd'))
@@ -97,9 +109,53 @@ export default function BreatheAndMovePage() {
         .order('class_date')
         .order('start_time')
 
-      if (error) throw error
+      if (classesError) throw classesError
 
-      setClasses(classesData || [])
+      // Si hay clases, cargar los profiles de los usuarios registrados
+      if (classesData && classesData.length > 0) {
+        // Obtener todos los user_ids únicos
+        const userIds = new Set<string>()
+        classesData.forEach(cls => {
+          if (cls.registrations) {
+            cls.registrations.forEach((reg: any) => {
+              if (reg.user_id) userIds.add(reg.user_id)
+            })
+          }
+        })
+
+        // Si hay usuarios, cargar sus profiles
+        if (userIds.size > 0) {
+          const { data: profilesData, error: profilesError } = await supabase
+            .from('profiles')
+            .select('id, full_name, first_name, last_name, phone')
+            .in('id', Array.from(userIds))
+
+          if (!profilesError && profilesData) {
+            // Crear un mapa de profiles
+            const profilesMap = new Map(
+              profilesData.map(profile => [profile.id, profile])
+            )
+
+            // Agregar los profiles a las registrations
+            classesData.forEach(cls => {
+              if (cls.registrations) {
+                cls.registrations = cls.registrations.map((reg: any) => ({
+                  ...reg,
+                  profiles: profilesMap.get(reg.user_id) || null
+                }))
+              }
+            })
+          }
+        }
+      }
+
+      // Agregar color basado en el nombre de la clase
+      const classesWithColors = (classesData || []).map(cls => ({
+        ...cls,
+        color: getClassColor(cls.class_name)
+      }))
+      
+      setClasses(classesWithColors)
     } catch (error) {
       console.error('Error fetching classes:', error)
     } finally {
@@ -458,7 +514,7 @@ export default function BreatheAndMovePage() {
               <tbody className="divide-y divide-gray-200">
                 {filteredClasses.map(classItem => {
                   const capacity = getCapacityPercentage(classItem)
-                  const isPast = isPastClass(classItem.class_date, classItem.class_time)
+                  const isPast = isPastClass(classItem.class_date, classItem.start_time)
                   
                   return (
                     <tr key={classItem.id} className={isPast ? 'bg-gray-50' : ''}>

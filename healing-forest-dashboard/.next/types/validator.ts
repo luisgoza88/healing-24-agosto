@@ -713,6 +713,33 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
+// Validate ../../src/app/(admin)/camara-hiperbarica/[id]/editar/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/camara-hiperbarica/[id]/editar">> = Specific
+  const handler = {} as typeof import("../../src/app/(admin)/camara-hiperbarica/[id]/editar/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/(admin)/camara-hiperbarica/nueva/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/camara-hiperbarica/nueva">> = Specific
+  const handler = {} as typeof import("../../src/app/(admin)/camara-hiperbarica/nueva/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/(admin)/camara-hiperbarica/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/camara-hiperbarica">> = Specific
+  const handler = {} as typeof import("../../src/app/(admin)/camara-hiperbarica/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../src/app/(admin)/citas/nueva/page.tsx
 {
   type __IsExpected<Specific extends AppPageConfig<"/citas/nueva">> = Specific
@@ -726,6 +753,33 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
 {
   type __IsExpected<Specific extends AppPageConfig<"/citas">> = Specific
   const handler = {} as typeof import("../../src/app/(admin)/citas/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/(admin)/consultorios/[id]/editar/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/consultorios/[id]/editar">> = Specific
+  const handler = {} as typeof import("../../src/app/(admin)/consultorios/[id]/editar/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/(admin)/consultorios/nueva/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/consultorios/nueva">> = Specific
+  const handler = {} as typeof import("../../src/app/(admin)/consultorios/nueva/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/(admin)/consultorios/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/consultorios">> = Specific
+  const handler = {} as typeof import("../../src/app/(admin)/consultorios/page.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check
@@ -789,6 +843,33 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
 {
   type __IsExpected<Specific extends AppPageConfig<"/">> = Specific
   const handler = {} as typeof import("../../src/app/(admin)/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/(admin)/sueroterapia/[id]/editar/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/sueroterapia/[id]/editar">> = Specific
+  const handler = {} as typeof import("../../src/app/(admin)/sueroterapia/[id]/editar/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/(admin)/sueroterapia/nueva/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/sueroterapia/nueva">> = Specific
+  const handler = {} as typeof import("../../src/app/(admin)/sueroterapia/nueva/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/(admin)/sueroterapia/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/sueroterapia">> = Specific
+  const handler = {} as typeof import("../../src/app/(admin)/sueroterapia/page.js")
   type __Check = __IsExpected<typeof handler>
   // @ts-ignore
   type __Unused = __Check
