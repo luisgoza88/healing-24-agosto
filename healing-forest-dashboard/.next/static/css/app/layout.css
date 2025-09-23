@@ -1207,6 +1207,9 @@
   .h-screen {
     height: 100vh;
   }
+  .max-h-60 {
+    max-height: calc(var(--spacing) * 60);
+  }
   .max-h-96 {
     max-height: calc(var(--spacing) * 96);
   }
@@ -3887,6 +3890,13 @@
       }
     }
   }
+  .hover\:bg-red-100 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--color-red-100);
+      }
+    }
+  }
   .hover\:bg-red-600 {
     &:hover {
       @media (hover: hover) {
@@ -4059,6 +4069,11 @@
       border-color: var(--color-error-300);
     }
   }
+  .focus\:border-green-500 {
+    &:focus {
+      border-color: var(--color-green-500);
+    }
+  }
   .focus\:border-success-300 {
     &:focus {
       border-color: var(--color-success-300);
@@ -4122,6 +4137,14 @@
       --tw-ring-color: color-mix(in srgb, #f04438 20%, transparent);
       @supports (color: color-mix(in lab, red, red)) {
         --tw-ring-color: color-mix(in oklab, var(--color-error-500) 20%, transparent);
+      }
+    }
+  }
+  .focus\:ring-green-500\/50 {
+    &:focus {
+      --tw-ring-color: color-mix(in srgb, oklch(72.3% 0.219 149.579) 50%, transparent);
+      @supports (color: color-mix(in lab, red, red)) {
+        --tw-ring-color: color-mix(in oklab, var(--color-green-500) 50%, transparent);
       }
     }
   }

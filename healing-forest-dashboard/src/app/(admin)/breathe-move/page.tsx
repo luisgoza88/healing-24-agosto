@@ -16,7 +16,10 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
-  X
+  X,
+  UserPlus,
+  Loader2,
+  UserX
 } from 'lucide-react'
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, isSameDay, parse, isAfter } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -80,6 +83,11 @@ export default function BreatheAndMovePage() {
   const [currentWeek, setCurrentWeek] = useState(new Date())
   const [selectedClass, setSelectedClass] = useState<BreatheAndMoveClass | null>(null)
   const [showRegistrations, setShowRegistrations] = useState(false)
+  const [showAddParticipant, setShowAddParticipant] = useState(false)
+  const [searchParticipant, setSearchParticipant] = useState('')
+  const [availableUsers, setAvailableUsers] = useState<any[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [addingParticipant, setAddingParticipant] = useState(false)
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1, locale: es })
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1, locale: es })
@@ -204,7 +212,7 @@ export default function BreatheAndMovePage() {
 
   const getRegistrationCount = (classItem: BreatheAndMoveClass) => {
     if (classItem.registrations) {
-      return classItem.registrations.filter(r => r.status === 'registered').length
+      return classItem.registrations.filter(r => r.status === 'registered' || r.status === 'confirmed').length
     }
     return classItem.current_capacity || 0
   }
@@ -288,6 +296,180 @@ export default function BreatheAndMovePage() {
   const isPastClass = (classDate: string, startTime: string) => {
     const classDateTime = parse(`${classDate} ${startTime}`, 'yyyy-MM-dd HH:mm:ss', new Date())
     return isAfter(new Date(), classDateTime)
+  }
+
+  const searchUsers = async (query: string) => {
+    if (!query || query.length < 2) {
+      setAvailableUsers([])
+      return
+    }
+
+    setLoadingUsers(true)
+    const supabase = getSupabaseBrowser()
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, first_name, last_name, email, phone')
+        .or(`full_name.ilike.%${query}%,first_name.ilike.%${query}%,last_name.ilike.%${query}%,email.ilike.%${query}%`)
+        .limit(10)
+
+      if (error) throw error
+
+      // Filter out users already in the class
+      const enrolledUserIds = selectedClass?.registrations?.map(r => r.user_id) || []
+      const filteredUsers = data?.filter(user => !enrolledUserIds.includes(user.id)) || []
+      
+      setAvailableUsers(filteredUsers)
+    } catch (error) {
+      console.error('Error searching users:', error)
+    } finally {
+      setLoadingUsers(false)
+    }
+  }
+
+  const handleAddParticipant = async (userId: string) => {
+    if (!selectedClass || addingParticipant) return
+
+    setAddingParticipant(true)
+    const supabase = getSupabaseBrowser()
+
+    try {
+      // Call the admin enrollment function
+      const { data, error } = await supabase
+        .rpc('admin_enroll_breathe_move', {
+          p_user_id: userId,
+          p_class_id: selectedClass.id
+        })
+
+      if (error) {
+        console.error('RPC Error:', error)
+        alert(`Error: ${error.message}`)
+        throw error
+      }
+
+      if (data && data[0]?.success) {
+        setShowAddParticipant(false)
+        setSearchParticipant('')
+        setAvailableUsers([])
+        
+        // Refresh the specific class data
+        const { data: updatedClassData } = await supabase
+          .from('breathe_move_classes')
+          .select(`
+            *,
+            registrations:breathe_move_enrollments(
+              id,
+              user_id,
+              status
+            )
+          `)
+          .eq('id', selectedClass.id)
+          .single()
+          
+        if (updatedClassData) {
+          // Load profiles for the registrations
+          const userIds = updatedClassData.registrations?.map((r: any) => r.user_id) || []
+          if (userIds.length > 0) {
+            const { data: profilesData } = await supabase
+              .from('profiles')
+              .select('id, full_name, first_name, last_name, phone')
+              .in('id', userIds)
+              
+            if (profilesData) {
+              const profilesMap = new Map(profilesData.map(p => [p.id, p]))
+              updatedClassData.registrations = updatedClassData.registrations.map((reg: any) => ({
+                ...reg,
+                profiles: profilesMap.get(reg.user_id) || null
+              }))
+            }
+          }
+          
+          // Update the selected class with fresh data
+          setSelectedClass(updatedClassData)
+          
+          // Also update it in the classes array
+          setClasses(prevClasses => 
+            prevClasses.map(c => 
+              c.id === updatedClassData.id ? {...updatedClassData, color: getClassColor(updatedClassData.class_name)} : c
+            )
+          )
+        }
+      } else {
+        alert(data?.[0]?.message || 'Error al inscribir participante')
+      }
+    } catch (error: any) {
+      console.error('Error adding participant:', error)
+      // Error ya manejado arriba
+    } finally {
+      setAddingParticipant(false)
+    }
+  }
+
+  const handleRemoveParticipant = async (enrollmentId: string, userName: string) => {
+    if (!confirm(`¿Estás seguro de eliminar a ${userName} de esta clase?`)) return
+
+    const supabase = getSupabaseBrowser()
+
+    try {
+      // Use the new admin function to remove participant
+      const { data, error } = await supabase
+        .rpc('admin_remove_breathe_move_participant', {
+          p_enrollment_id: enrollmentId
+        })
+
+      if (error) throw error
+
+      if (!data || !data[0]?.success) {
+        throw new Error(data?.[0]?.message || 'Error al eliminar participante')
+      }
+
+      // Refresh the specific class data
+      const { data: updatedClassData } = await supabase
+        .from('breathe_move_classes')
+        .select(`
+          *,
+          registrations:breathe_move_enrollments(
+            id,
+            user_id,
+            status
+          )
+        `)
+        .eq('id', selectedClass?.id)
+        .single()
+        
+      if (updatedClassData) {
+        // Load profiles for remaining registrations
+        const userIds = updatedClassData.registrations?.map((r: any) => r.user_id) || []
+        if (userIds.length > 0) {
+          const { data: profilesData } = await supabase
+            .from('profiles')
+            .select('id, full_name, first_name, last_name, phone')
+            .in('id', userIds)
+            
+          if (profilesData) {
+            const profilesMap = new Map(profilesData.map(p => [p.id, p]))
+            updatedClassData.registrations = updatedClassData.registrations.map((reg: any) => ({
+              ...reg,
+              profiles: profilesMap.get(reg.user_id) || null
+            }))
+          }
+        }
+        
+        // Update the selected class with fresh data
+        setSelectedClass(updatedClassData)
+        
+        // Also update it in the classes array
+        setClasses(prevClasses => 
+          prevClasses.map(c => 
+            c.id === updatedClassData.id ? {...updatedClassData, color: getClassColor(updatedClassData.class_name)} : c
+          )
+        )
+      }
+    } catch (error) {
+      console.error('Error removing participant:', error)
+      alert('Error al eliminar participante')
+    }
   }
 
   if (loading) {
@@ -608,7 +790,7 @@ export default function BreatheAndMovePage() {
                     {selectedClass.class_name}
                   </h2>
                   <p className="text-sm text-gray-500 mt-1">
-                    {format(new Date(selectedClass.class_date), 'dd \'de\' MMMM, yyyy', { locale: es })} - {selectedClass.start_time.slice(0, 5)}
+                    {format(new Date(selectedClass.class_date + 'T00:00:00'), 'dd \'de\' MMMM, yyyy', { locale: es })} - {selectedClass.start_time.slice(0, 5)}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -662,13 +844,22 @@ export default function BreatheAndMovePage() {
                 </div>
               </div>
 
-              <h3 className="font-semibold text-gray-900 mb-3">Participantes Inscritos</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-gray-900">Participantes Inscritos</h3>
+                <button
+                  onClick={() => setShowAddParticipant(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Añadir Participante
+                </button>
+              </div>
               
               {selectedClass.registrations && selectedClass.registrations.length > 0 ? (
                 <div className="space-y-2">
                   {/* Participantes registrados */}
                   {selectedClass.registrations
-                    .filter(r => r.status === 'registered')
+                    .filter(r => r.status === 'registered' || r.status === 'confirmed')
                     .map((registration, index) => (
                       <div key={registration.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                         <div className="flex items-center gap-3">
@@ -688,9 +879,23 @@ export default function BreatheAndMovePage() {
                             )}
                           </div>
                         </div>
-                        <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
-                          Inscrito
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                            Inscrito
+                          </span>
+                          <button
+                            onClick={() => handleRemoveParticipant(
+                              registration.id, 
+                              registration.profiles?.first_name && registration.profiles?.last_name
+                                ? `${registration.profiles.first_name} ${registration.profiles.last_name}`
+                                : registration.profiles?.full_name || 'Participante'
+                            )}
+                            className="p-1 hover:bg-red-100 rounded transition-colors"
+                            title="Eliminar participante"
+                          >
+                            <UserX className="h-4 w-4 text-red-600" />
+                          </button>
+                        </div>
                       </div>
                     ))}
 
@@ -719,9 +924,23 @@ export default function BreatheAndMovePage() {
                                 )}
                               </div>
                             </div>
-                            <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
-                              Lista de espera
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
+                                Lista de espera
+                              </span>
+                              <button
+                                onClick={() => handleRemoveParticipant(
+                                  registration.id, 
+                                  registration.profiles?.first_name && registration.profiles?.last_name
+                                    ? `${registration.profiles.first_name} ${registration.profiles.last_name}`
+                                    : registration.profiles?.full_name || 'Participante'
+                                )}
+                                className="p-1 hover:bg-red-100 rounded transition-colors"
+                                title="Eliminar de lista de espera"
+                              >
+                                <UserX className="h-4 w-4 text-red-600" />
+                              </button>
+                            </div>
                           </div>
                         ))}
                     </>
@@ -751,6 +970,98 @@ export default function BreatheAndMovePage() {
                     {selectedClass.start_time.slice(0, 5)} - {selectedClass.end_time.slice(0, 5)}
                   </p>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Participant Modal */}
+      {showAddParticipant && selectedClass && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-lg w-full">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Añadir Participante
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowAddParticipant(false)
+                    setSearchParticipant('')
+                    setAvailableUsers([])
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="h-5 w-5 text-gray-600" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Buscar paciente
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchParticipant}
+                    onChange={(e) => {
+                      setSearchParticipant(e.target.value)
+                      searchUsers(e.target.value)
+                    }}
+                    placeholder="Buscar por nombre o email..."
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-green-500"
+                    autoFocus
+                  />
+                  {loadingUsers && (
+                    <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 animate-spin" />
+                  )}
+                </div>
+              </div>
+
+              <div className="max-h-60 overflow-y-auto">
+                {availableUsers.length > 0 ? (
+                  <div className="space-y-2">
+                    {availableUsers.map(user => (
+                      <button
+                        key={user.id}
+                        onClick={() => handleAddParticipant(user.id)}
+                        disabled={addingParticipant}
+                        className="w-full p-3 text-left bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              {user.first_name && user.last_name
+                                ? `${user.first_name} ${user.last_name}`
+                                : user.full_name || 'Sin nombre'}
+                            </p>
+                            <p className="text-sm text-gray-500">{user.email}</p>
+                            {user.phone && (
+                              <p className="text-xs text-gray-400">{user.phone}</p>
+                            )}
+                          </div>
+                          {addingParticipant ? (
+                            <Loader2 className="h-4 w-4 text-gray-400 animate-spin" />
+                          ) : (
+                            <Plus className="h-4 w-4 text-gray-400" />
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : searchParticipant.length >= 2 ? (
+                  <p className="text-center text-gray-500 py-4">
+                    No se encontraron pacientes disponibles
+                  </p>
+                ) : (
+                  <p className="text-center text-gray-500 py-4">
+                    Escribe al menos 2 caracteres para buscar
+                  </p>
+                )}
               </div>
             </div>
           </div>

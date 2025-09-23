@@ -128,7 +128,12 @@ export const AppointmentsScreen = ({ navigation }: any) => {
           notes,
           created_at,
           updated_at,
-          hyperbaric_chamber_id
+          hyperbaric_chamber_id,
+          sub_services (
+            id,
+            name,
+            service_id
+          )
         `)
         .eq('user_id', user.id)
         .order('appointment_date', { ascending: true })
@@ -235,6 +240,41 @@ export const AppointmentsScreen = ({ navigation }: any) => {
             if (profData) {
               professional = { name: profData.full_name };
             }
+          }
+          
+          // Check if this is a Breathe & Move appointment created by admin
+          if (serviceData?.name === 'Breathe & Move') {
+            // Use sub_services data if loaded from DB
+            const subServiceFromDB = apt.sub_services;
+            const className = subServiceFromDB?.name || subService?.name || 'Clase';
+            
+            // Extract instructor name from notes if available
+            const instructorMatch = apt.notes?.match(/con\s+([^-]+)\s+-/);
+            const instructorName = instructorMatch ? instructorMatch[1].trim() : 'Instructor';
+            
+            const processedApt = {
+              ...apt,
+              professional,
+              service: serviceData,
+              subService: subServiceFromDB || subService,
+              isHotStudioClass: true,
+              class: {
+                id: apt.id,
+                class_date: apt.appointment_date,
+                start_time: apt.appointment_time,
+                end_time: apt.end_time,
+                class_type: {
+                  name: className,
+                  icon: 'yoga',
+                  color: getClassColor(className)
+                },
+                instructor: {
+                  name: instructorName
+                }
+              }
+            };
+            console.log('Processed Breathe & Move appointment:', processedApt.id, 'class:', className);
+            return processedApt;
           }
           
           const processedApt = {
@@ -508,8 +548,8 @@ export const AppointmentsScreen = ({ navigation }: any) => {
             
             <View style={styles.appointmentInfo}>
               <View style={styles.appointmentHeader}>
-                <View style={styles.serviceIconContainer}>
-                  <Ionicons name="body" size={24} color={Colors.primary.dark} />
+                <View style={[styles.serviceIconContainer, { backgroundColor: classColor }]}>
+                  {getClassIcon(appointment.class.class_type?.name || '')}
                 </View>
                 <View style={styles.headerTextContainer}>
                   <Text style={styles.serviceName}>Breathe & Move</Text>
