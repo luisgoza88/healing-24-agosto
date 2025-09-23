@@ -62,8 +62,8 @@ export default function BreatheAndMovePage() {
   const [selectedClass, setSelectedClass] = useState<BreatheAndMoveClass | null>(null)
   const [showRegistrations, setShowRegistrations] = useState(false)
 
-  const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 })
-  const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 })
+  const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1, locale: es })
+  const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1, locale: es })
   const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd })
 
   useEffect(() => {
@@ -210,7 +210,8 @@ export default function BreatheAndMovePage() {
 
   const getClassesForDay = (day: Date) => {
     return filteredClasses.filter(classItem => {
-      const classDate = new Date(classItem.class_date)
+      // Ensure proper date parsing by adding time component
+      const classDate = new Date(classItem.class_date + 'T00:00:00')
       return isSameDay(classDate, day)
     })
   }
@@ -254,9 +255,9 @@ export default function BreatheAndMovePage() {
         <div className="flex items-center gap-3">
           <Link
             href="/breathe-move/nueva"
-            className="flex items-center gap-2 px-4 py-2 text-white bg-hf-primary rounded-lg hover:bg-hf-primary/90 transition-colors"
+            className="flex items-center gap-2 px-6 py-3 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors shadow-lg hover:shadow-xl font-medium"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-5 w-5" />
             Nueva Clase
           </Link>
         </div>
@@ -412,9 +413,12 @@ export default function BreatheAndMovePage() {
                         <p className="text-xs text-gray-500 mb-2">
                           {classItem.instructor}
                         </p>
-                        <div className={`text-xs font-medium px-2 py-1 rounded-full inline-flex items-center gap-1 ${getCapacityColor(capacity)}`}>
-                          <Users className="h-3 w-3" />
-                          {getRegistrationCount(classItem)}/{classItem.max_capacity}
+                        <div className="flex items-center justify-between">
+                          <div className={`text-xs font-medium px-2 py-1 rounded-full inline-flex items-center gap-1 ${getCapacityColor(capacity)}`}>
+                            <Users className="h-3 w-3" />
+                            {getRegistrationCount(classItem)}/{classItem.max_capacity}
+                          </div>
+                          <span className="text-xs text-gray-400">{classItem.end_time.slice(0, 5)}</span>
                         </div>
                       </div>
                     )
@@ -543,7 +547,7 @@ export default function BreatheAndMovePage() {
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden">
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
-                <div>
+                <div className="flex-1">
                   <h2 className="text-xl font-semibold text-gray-900">
                     {selectedClass.class_name}
                   </h2>
@@ -551,15 +555,35 @@ export default function BreatheAndMovePage() {
                     {format(new Date(selectedClass.class_date), 'dd \'de\' MMMM, yyyy', { locale: es })} - {selectedClass.start_time.slice(0, 5)}
                   </p>
                 </div>
-                <button
-                  onClick={() => {
-                    setShowRegistrations(false)
-                    setSelectedClass(null)
-                  }}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <X className="h-5 w-5 text-gray-600" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/breathe-move/${selectedClass.id}/editar`}
+                    className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <Edit className="h-4 w-4" />
+                    Editar
+                  </Link>
+                  <button
+                    onClick={() => {
+                      handleDeleteClass(selectedClass.id, selectedClass.class_name)
+                      setShowRegistrations(false)
+                      setSelectedClass(null)
+                    }}
+                    className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Eliminar
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowRegistrations(false)
+                      setSelectedClass(null)
+                    }}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <X className="h-5 w-5 text-gray-600" />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -676,6 +700,7 @@ export default function BreatheAndMovePage() {
           </div>
         </div>
       )}
+
     </div>
   )
 }

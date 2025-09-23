@@ -16,6 +16,22 @@ import {
 import { format, parse } from 'date-fns'
 import { es } from 'date-fns/locale'
 import Link from 'next/link'
+import DatePicker from 'react-datepicker'
+import "react-datepicker/dist/react-datepicker.css"
+
+// Instructores de Breathe & Move
+const breatheMoveInstructors = [
+  'CLARA',
+  'FERNANDA',
+  'GOURA',
+  'HELEN',
+  'JENNY',
+  'KARO',
+  'KATA',
+  'MANUELA',
+  'MAYTECK',
+  'SARA'
+]
 
 export default function EditarClasePage() {
   const router = useRouter()
@@ -24,7 +40,7 @@ export default function EditarClasePage() {
   
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [professionals, setProfessionals] = useState<any[]>([])
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [formData, setFormData] = useState({
     class_name: '',
     instructor: '',
@@ -39,7 +55,6 @@ export default function EditarClasePage() {
 
   useEffect(() => {
     fetchClassData()
-    fetchProfessionals()
   }, [classId])
 
   const fetchClassData = async () => {
@@ -55,6 +70,8 @@ export default function EditarClasePage() {
       if (error) throw error
 
       if (data) {
+        const classDate = new Date(data.class_date + 'T00:00:00')
+        setSelectedDate(classDate)
         setFormData({
           class_name: data.class_name,
           instructor: data.instructor,
@@ -76,21 +93,13 @@ export default function EditarClasePage() {
     }
   }
 
-  const fetchProfessionals = async () => {
-    const supabase = getSupabaseBrowser()
-    
-    try {
-      const { data, error } = await supabase
-        .from('professionals')
-        .select('id, full_name')
-        .eq('active', true)
-        .order('full_name')
 
-      if (error) throw error
-
-      setProfessionals(data || [])
-    } catch (error) {
-      console.error('Error fetching professionals:', error)
+  // Generar opciones de tiempo
+  const TIME_OPTIONS = []
+  for (let hour = 6; hour <= 20; hour++) {
+    for (let minute = 0; minute < 60; minute += 30) {
+      const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+      TIME_OPTIONS.push(time)
     }
   }
 
@@ -101,6 +110,60 @@ export default function EditarClasePage() {
     const supabase = getSupabaseBrowser()
     
     try {
+      // Verificar conflictos antes de actualizar
+      const startTime = formData.start_time + ':00'
+      const endTime = formData.end_time + ':00'
+      
+      // Verificar conflictos de horario (excluyendo la clase actual)
+      const { data: conflictingClasses, error: conflictError } = await supabase
+        .from('breathe_move_classes')
+        .select('*')
+        .eq('class_date', formData.class_date)
+        .eq('status', 'scheduled')
+        .neq('id', classId)
+      
+      if (conflictError) throw conflictError
+      
+      if (conflictingClasses && conflictingClasses.length > 0) {
+        const hasConflict = conflictingClasses.some(existingClass => {
+          const existingStart = existingClass.start_time
+          const existingEnd = existingClass.end_time
+          
+          return (startTime < existingEnd && endTime > existingStart)
+        })
+        
+        if (hasConflict) {
+          alert('Ya existe una clase programada en ese horario. Recuerda que solo hay un salón disponible.')
+          setSaving(false)
+          return
+        }
+      }
+      
+      // Verificar conflictos del instructor (excluyendo la clase actual)
+      const { data: instructorClasses, error: instructorError } = await supabase
+        .from('breathe_move_classes')
+        .select('*')
+        .eq('instructor', formData.instructor)
+        .eq('class_date', formData.class_date)
+        .eq('status', 'scheduled')
+        .neq('id', classId)
+      
+      if (instructorError) throw instructorError
+      
+      if (instructorClasses && instructorClasses.length > 0) {
+        const hasInstructorConflict = instructorClasses.some(existingClass => {
+          const existingStart = existingClass.start_time
+          const existingEnd = existingClass.end_time
+          
+          return (startTime < existingEnd && endTime > existingStart)
+        })
+        
+        if (hasInstructorConflict) {
+          alert(`El instructor ${formData.instructor} ya tiene una clase programada en ese horario.`)
+          setSaving(false)
+          return
+        }
+      }
       const { error } = await supabase
         .from('breathe_move_classes')
         .update({
@@ -121,12 +184,57 @@ export default function EditarClasePage() {
     }
   }
 
+  const calculateEndTime = (startTime: string, durationMinutes: number): string => {
+    const [hours, minutes] = startTime.split(':').map(Number)
+    const startDate = new Date()
+    startDate.setHours(hours, minutes, 0, 0)
+    const endDate = new Date(startDate.getTime() + durationMinutes * 60000)
+    return `${endDate.getHours().toString().padStart(2, '0')}:${endDate.getMinutes().toString().padStart(2, '0')}`
+  }
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }))
+    
+    if (name === 'start_time') {
+      // Calculate duration from existing end_time
+      const [startHours, startMinutes] = value.split(':').map(Number)
+      const [endHours, endMinutes] = formData.end_time.split(':').map(Number)
+      
+      const startDate = new Date()
+      startDate.setHours(startHours, startMinutes, 0, 0)
+      const endDate = new Date()
+      endDate.setHours(endHours, endMinutes, 0, 0)
+      
+      const durationMs = endDate.getTime() - startDate.getTime()
+      const durationMinutes = Math.round(durationMs / 60000)
+      
+      // Update end time based on duration
+      const newEndTime = calculateEndTime(value, durationMinutes > 0 ? durationMinutes : 60)
+      
+      setFormData(prev => ({
+        ...prev,
+        start_time: value,
+        end_time: newEndTime
+      }))
+    } else if (name === 'max_capacity') {
+      const numValue = parseInt(value)
+      if (!isNaN(numValue) && numValue >= 1 && numValue <= 50) {
+        setFormData(prev => ({
+          ...prev,
+          [name]: numValue
+        }))
+      } else if (value === '') {
+        setFormData(prev => ({
+          ...prev,
+          [name]: '' as any
+        }))
+      }
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }))
+    }
   }
 
   if (loading) {
@@ -180,32 +288,20 @@ export default function EditarClasePage() {
               <User className="h-4 w-4 inline-block mr-1" />
               Instructor
             </label>
-            {professionals.length > 0 ? (
-              <select
-                name="instructor"
-                value={formData.instructor}
-                onChange={handleChange}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-hf-primary/50 focus:border-hf-primary"
-              >
-                <option value="">Selecciona un instructor</option>
-                {professionals.map(prof => (
-                  <option key={prof.id} value={prof.full_name}>
-                    {prof.full_name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                type="text"
-                name="instructor"
-                value={formData.instructor}
-                onChange={handleChange}
-                required
-                placeholder="Nombre del instructor"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-hf-primary/50 focus:border-hf-primary"
-              />
-            )}
+            <select
+              name="instructor"
+              value={formData.instructor}
+              onChange={handleChange}
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-hf-primary/50 focus:border-hf-primary"
+            >
+              <option value="">Selecciona un instructor</option>
+              {breatheMoveInstructors.map(instructor => (
+                <option key={instructor} value={instructor}>
+                  {instructor}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Fecha */}
@@ -214,13 +310,30 @@ export default function EditarClasePage() {
               <Calendar className="h-4 w-4 inline-block mr-1" />
               Fecha de la clase
             </label>
-            <input
-              type="date"
-              name="class_date"
-              value={formData.class_date}
-              onChange={handleChange}
-              required
+            <DatePicker
+              selected={selectedDate}
+              onChange={(date: Date | null) => {
+                if (date) {
+                  setSelectedDate(date)
+                  setFormData(prev => ({
+                    ...prev,
+                    class_date: format(date, 'yyyy-MM-dd')
+                  }))
+                }
+              }}
+              dateFormat="dd/MM/yyyy"
+              locale={es}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-hf-primary/50 focus:border-hf-primary"
+              placeholderText="Selecciona una fecha"
+              required
+              popperPlacement="bottom-start"
+              showPopperArrow={false}
+              customInput={
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-hf-primary/50 focus:border-hf-primary cursor-pointer"
+                />
+              }
             />
           </div>
 
@@ -249,14 +362,17 @@ export default function EditarClasePage() {
               <Clock className="h-4 w-4 inline-block mr-1" />
               Hora de inicio
             </label>
-            <input
-              type="time"
+            <select
               name="start_time"
               value={formData.start_time}
               onChange={handleChange}
               required
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-hf-primary/50 focus:border-hf-primary"
-            />
+            >
+              {TIME_OPTIONS.map(time => (
+                <option key={time} value={time}>{time}</option>
+              ))}
+            </select>
           </div>
 
           {/* Hora fin */}
@@ -265,14 +381,17 @@ export default function EditarClasePage() {
               <Clock className="h-4 w-4 inline-block mr-1" />
               Hora de finalización
             </label>
-            <input
-              type="time"
+            <select
               name="end_time"
               value={formData.end_time}
               onChange={handleChange}
               required
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-hf-primary/50 focus:border-hf-primary"
-            />
+            >
+              {TIME_OPTIONS.map(time => (
+                <option key={time} value={time}>{time}</option>
+              ))}
+            </select>
           </div>
 
           {/* Capacidad */}
@@ -285,7 +404,17 @@ export default function EditarClasePage() {
               type="number"
               name="max_capacity"
               value={formData.max_capacity}
-              onChange={handleChange}
+              onChange={(e) => {
+                const value = e.target.value
+                if (value === '') {
+                  setFormData(prev => ({ ...prev, max_capacity: '' as any }))
+                } else {
+                  const numValue = parseInt(value)
+                  if (!isNaN(numValue) && numValue >= 1 && numValue <= 50) {
+                    setFormData(prev => ({ ...prev, max_capacity: numValue }))
+                  }
+                }
+              }}
               required
               min="1"
               max="50"
@@ -319,14 +448,14 @@ export default function EditarClasePage() {
         <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-200">
           <Link
             href="/breathe-move"
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            className="px-6 py-3 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
           >
             Cancelar
           </Link>
           <button
             type="submit"
             disabled={saving}
-            className="flex items-center gap-2 px-4 py-2 text-white bg-hf-primary rounded-lg hover:bg-hf-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-6 py-3 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors shadow-md hover:shadow-lg font-medium disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
           >
             {saving ? (
               <>

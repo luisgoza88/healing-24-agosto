@@ -20,6 +20,38 @@
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(admin)/breathe-move/page.js"
+    ],
+    "/(admin)/breathe-move/[id]/editar/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/(admin)/breathe-move/[id]/editar/page.css",
+      "static/chunks/app/(admin)/breathe-move/[id]/editar/page.js"
+    ],
+    "/(admin)/breathe-move/nueva/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/(admin)/breathe-move/nueva/page.css",
+      "static/chunks/app/(admin)/breathe-move/nueva/page.js"
+    ],
+    "/(admin)/(others-pages)/memberships/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(admin)/(others-pages)/memberships/page.js"
+    ],
+    "/api/admin/patients/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/admin/patients/route.js"
+    ],
+    "/api/admin/packages/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/admin/packages/route.js"
+    ],
+    "/(admin)/pacientes/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(admin)/pacientes/page.js"
     ]
   }
 }

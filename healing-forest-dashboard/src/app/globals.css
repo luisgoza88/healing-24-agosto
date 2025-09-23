@@ -913,3 +913,6 @@ pre[class*="language-"] {
 pre[class*="language-"].line-numbers {
   padding-left: 2.8em !important;
 }
+
+/* Import react-datepicker custom styles */
+@import url('../styles/react-datepicker-overrides.css');
