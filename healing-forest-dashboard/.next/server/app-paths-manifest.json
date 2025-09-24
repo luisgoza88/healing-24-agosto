@@ -1,8 +1,9 @@
 {
-  "/favicon.ico/route": "app/favicon.ico/route.js",
-  "/(admin)/breathe-move/page": "app/(admin)/breathe-move/page.js",
   "/(admin)/sueroterapia/page": "app/(admin)/sueroterapia/page.js",
   "/(admin)/consultorios/page": "app/(admin)/consultorios/page.js",
-  "/(admin)/(others-pages)/memberships/page": "app/(admin)/(others-pages)/memberships/page.js",
-  "/(admin)/camara-hiperbarica/page": "app/(admin)/camara-hiperbarica/page.js"
+  "/(admin)/breathe-move/page": "app/(admin)/breathe-move/page.js",
+  "/(admin)/tratamientos/page": "app/(admin)/tratamientos/page.js",
+  "/(admin)/sueroterapia/nueva/page": "app/(admin)/sueroterapia/nueva/page.js",
+  "/(admin)/camara-hiperbarica/page": "app/(admin)/camara-hiperbarica/page.js",
+  "/(admin)/terapias-combinadas/page": "app/(admin)/terapias-combinadas/page.js"
 }

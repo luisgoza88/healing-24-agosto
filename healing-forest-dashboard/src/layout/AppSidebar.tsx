@@ -24,6 +24,7 @@ import {
   TaskIcon,
   UserCircleIcon,
 } from "../icons/index";
+import { Snowflake } from "lucide-react";
 
 type NavItem = {
   name: string;
@@ -38,10 +39,12 @@ const navItems: NavItem[] = [
   { name: "Citas", icon: <CalenderIcon />, path: "/citas" },
   { name: "Gestión de Pacientes", icon: <UserCircleIcon />, path: "/pacientes" },
   { name: "Membresías y Paquetes", icon: <BoxCubeIcon />, path: "/memberships" },
+  { name: "Tratamientos", icon: <BoxCubeIcon />, path: "/tratamientos" },
   { name: "Breathe & Move", icon: <BoxCubeIcon />, path: "/breathe-move" },
   { name: "Sueroterapia", icon: <BoxCubeIcon />, path: "/sueroterapia" },
   { name: "Consultorios", icon: <BoxCubeIcon />, path: "/consultorios" },
   { name: "Cámara Hiperbárica", icon: <BoxCubeIcon />, path: "/camara-hiperbarica" },
+  { name: "Terapias Combinadas", icon: <Snowflake className="w-5 h-5" />, path: "/terapias-combinadas" },
   { name: "Reportes y Analytics", icon: <PieChartIcon />, path: "/reports" },
   { name: "Configuración", icon: <PlugInIcon />, path: "/settings" },
 ];

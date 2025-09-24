@@ -83,6 +83,42 @@
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/api/admin/packages/route.js"
+    ],
+    "/(admin)/(others-pages)/reports/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(admin)/(others-pages)/reports/page.js"
+    ],
+    "/(admin)/(others-pages)/settings/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(admin)/(others-pages)/settings/page.js"
+    ],
+    "/(admin)/tratamientos/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(admin)/tratamientos/page.js"
+    ],
+    "/(admin)/citas/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(admin)/citas/page.js"
+    ],
+    "/(admin)/pacientes/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(admin)/pacientes/page.js"
+    ],
+    "/(admin)/terapias-combinadas/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(admin)/terapias-combinadas/page.js"
+    ],
+    "/(admin)/sueroterapia/nueva/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/(admin)/sueroterapia/nueva/page.css",
+      "static/chunks/app/(admin)/sueroterapia/nueva/page.js"
     ]
   }
 }

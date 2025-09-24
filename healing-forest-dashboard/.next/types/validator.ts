@@ -875,6 +875,24 @@ type RouteHandlerConfig<Route extends AppRouteHandlerRoutes = AppRouteHandlerRou
   type __Unused = __Check
 }
 
+// Validate ../../src/app/(admin)/terapias-combinadas/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/terapias-combinadas">> = Specific
+  const handler = {} as typeof import("../../src/app/(admin)/terapias-combinadas/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../src/app/(admin)/tratamientos/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/tratamientos">> = Specific
+  const handler = {} as typeof import("../../src/app/(admin)/tratamientos/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../src/app/(full-width-pages)/(auth)/admin-login/page.tsx
 {
   type __IsExpected<Specific extends AppPageConfig<"/admin-login">> = Specific

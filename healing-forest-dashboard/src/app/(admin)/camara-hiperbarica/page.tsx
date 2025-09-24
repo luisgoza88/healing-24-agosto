@@ -5,28 +5,27 @@ import { getSupabaseBrowser } from '@/lib/supabase/browser'
 import { 
   Calendar,
   Clock,
-  Users,
+  User,
   Plus,
   Filter,
-  Search,
+  ChevronLeft,
+  ChevronRight,
+  Heart,
   Edit,
   Trash2,
   AlertCircle,
-  ChevronLeft,
-  ChevronRight,
   X,
-  User,
-  Heart,
+  Search,
+  Loader2,
   Activity,
-  BarChart,
   CalendarDays,
-  CalendarRange
+  TrendingUp,
+  Users
 } from 'lucide-react'
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, isSameDay, addMinutes, parse, isAfter, isBefore, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns'
+import { format, addDays, startOfWeek, endOfWeek, isSameDay, addMinutes, parse, isAfter, isBefore, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
-import Link from 'next/link'
 
-interface HyperbaricAppointment {
+interface HyperbaricBooking {
   id: string
   user_id: string
   service_id: string
@@ -34,158 +33,117 @@ interface HyperbaricAppointment {
   appointment_date: string
   appointment_time: string
   end_time: string
-  duration_minutes: number
-  status: 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
+  duration: number
+  status: string
   hyperbaric_chamber_id: string
-  profiles: {
+  total_amount?: number
+  profiles?: {
     id: string
     full_name: string | null
     first_name: string | null
     last_name: string | null
     phone: string | null
+    email: string | null
   }
-  services: {
-    id: string
-    name: string
-    duration_minutes: number
-    base_price: number
-  }
-  professionals: {
+  professionals?: {
     id: string
     full_name: string
   }
 }
 
-type ViewMode = 'day' | 'week' | 'month'
+interface TimeSlot {
+  time: string
+  available: boolean
+  booking?: HyperbaricBooking
+}
 
 export default function CamaraHiperbaricaPage() {
-  const [appointments, setAppointments] = useState<HyperbaricAppointment[]>([])
+  const [selectedDate, setSelectedDate] = useState(new Date())
+  const [bookings, setBookings] = useState<HyperbaricBooking[]>([])
   const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [currentDate, setCurrentDate] = useState(new Date())
-  const [selectedAppointment, setSelectedAppointment] = useState<HyperbaricAppointment | null>(null)
-  const [showDetails, setShowDetails] = useState(false)
-  const [viewMode, setViewMode] = useState<ViewMode>('week')
-  const [stats, setStats] = useState({
-    todaySessions: 0,
-    weekSessions: 0,
-    monthRevenue: 0
-  })
+  const [showNewBooking, setShowNewBooking] = useState(false)
+  const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
+  const [selectedBooking, setSelectedBooking] = useState<HyperbaricBooking | null>(null)
+  const [chamberId, setChamberId] = useState<string | null>(null)
+  
+  // Estadísticas
+  const [todaySessions, setTodaySessions] = useState(0)
+  const [weekSessions, setWeekSessions] = useState(0)
+  const [monthlyIncome, setMonthlyIncome] = useState(0)
 
-  // Calcular fechas según el modo de vista
-  const getDateRange = () => {
-    switch (viewMode) {
-      case 'day':
-        return { start: currentDate, end: currentDate }
-      case 'week':
-        return { 
-          start: startOfWeek(currentDate, { weekStartsOn: 1, locale: es }), 
-          end: endOfWeek(currentDate, { weekStartsOn: 1, locale: es }) 
-        }
-      case 'month':
-        return { 
-          start: startOfMonth(currentDate), 
-          end: endOfMonth(currentDate) 
-        }
-    }
-  }
-
-  const dateRange = getDateRange()
-  const displayDays = viewMode === 'day' 
-    ? [currentDate] 
-    : eachDayOfInterval({ start: dateRange.start, end: dateRange.end })
-
-  // Horarios de 8 AM a 6 PM cada 15 minutos (última sesión)
-  const timeSlots = []
-  for (let hour = 8; hour <= 18; hour++) {
-    for (let minute = 0; minute < 60; minute += 15) {
-      const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
-      timeSlots.push(time)
-    }
-  }
+  const timeSlots = [
+    '08:00', '08:15', '08:30', '08:45', 
+    '09:00', '09:15', '09:30', '09:45',
+    '10:00', '10:15', '10:30', '10:45',
+    '11:00', '11:15', '11:30', '11:45',
+    '12:00', '12:15', '12:30', '12:45',
+    '13:00', '13:15', '13:30', '13:45',
+    '14:00', '14:15', '14:30', '14:45',
+    '15:00', '15:15', '15:30', '15:45',
+    '16:00', '16:15', '16:30', '16:45',
+    '17:00', '17:15', '17:30', '17:45',
+    '18:00', '18:15', '18:30', '18:45',
+    '19:00'
+  ]
 
   useEffect(() => {
-    fetchData()
-  }, [currentDate, viewMode]) // Usar currentDate y viewMode como dependencias en lugar de dateRange
+    fetchChamberAndBookings()
+    fetchStatistics()
+  }, [selectedDate])
 
-  const fetchData = async () => {
+  const fetchChamberAndBookings = async () => {
+    setLoading(true)
     const supabase = getSupabaseBrowser()
-    
+
     try {
-      // Obtener citas del rango de fechas - ahora solo necesitamos verificar hyperbaric_chamber_id
-      const { data: appointmentsData, error: appointmentsError } = await supabase
-        .from('appointments')
-        .select('*')
-        .not('hyperbaric_chamber_id', 'is', null)
-        .gte('appointment_date', format(dateRange.start, 'yyyy-MM-dd'))
-        .lte('appointment_date', format(dateRange.end, 'yyyy-MM-dd'))
-        .in('status', ['confirmed', 'in_progress', 'completed'])
-        .order('appointment_date')
-        .order('appointment_time')
+      // Obtener la cámara hiperbárica
+      const { data: chamberData } = await supabase
+        .from('hyperbaric_chambers')
+        .select('id')
+        .eq('status', 'available')
+        .single()
 
-      if (appointmentsError) throw appointmentsError
+      if (chamberData) {
+        setChamberId(chamberData.id)
 
-      // Si hay citas, obtener los datos relacionados
-      if (appointmentsData && appointmentsData.length > 0) {
-        // Obtener IDs únicos
-        const userIds = [...new Set(appointmentsData.map(apt => apt.user_id))].filter(Boolean)
-        const serviceIds = [...new Set(appointmentsData.map(apt => apt.service_id))].filter(Boolean)
-        const professionalIds = [...new Set(appointmentsData.map(apt => apt.professional_id))].filter(Boolean)
+        // Obtener reservas para la fecha seleccionada
+        const { data: appointmentsData } = await supabase
+          .from('appointments')
+          .select(`
+            id,
+            user_id,
+            service_id,
+            professional_id,
+            appointment_date,
+            appointment_time,
+            end_time,
+            duration,
+            status,
+            hyperbaric_chamber_id,
+            total_amount,
+            professionals (id, full_name)
+          `)
+          .eq('hyperbaric_chamber_id', chamberData.id)
+          .eq('appointment_date', format(selectedDate, 'yyyy-MM-dd'))
+          .neq('status', 'cancelled')
+          .order('appointment_time')
+        
+        // Cargar los perfiles de los usuarios por separado
+        if (appointmentsData && appointmentsData.length > 0) {
+          const userIds = [...new Set(appointmentsData.map(apt => apt.user_id))]
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, full_name, first_name, last_name, phone, email')
+            .in('id', userIds)
+          
+          // Mapear los perfiles a las citas
+          const profilesMap = new Map(profiles?.map(p => [p.id, p]) || [])
+          appointmentsData.forEach(apt => {
+            apt.profiles = profilesMap.get(apt.user_id) || null
+          })
+        }
 
-        // Obtener profiles
-        const { data: profilesData } = await supabase
-          .from('profiles')
-          .select('id, full_name, first_name, last_name, phone')
-          .in('id', userIds)
-
-        // Obtener services
-        const { data: servicesData } = await supabase
-          .from('services')
-          .select('id, name, duration_minutes, base_price')
-          .in('id', serviceIds)
-
-        // Obtener professionals
-        const { data: professionalsData } = await supabase
-          .from('professionals')
-          .select('id, full_name')
-          .in('id', professionalIds)
-
-        // Crear mapas para acceso rápido
-        const profilesMap = new Map(profilesData?.map(p => [p.id, p]) || [])
-        const servicesMap = new Map(servicesData?.map(s => [s.id, s]) || [])
-        const professionalsMap = new Map(professionalsData?.map(p => [p.id, p]) || [])
-
-        // Combinar los datos - ya no necesitamos filtrar porque la consulta ya filtra por hyperbaric_chamber_id
-        const appointmentsWithRelations = appointmentsData
-          .map(apt => ({
-            ...apt,
-            profiles: profilesMap.get(apt.user_id) || null,
-            services: servicesMap.get(apt.service_id) || null,
-            professionals: professionalsMap.get(apt.professional_id) || null
-          }))
-
-        setAppointments(appointmentsWithRelations)
-
-        // Calcular estadísticas
-        const today = format(new Date(), 'yyyy-MM-dd')
-        const todayAppointments = appointmentsWithRelations.filter(apt => 
-          apt.appointment_date === today && apt.status !== 'cancelled'
-        )
-        const weekAppointments = appointmentsWithRelations.filter(apt => 
-          apt.status !== 'cancelled'
-        )
-        const monthRevenue = appointmentsWithRelations
-          .filter(apt => apt.status === 'completed')
-          .reduce((sum, apt) => sum + (apt.services?.base_price || 0), 0)
-
-        setStats({
-          todaySessions: todayAppointments.length,
-          weekSessions: weekAppointments.length,
-          monthRevenue
-        })
-      } else {
-        setAppointments([])
-        setStats({ todaySessions: 0, weekSessions: 0, monthRevenue: 0 })
+        setBookings(appointmentsData || [])
       }
     } catch (error) {
       console.error('Error fetching data:', error)
@@ -194,98 +152,96 @@ export default function CamaraHiperbaricaPage() {
     }
   }
 
-  const handleDeleteAppointment = async (appointmentId: string) => {
-    if (!confirm(`¿Estás seguro de cancelar esta sesión?\\n\\nEsta acción no se puede deshacer.`)) return
+  const fetchStatistics = async () => {
+    const supabase = getSupabaseBrowser()
+    const today = new Date()
+    const weekStart = startOfWeek(today, { weekStartsOn: 1 })
+    const weekEnd = endOfWeek(today, { weekStartsOn: 1 })
+    const monthStart = startOfMonth(today)
+    const monthEnd = endOfMonth(today)
+
+    try {
+      // Sesiones de hoy
+      const { data: todayData } = await supabase
+        .from('appointments')
+        .select('id')
+        .not('hyperbaric_chamber_id', 'is', null)
+        .eq('appointment_date', format(today, 'yyyy-MM-dd'))
+        .neq('status', 'cancelled')
+
+      setTodaySessions(todayData?.length || 0)
+
+      // Sesiones de la semana
+      const { data: weekData } = await supabase
+        .from('appointments')
+        .select('id')
+        .not('hyperbaric_chamber_id', 'is', null)
+        .gte('appointment_date', format(weekStart, 'yyyy-MM-dd'))
+        .lte('appointment_date', format(weekEnd, 'yyyy-MM-dd'))
+        .neq('status', 'cancelled')
+
+      setWeekSessions(weekData?.length || 0)
+
+      // Ingresos del mes
+      const { data: monthData } = await supabase
+        .from('appointments')
+        .select('total_amount')
+        .not('hyperbaric_chamber_id', 'is', null)
+        .gte('appointment_date', format(monthStart, 'yyyy-MM-dd'))
+        .lte('appointment_date', format(monthEnd, 'yyyy-MM-dd'))
+        .eq('status', 'completed')
+
+      const totalIncome = monthData?.reduce((sum, appointment) => sum + (appointment.total_amount || 0), 0) || 0
+      setMonthlyIncome(totalIncome)
+    } catch (error) {
+      console.error('Error fetching statistics:', error)
+    }
+  }
+
+  const getTimeSlots = (): TimeSlot[] => {
+    return timeSlots.map(time => {
+      const booking = bookings.find(b => {
+        const bookingStart = b.appointment_time.slice(0, 5)
+        const bookingEnd = b.end_time.slice(0, 5)
+        return time >= bookingStart && time < bookingEnd
+      })
+
+      return {
+        time,
+        available: !booking,
+        booking
+      }
+    })
+  }
+
+  const handleDeleteBooking = async (bookingId: string) => {
+    if (!confirm('¿Estás seguro de cancelar esta sesión?')) return
 
     const supabase = getSupabaseBrowser()
     
     try {
       const { error } = await supabase
         .from('appointments')
-        .update({ 
-          status: 'cancelled',
-          cancelled_at: new Date().toISOString(),
-          cancellation_reason: 'Cancelado por administrador'
-        })
-        .eq('id', appointmentId)
+        .update({ status: 'cancelled' })
+        .eq('id', bookingId)
 
       if (error) throw error
 
-      fetchData()
+      fetchChamberAndBookings()
+      fetchStatistics()
+      setSelectedBooking(null)
     } catch (error) {
-      console.error('Error cancelling appointment:', error)
-      alert('Error al cancelar la sesión. Por favor intenta de nuevo.')
+      console.error('Error cancelling booking:', error)
+      alert('Error al cancelar la sesión')
     }
   }
 
-  const getAppointmentForDayAndTime = (day: Date, timeSlot: string) => {
-    return appointments.find(apt => {
-      const aptDate = new Date(apt.appointment_date + 'T00:00:00')
-      if (!isSameDay(aptDate, day)) return false
-      
-      const slotTime = parse(timeSlot, 'HH:mm', new Date())
-      const aptStart = parse(apt.appointment_time.slice(0, 5), 'HH:mm', new Date())
-      const aptEnd = parse(apt.end_time.slice(0, 5), 'HH:mm', new Date())
-      
-      // Un slot está ocupado si está entre el inicio (inclusive) y el fin (exclusive) de la cita
-      return (isAfter(slotTime, aptStart) || format(slotTime, 'HH:mm') === format(aptStart, 'HH:mm')) && 
-             isBefore(slotTime, aptEnd)
-    })
-  }
-
-  const handlePrevious = () => {
-    switch (viewMode) {
-      case 'day':
-        setCurrentDate(prev => new Date(prev.setDate(prev.getDate() - 1)))
-        break
-      case 'week':
-        setCurrentDate(prev => subWeeks(prev, 1))
-        break
-      case 'month':
-        setCurrentDate(prev => subMonths(prev, 1))
-        break
-    }
-  }
-
-  const handleNext = () => {
-    switch (viewMode) {
-      case 'day':
-        setCurrentDate(prev => new Date(prev.setDate(prev.getDate() + 1)))
-        break
-      case 'week':
-        setCurrentDate(prev => addWeeks(prev, 1))
-        break
-      case 'month':
-        setCurrentDate(prev => addMonths(prev, 1))
-        break
-    }
-  }
-
-  const handleToday = () => {
-    setCurrentDate(new Date())
-  }
-
-  const isPastSlot = (date: Date, timeSlot: string) => {
-    const now = new Date()
-    const slotDateTime = parse(`${format(date, 'yyyy-MM-dd')} ${timeSlot}`, 'yyyy-MM-dd HH:mm', new Date())
-    return isAfter(now, slotDateTime)
-  }
-
-  const filteredAppointments = appointments.filter(apt => {
-    const clientName = `${apt.profiles?.first_name || ''} ${apt.profiles?.last_name || apt.profiles?.full_name || ''}`.toLowerCase()
-    const professionalName = apt.professionals?.full_name?.toLowerCase() || ''
-    
-    const matchesSearch = searchTerm === '' || 
-      clientName.includes(searchTerm.toLowerCase()) ||
-      professionalName.includes(searchTerm.toLowerCase())
-    
-    return matchesSearch
-  })
+  const filteredTimeSlots = getTimeSlots()
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-gray-500">Cargando cámara hiperbárica...</div>
+        <div className="text-gray-500">Cargando calendario...</div>
       </div>
     )
   }
@@ -300,24 +256,22 @@ export default function CamaraHiperbaricaPage() {
             Gestión de sesiones de oxigenoterapia hiperbárica
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/camara-hiperbarica/nueva"
-            className="flex items-center gap-2 px-6 py-3 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors shadow-lg hover:shadow-xl font-medium"
-          >
-            <Plus className="h-5 w-5" />
-            Nueva Sesión
-          </Link>
-        </div>
+        <button
+          onClick={() => setShowNewBooking(true)}
+          className="flex items-center gap-2 px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
+        >
+          <Plus className="h-5 w-5" />
+          Nueva Sesión
+        </button>
       </div>
 
-      {/* Stats Cards */}
+      {/* Estadísticas */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">Sesiones Hoy</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.todaySessions}</p>
+              <p className="text-2xl font-bold text-gray-900">{todaySessions}</p>
             </div>
             <div className="p-3 bg-blue-100 rounded-lg">
               <Activity className="h-6 w-6 text-blue-600" />
@@ -328,388 +282,479 @@ export default function CamaraHiperbaricaPage() {
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Sesiones {viewMode === 'week' ? 'Semana' : 'Mes'}</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.weekSessions}</p>
+              <p className="text-sm text-gray-500">Sesiones Semana</p>
+              <p className="text-2xl font-bold text-gray-900">{weekSessions}</p>
             </div>
             <div className="p-3 bg-green-100 rounded-lg">
-              <Heart className="h-6 w-6 text-green-600" />
+              <CalendarDays className="h-6 w-6 text-green-600" />
             </div>
           </div>
         </div>
-
+        
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Ingresos {viewMode === 'month' ? 'Mes' : 'Período'}</p>
+              <p className="text-sm text-gray-500">Ingresos Mes</p>
               <p className="text-2xl font-bold text-gray-900">
-                ${stats.monthRevenue.toLocaleString('es-CO')}
+                ${monthlyIncome.toLocaleString('es-CO')}
               </p>
             </div>
             <div className="p-3 bg-purple-100 rounded-lg">
-              <BarChart className="h-6 w-6 text-purple-600" />
+              <TrendingUp className="h-6 w-6 text-purple-600" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Filters and Controls */}
+      {/* Date Navigation */}
       <div className="bg-white rounded-lg border border-gray-200 p-4">
-        <div className="flex flex-col lg:flex-row gap-4">
-          {/* View Mode Selector */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setViewMode('day')}
-              className={`p-2 rounded-lg transition-colors ${
-                viewMode === 'day' 
-                  ? 'bg-hf-primary text-white' 
-                  : 'hover:bg-gray-100 text-gray-600'
-              }`}
-              title="Vista por día"
-            >
-              <Calendar className="h-5 w-5" />
-            </button>
-            <button
-              onClick={() => setViewMode('week')}
-              className={`p-2 rounded-lg transition-colors ${
-                viewMode === 'week' 
-                  ? 'bg-hf-primary text-white' 
-                  : 'hover:bg-gray-100 text-gray-600'
-              }`}
-              title="Vista semanal"
-            >
-              <CalendarDays className="h-5 w-5" />
-            </button>
-            <button
-              onClick={() => setViewMode('month')}
-              className={`p-2 rounded-lg transition-colors ${
-                viewMode === 'month' 
-                  ? 'bg-hf-primary text-white' 
-                  : 'hover:bg-gray-100 text-gray-600'
-              }`}
-              title="Vista mensual"
-            >
-              <CalendarRange className="h-5 w-5" />
-            </button>
-          </div>
-
-          {/* Date Navigation */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handlePrevious}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <ChevronLeft className="h-5 w-5 text-gray-600" />
-            </button>
-            <button
-              onClick={handleToday}
-              className="px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              Hoy
-            </button>
-            <button
-              onClick={handleNext}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <ChevronRight className="h-5 w-5 text-gray-600" />
-            </button>
-            <span className="text-sm font-medium text-gray-700 ml-2">
-              {viewMode === 'day' && format(currentDate, 'EEEE d \'de\' MMMM, yyyy', { locale: es })}
-              {viewMode === 'week' && `${format(dateRange.start, 'dd MMM', { locale: es })} - ${format(dateRange.end, 'dd MMM yyyy', { locale: es })}`}
-              {viewMode === 'month' && format(currentDate, 'MMMM yyyy', { locale: es })}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSelectedDate(prev => addDays(prev, -1))}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <ChevronLeft className="h-5 w-5 text-gray-600" />
+          </button>
+          <div className="px-4 py-2 bg-gray-50 rounded-lg flex-1 text-center">
+            <span className="text-sm font-medium text-gray-900">
+              {format(selectedDate, "EEEE, d 'de' MMMM yyyy", { locale: es })}
             </span>
           </div>
+          <button
+            onClick={() => setSelectedDate(prev => addDays(prev, 1))}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <ChevronRight className="h-5 w-5 text-gray-600" />
+          </button>
+          <button
+            onClick={() => setSelectedDate(new Date())}
+            className="px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            Hoy
+          </button>
+        </div>
+      </div>
 
-          <div className="flex-1 flex gap-4">
-            {/* Search */}
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Buscar paciente o profesional..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-hf-primary/50 focus:border-hf-primary"
-              />
+      {/* Calendar Grid */}
+      <div className="bg-white rounded-lg border border-gray-200">
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h3 className="font-medium text-gray-900">Horarios Disponibles</h3>
+            <div className="flex items-center gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                <span className="text-gray-600">Disponible</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                <span className="text-gray-600">Reservado</span>
+              </div>
             </div>
+          </div>
+        </div>
+
+        <div className="p-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+            {filteredTimeSlots.map((slot) => (
+              <button
+                key={slot.time}
+                onClick={() => {
+                  if (slot.booking) {
+                    setSelectedBooking(slot.booking)
+                  } else {
+                    setSelectedSlot(slot)
+                    setShowNewBooking(true)
+                  }
+                }}
+                className={`
+                  p-3 rounded-lg border-2 transition-all text-center
+                  ${slot.available 
+                    ? 'border-gray-200 hover:border-green-500 hover:bg-green-50' 
+                    : 'border-blue-200 bg-blue-50 hover:border-blue-300'
+                  }
+                `}
+              >
+                <div className="text-sm font-medium text-gray-900">{slot.time}</div>
+                {slot.booking && (
+                  <div className="mt-1 text-xs text-gray-600">
+                    Reservado
+                  </div>
+                )}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Calendar View */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="sticky left-0 bg-gray-50 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Hora
-                </th>
-                {viewMode === 'month' ? (
-                  // Vista mensual compacta
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Sesiones Programadas
-                  </th>
-                ) : (
-                  // Vista día/semana
-                  displayDays.map((day, index) => (
-                    <th
-                      key={index}
-                      className={`px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider ${
-                        isSameDay(day, new Date()) ? 'bg-hf-primary/5' : ''
-                      }`}
-                    >
-                      <div className="text-sm font-medium text-gray-900">
-                        {format(day, 'EEEE', { locale: es })}
-                      </div>
-                      <div className={`text-lg font-semibold ${
-                        isSameDay(day, new Date()) ? 'text-hf-primary' : 'text-gray-700'
-                      }`}>
-                        {format(day, 'd')}
-                      </div>
-                    </th>
-                  ))
-                )}
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {viewMode === 'month' ? (
-                // Vista mensual - mostrar resumen
-                <tr>
-                  <td colSpan={2} className="px-6 py-4">
-                    <div className="space-y-2">
-                      {filteredAppointments.length > 0 ? (
-                        filteredAppointments.map(apt => (
-                          <div
-                            key={apt.id}
-                            className="flex items-center justify-between p-3 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors"
-                            onClick={() => {
-                              setSelectedAppointment(apt)
-                              setShowDetails(true)
-                            }}
-                          >
-                            <div className="flex items-center gap-4">
-                              <div className="text-sm">
-                                <div className="font-medium text-gray-900">
-                                  {format(new Date(apt.appointment_date), 'dd \'de\' MMMM', { locale: es })}
-                                </div>
-                                <div className="text-gray-600">
-                                  {apt.appointment_time.slice(0, 5)} - {apt.end_time.slice(0, 5)}
-                                </div>
-                              </div>
-                              <div className="text-sm">
-                                <div className="font-medium text-gray-900">
-                                  {apt.profiles?.first_name || apt.profiles?.full_name || 'Paciente'}
-                                </div>
-                                <div className="text-gray-600">
-                                  {apt.professionals?.full_name}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              ${apt.services?.base_price?.toLocaleString('es-CO') || '0'}
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-center text-gray-500 py-8">
-                          No hay sesiones programadas este mes
-                        </p>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                // Vista día/semana
-                timeSlots.map((timeSlot, timeIndex) => {
-                  // Check if any appointment starts at this time
-                  const hasAppointmentStart = displayDays.some(day => 
-                    appointments.some(apt => {
-                      const aptDate = new Date(apt.appointment_date + 'T00:00:00')
-                      return isSameDay(aptDate, day) && apt.appointment_time.slice(0, 5) === timeSlot
-                    })
-                  )
-
-                  return (
-                    <tr key={timeIndex} className={`hover:bg-gray-50 ${hasAppointmentStart ? 'border-t-2 border-gray-300' : ''}`}>
-                      <td className="sticky left-0 bg-white px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-700 border-r border-gray-200">
-                        {timeSlot}
-                      </td>
-                      {displayDays.map((day, dayIndex) => {
-                        const isPast = isPastSlot(day, timeSlot)
-                        const apt = getAppointmentForDayAndTime(day, timeSlot)
-                        
-                        return (
-                          <td
-                            key={dayIndex}
-                            className={`px-2 py-2 ${
-                              isSameDay(day, new Date()) ? 'bg-hf-primary/5' : ''
-                            } ${isPast ? 'bg-gray-50' : ''} ${apt ? 'bg-blue-100 border-blue-200' : ''}`}
-                          >
-                            {apt ? (
-                              <div
-                                className="text-xs cursor-pointer hover:opacity-80 p-1"
-                                onClick={() => {
-                                  setSelectedAppointment(apt)
-                                  setShowDetails(true)
-                                }}
-                              >
-                                {apt.appointment_time.slice(0, 5) === timeSlot ? (
-                                  <>
-                                    <div className="font-medium text-blue-900">
-                                      {apt.profiles?.first_name || apt.profiles?.full_name || 'Paciente'}
-                                    </div>
-                                    <div className="text-blue-700">
-                                      {apt.professionals?.full_name}
-                                    </div>
-                                  </>
-                                ) : (
-                                  <div className="text-center py-1">
-                                    {/* Slot ocupado pero no es el inicio */}
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <div 
-                                className={`text-xs text-center p-2 ${
-                                  isPast ? 'text-gray-400' : 'text-gray-500 hover:bg-gray-100 cursor-pointer'
-                                }`}
-                                onClick={() => {
-                                  if (!isPast && timeSlot <= '18:00') {
-                                    window.location.href = `/camara-hiperbarica/nueva?date=${format(day, 'yyyy-MM-dd')}&time=${timeSlot}`
-                                  }
-                                }}
-                              >
-                                {isPast ? '-' : (timeSlot > '18:00' ? '-' : 'Disponible')}
-                              </div>
-                            )}
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Appointment Details Modal */}
-      {showDetails && selectedAppointment && (
+      {/* Selected Booking Modal */}
+      {selectedBooking && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden">
+          <div className="bg-white rounded-lg max-w-lg w-full">
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900">
-                    Sesión de Cámara Hiperbárica
-                  </h2>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {format(new Date(selectedAppointment.appointment_date), 'dd \'de\' MMMM, yyyy', { locale: es })}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Link
-                    href={`/camara-hiperbarica/${selectedAppointment.id}/editar`}
-                    className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    <Edit className="h-4 w-4" />
-                    Editar
-                  </Link>
-                  <button
-                    onClick={() => {
-                      handleDeleteAppointment(selectedAppointment.id)
-                      setShowDetails(false)
-                      setSelectedAppointment(null)
-                    }}
-                    className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowDetails(false)
-                      setSelectedAppointment(null)
-                    }}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    <X className="h-5 w-5 text-gray-600" />
-                  </button>
-                </div>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Detalles de la Sesión
+                </h2>
+                <button
+                  onClick={() => setSelectedBooking(null)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="h-5 w-5 text-gray-600" />
+                </button>
               </div>
             </div>
 
             <div className="p-6 space-y-4">
-              {/* Client Info */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <User className="h-5 w-5" />
-                  Información del Paciente
-                </h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-500">Nombre:</span>
-                    <p className="font-medium">
-                      {selectedAppointment.profiles?.first_name && selectedAppointment.profiles?.last_name
-                        ? `${selectedAppointment.profiles.first_name} ${selectedAppointment.profiles.last_name}`
-                        : selectedAppointment.profiles?.full_name || 'Sin nombre'}
-                    </p>
-                  </div>
-                  {selectedAppointment.profiles?.phone && (
-                    <div>
-                      <span className="text-gray-500">Teléfono:</span>
-                      <p className="font-medium">{selectedAppointment.profiles.phone}</p>
-                    </div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                <Heart className="h-4 w-4" />
+                <span>Cámara Hiperbárica</span>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm text-gray-500">Cliente</p>
+                  <p className="font-medium text-gray-900">
+                    {selectedBooking.profiles?.first_name && selectedBooking.profiles?.last_name
+                      ? `${selectedBooking.profiles.first_name} ${selectedBooking.profiles.last_name}`
+                      : selectedBooking.profiles?.full_name || 'Sin nombre'}
+                  </p>
+                  {selectedBooking.profiles?.phone && (
+                    <p className="text-sm text-gray-600 mt-1">{selectedBooking.profiles.phone}</p>
+                  )}
+                  {selectedBooking.profiles?.email && (
+                    <p className="text-sm text-gray-600">{selectedBooking.profiles.email}</p>
                   )}
                 </div>
-              </div>
 
-              {/* Session Info */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <span className="text-sm text-gray-500">Horario</span>
+                <div>
+                  <p className="text-sm text-gray-500">Profesional</p>
                   <p className="font-medium text-gray-900">
-                    {selectedAppointment.appointment_time.slice(0, 5)} - {selectedAppointment.end_time.slice(0, 5)}
-                  </p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    ({selectedAppointment.duration_minutes} minutos)
+                    {selectedBooking.professionals?.full_name}
                   </p>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <span className="text-sm text-gray-500">Enfermera</span>
-                  <p className="font-medium text-gray-900">
-                    {selectedAppointment.professionals?.full_name}
-                  </p>
+
+                <div className="flex gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500">Hora</p>
+                    <p className="font-medium text-gray-900">
+                      {selectedBooking.appointment_time.slice(0, 5)} - {selectedBooking.end_time.slice(0, 5)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Duración</p>
+                    <p className="font-medium text-gray-900">
+                      {selectedBooking.duration} minutos
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              {/* Price */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <span className="text-sm text-gray-500">Precio</span>
-                <p className="font-medium text-gray-900 text-lg">
-                  ${(selectedAppointment.services?.base_price || 0).toLocaleString('es-CO')} COP
-                </p>
-              </div>
-
-              {/* Status */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-500">Estado:</span>
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  selectedAppointment.status === 'confirmed' 
-                    ? 'bg-blue-100 text-blue-700'
-                    : selectedAppointment.status === 'in_progress'
-                    ? 'bg-yellow-100 text-yellow-700' 
-                    : 'bg-green-100 text-green-700'
-                }`}>
-                  {selectedAppointment.status === 'confirmed' ? 'Confirmada' :
-                   selectedAppointment.status === 'in_progress' ? 'En progreso' : 'Completada'}
-                </span>
+              <div className="flex gap-2 pt-4">
+                <button
+                  onClick={() => handleDeleteBooking(selectedBooking.id)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Cancelar
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* New Booking Modal */}
+      {showNewBooking && chamberId && (
+        <NewBookingModal
+          chamberId={chamberId}
+          selectedDate={selectedDate}
+          selectedSlot={selectedSlot}
+          onClose={() => {
+            setShowNewBooking(false)
+            setSelectedSlot(null)
+          }}
+          onSuccess={() => {
+            setShowNewBooking(false)
+            setSelectedSlot(null)
+            fetchChamberAndBookings()
+            fetchStatistics()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+// Componente para nueva reserva
+interface NewBookingModalProps {
+  chamberId: string
+  selectedDate: Date
+  selectedSlot: TimeSlot | null
+  onClose: () => void
+  onSuccess: () => void
+}
+
+function NewBookingModal({ chamberId, selectedDate, selectedSlot, onClose, onSuccess }: NewBookingModalProps) {
+  const [professionals, setProfessionals] = useState<any[]>([])
+  const [clients, setClients] = useState<any[]>([])
+  const [searchClient, setSearchClient] = useState('')
+  const [loadingClients, setLoadingClients] = useState(false)
+  const [formData, setFormData] = useState({
+    professional_id: '',
+    client_id: '',
+    start_time: selectedSlot?.time || '09:00',
+    duration_minutes: 60,
+    notes: ''
+  })
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    loadProfessionals()
+  }, [])
+
+  const loadProfessionals = async () => {
+    const supabase = getSupabaseBrowser()
+    
+    const { data } = await supabase
+      .from('professionals')
+      .select('*')
+      .order('full_name')
+
+    setProfessionals(data || [])
+  }
+
+  const searchClients = async (query: string) => {
+    if (!query || query.length < 2) {
+      setClients([])
+      return
+    }
+
+    setLoadingClients(true)
+    const supabase = getSupabaseBrowser()
+
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, first_name, last_name, email, phone')
+        .or(`full_name.ilike.%${query}%,first_name.ilike.%${query}%,last_name.ilike.%${query}%,email.ilike.%${query}%`)
+        .limit(10)
+
+      setClients(data || [])
+    } catch (error) {
+      console.error('Error searching clients:', error)
+    } finally {
+      setLoadingClients(false)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+
+    const supabase = getSupabaseBrowser()
+
+    try {
+      // Calcular hora de fin
+      const startTime = parse(formData.start_time, 'HH:mm', new Date())
+      const endTime = addMinutes(startTime, formData.duration_minutes)
+
+      // Buscar el service_id para Cámara Hiperbárica
+      const { data: serviceData } = await supabase
+        .from('services')
+        .select('id')
+        .eq('name', 'Cámara Hiperbárica')
+        .single()
+
+      if (!serviceData) {
+        throw new Error('Servicio de Cámara Hiperbárica no encontrado')
+      }
+
+      // Crear la cita
+      const { error } = await supabase
+        .from('appointments')
+        .insert({
+          user_id: formData.client_id,
+          service_id: serviceData.id,
+          professional_id: formData.professional_id,
+          appointment_date: format(selectedDate, 'yyyy-MM-dd'),
+          appointment_time: formData.start_time,
+          end_time: format(endTime, 'HH:mm'),
+          duration: formData.duration_minutes,
+          status: 'confirmed',
+          hyperbaric_chamber_id: chamberId,
+          notes: formData.notes,
+          total_amount: 180000, // Precio fijo para cámara hiperbárica
+          created_at: new Date().toISOString()
+        })
+
+      if (error) throw error
+
+      onSuccess()
+    } catch (error) {
+      console.error('Error creating booking:', error)
+      alert('Error al crear la sesión')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-900">
+              Nueva Sesión - {format(selectedDate, "d 'de' MMMM yyyy", { locale: es })}
+            </h2>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <X className="h-5 w-5 text-gray-600" />
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
+          {/* Cliente */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Cliente
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                value={searchClient}
+                onChange={(e) => {
+                  setSearchClient(e.target.value)
+                  searchClients(e.target.value)
+                }}
+                placeholder="Buscar por nombre o email..."
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500/50"
+              />
+              {loadingClients && (
+                <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 animate-spin" />
+              )}
+            </div>
+            
+            {clients.length > 0 && (
+              <div className="mt-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg">
+                {clients.map(client => (
+                  <button
+                    key={client.id}
+                    type="button"
+                    onClick={() => {
+                      setFormData(prev => ({ ...prev, client_id: client.id }))
+                      setSearchClient(client.full_name || `${client.first_name} ${client.last_name}`)
+                      setClients([])
+                    }}
+                    className="w-full p-2 text-left hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                  >
+                    <div className="font-medium text-gray-900">
+                      {client.first_name} {client.last_name}
+                    </div>
+                    <div className="text-sm text-gray-500">{client.email}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Profesional */}
+          <div>
+            <label htmlFor="professional_id" className="block text-sm font-medium text-gray-700 mb-1">
+              Profesional
+            </label>
+            <select
+              id="professional_id"
+              value={formData.professional_id}
+              onChange={(e) => setFormData(prev => ({ ...prev, professional_id: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500/50"
+              required
+            >
+              <option value="">Seleccionar profesional</option>
+              {professionals.map(prof => (
+                <option key={prof.id} value={prof.id}>
+                  {prof.full_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Hora y duración */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="start_time" className="block text-sm font-medium text-gray-700 mb-1">
+                Hora de inicio
+              </label>
+              <input
+                type="time"
+                id="start_time"
+                value={formData.start_time}
+                onChange={(e) => setFormData(prev => ({ ...prev, start_time: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                required
+              />
+            </div>
+            <div>
+              <label htmlFor="duration_minutes" className="block text-sm font-medium text-gray-700 mb-1">
+                Duración (minutos)
+              </label>
+              <input
+                type="number"
+                id="duration_minutes"
+                value={formData.duration_minutes}
+                readOnly
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
+              />
+            </div>
+          </div>
+
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+              <div className="text-sm text-blue-800">
+                <p className="font-medium">Sesión estándar de 60 minutos</p>
+                <p>Precio: $180,000 COP</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Notas */}
+          <div>
+            <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
+              Notas (opcional)
+            </label>
+            <textarea
+              id="notes"
+              value={formData.notes}
+              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500/50"
+            />
+          </div>
+
+          {/* Botones */}
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              disabled={loading}
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="flex-1 px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+              disabled={loading || !formData.client_id || !formData.professional_id}
+            >
+              {loading ? 'Creando...' : 'Crear Sesión'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
